@@ -1,0 +1,150 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── 逐梦 Creator Studio 浅色极简主题 ── */
+:root {
+  --bg:          #FAFBFF;
+  --surface:     #FFFFFF;
+  --surface-2:   #F4F6FC;
+  --surface-3:   #EDF0F8;
+  --primary:     #5E50E8;
+  --primary-10:  rgba(94,80,232,0.10);
+  --primary-20:  rgba(94,80,232,0.20);
+  --accent:      #00A99D;
+  --accent-10:   rgba(0,169,157,0.10);
+  --text:        #1A1D2E;
+  --text-2:      #4A5068;
+  --text-3:      #8892B0;
+  --border:      #E2E5F0;
+  --border-2:    #CBD0E5;
+  --success:     #059669;
+  --success-10:  rgba(5,150,105,0.10);
+  --warning:     #D97706;
+  --warning-10:  rgba(217,119,6,0.10);
+  --error:       #DC2626;
+  --error-10:    rgba(220,38,38,0.10);
+  --dag-bg:      #EEF1F8;
+  --dag-grid:    #D5DAEA;
+  --shadow-xs:   0 1px 2px rgba(26,29,46,0.05);
+  --shadow-sm:   0 2px 8px rgba(26,29,46,0.07);
+  --shadow-md:   0 4px 16px rgba(26,29,46,0.10);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-input: var(--input);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent-color);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary-color);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+}
+
+:root {
+  --background:  #FAFBFF;
+  --foreground:  #1A1D2E;
+  --card:        #FFFFFF;
+  --card-foreground: #1A1D2E;
+  --popover:     #FFFFFF;
+  --popover-foreground: #1A1D2E;
+  --primary-color: #5E50E8;
+  --primary-foreground: #ffffff;
+  --secondary:   #F4F6FC;
+  --secondary-foreground: #1A1D2E;
+  --muted:       #F4F6FC;
+  --muted-foreground: #8892B0;
+  --accent-color: #00A99D;
+  --accent-foreground: #FFFFFF;
+  --destructive: #DC2626;
+  --border:      #E2E5F0;
+  --input:       #E2E5F0;
+  --ring:        #5E50E8;
+  --font-sans:   Inter, "PingFang SC", ui-sans-serif, system-ui, sans-serif;
+  --radius:      0.5rem;
+  --sidebar:     #FFFFFF;
+  --sidebar-foreground: #1A1D2E;
+  --sidebar-primary: #5E50E8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #F4F6FC;
+  --sidebar-accent-foreground: #1A1D2E;
+  --sidebar-border: #E2E5F0;
+  --sidebar-ring: #5E50E8;
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: Inter, "PingFang SC", ui-sans-serif, system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 9999px; }
+
+.dag-bg {
+  background-color: var(--dag-bg);
+  background-image:
+    linear-gradient(var(--dag-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--dag-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.grad-text {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes pipe-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(94,80,232,0.35); }
+  50%       { box-shadow: 0 0 0 5px rgba(94,80,232,0); }
+}
+.step-running { animation: pipe-pulse 1.6s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg,#eef0f8 25%,#e4e8f4 50%,#eef0f8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+/* ── Sidebar dynamic offset ── */
+.sidebar-main-offset {
+  transition: margin-left 200ms ease;
+}
+@media (min-width: 768px) {
+  .sidebar-main-offset {
+    margin-left: var(--sidebar-w, 200px);
+  }
+}
