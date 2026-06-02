@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { INDUSTRY_LABELS, INDUSTRY_TEMPLATES, INDUSTRY_QC_RULES, type IndustryType, type StoryNode } from "@/lib/studio-data";
-import { useNarrativeStore } from "@/store";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -160,7 +160,8 @@ export default function OverviewScreen() {
 
   const [hoveredPath, setHoveredPath] = useState<string[] | undefined>(undefined);
   const [selectedNode, setSelectedNode] = useState<StoryNode | null>(null);
-  const [industry, setIndustry] = useState<IndustryType>('game');
+  const industry = useUIStore(s => s.industry);
+  const setIndustry = useUIStore(s => s.setIndustry);
 
   // ── Store selectors ───────────────────────────────────────────────────
   const storyNodes = useNarrativeStore(s => s.storyNodes);

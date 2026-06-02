@@ -115,7 +115,7 @@ export default function HomeScreen() {
   const projects = useProjectStore(state => state.projects);
   const currentProjectId = useProjectStore(state => state.currentProjectId);
 
-  const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); useUIStore.getState().setIndustry('game'); };
+  const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); };
   const closeWizard = () => setWizardOpen(false);
 
   // 当前选中行业模板
@@ -521,7 +521,7 @@ export default function HomeScreen() {
                                 <motion.button
                                   key={ind.industryType}
                                   whileTap={{ scale: 0.97 }}
-                                  onClick={() => { setIndustryType(ind.industryType); useUIStore.getState().setIndustry(ind.industryType); }}
+                                  onClick={() => { setIndustryType(ind.industryType); }}
                                   className="text-left p-3 rounded-2xl transition-all duration-150 focus:outline-none flex flex-col"
                                   style={{
                                     background: active ? "rgba(94,80,232,0.06)" : S.card,

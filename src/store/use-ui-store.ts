@@ -46,8 +46,6 @@ export const useUIStore = create<UIState>()(
 
       // --- Industry ---
       setIndustry: (industry) => {
-        // Write to localStorage for backward compatibility with nav.tsx
-        localStorage.setItem('cd-industry', industry);
         set({ industry });
       },
 

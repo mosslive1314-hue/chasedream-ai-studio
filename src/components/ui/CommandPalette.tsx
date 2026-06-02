@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Network, Users, FileText, Activity,
-  Package, ArrowRight, X, Command,
+  Package, ArrowRight,
 } from "lucide-react";
 import { useNarrativeStore, useUIStore } from "@/store";
 
