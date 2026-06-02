@@ -1096,6 +1096,15 @@ export default function ScriptScreen() {
 
         {activeLayer === "chapter" && <ChapterPlanContent />}
       </div>
+
+      {/* Next Step Navigation */}
+      <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
+        style={{ borderColor: S.border }}>
+        <span className="text-xs text-gray-500">下一步：设计互动选择</span>
+        <Link href="/interaction" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+          进入互动设计 →
+        </Link>
+      </div>
     </div>
   );
 }

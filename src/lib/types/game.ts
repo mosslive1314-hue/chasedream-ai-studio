@@ -63,3 +63,23 @@ export interface PlayableNode {
   isEnding?: boolean;
   endingType?: 'good' | 'bad';
 }
+
+// ── 实体关系图谱（P11-⑳）────────────────────────────────────────────────────
+
+export type EntityRelationType = 'ally' | 'enemy' | 'family' | 'mentor' | 'lover' | 'stranger' | 'rival';
+
+export interface EntityRelation {
+  sourceId: string;       // character ID
+  targetId: string;       // character ID
+  relationType: EntityRelationType;
+  strength: number;       // 0-100
+  description: string;
+  changesAtNodes?: string[];  // nodes where relationship changes
+}
+
+export interface CharacterSceneAppearance {
+  characterId: string;
+  sceneId: string;
+  role: 'main' | 'supporting' | 'background';
+  nodeIds: string[];
+}

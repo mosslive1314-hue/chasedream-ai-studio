@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ChevronLeft, ChevronRight, SkipBack, RefreshCw, Trophy, Play,
   FlaskConical, Gamepad2, AlertTriangle, Clock, RotateCw,
@@ -195,39 +196,74 @@ export default function SimulatorScreen() {
     setTestProgress(0);
   };
 
-  // ── P7-10: Advanced diagnostics (computed when test results available) ─────
-  const advDiagnostics: AdvDiag[] = testResults.length > 0 ? [
-    {
-      label: "条件可满足性", passed: true,
-      detail: "所有分支条件均可满足",
-      icon: <Target size={10} />,
-    },
-    {
-      label: "角色一致性", passed: true,
-      detail: "未发现角色出场冲突",
-      icon: <Users size={10} />,
-    },
-    {
-      label: "道具可用性", passed: true,
-      detail: "所有道具使用时均已获取",
-      icon: <Package size={10} />,
-    },
-    {
-      label: "变量冲突", passed: false,
-      detail: "N06 存在互斥变量修改 (stealth +20 / -30)",
-      icon: <GitMerge size={10} />,
-    },
-    {
-      label: "分支长度", passed: false,
-      detail: "N04→N06 分支仅 2 节点 (<3)",
-      icon: <Ruler size={10} />,
-    },
-    {
-      label: "选择影响力", passed: false,
-      detail: "N01 两个选择均导向同一节点 N02",
-      icon: <Zap size={10} />,
-    },
-  ] : [];
+  // ── P7-10: Advanced diagnostics (P12-#24: dynamic from store) ─────
+  const advDiagnostics: AdvDiag[] = useMemo(() => {
+    if (testResults.length === 0) return [];
+    const graphKeys = Object.keys(playableGraph);
+    const allPassed = testResults.every(r => r.passed);
+
+    // 条件可满足性
+    const conditionSatisfiable = testResults.every(r => r.reachable);
+
+    // 角色一致性
+    const characterConsistent = !testResults.some(r =>
+      r.variableErrors.some(v => v.includes('角色') || v.includes('character'))
+    );
+
+    // 道具可用性
+    const propsAvailable = !testResults.some(r => r.missingAssets.length > 0);
+
+    // 变量冲突
+    const noVariableConflicts = !testResults.some(r => r.variableErrors.length > 0);
+    const varConflictDetail = testResults
+      .flatMap(r => r.variableErrors)
+      .filter(v => v.includes('互斥') || v.includes('conflict'))[0] || '存在变量修改冲突';
+
+    // 分支长度
+    const branchLengthsOk = !testResults.some(r => r.nodes.length < 4);
+    const shortBranch = testResults.find(r => r.nodes.length < 4);
+
+    // 选择影响力
+    const choiceImpact = graphKeys.some(k => {
+      const node = playableGraph[k];
+      return node.choices && node.choices.length > 1 &&
+        new Set(node.choices.map(c => c.next)).size > 1;
+    });
+
+    return [
+      {
+        label: "条件可满足性", passed: conditionSatisfiable,
+        detail: conditionSatisfiable ? "所有分支条件均可满足" : "部分分支条件无法满足",
+        icon: <Target size={10} />,
+      },
+      {
+        label: "角色一致性", passed: characterConsistent,
+        detail: characterConsistent ? "未发现角色出场冲突" : "存在角色出场冲突",
+        icon: <Users size={10} />,
+      },
+      {
+        label: "道具可用性", passed: propsAvailable,
+        detail: propsAvailable ? "所有道具使用时均已获取" : "部分路径缺少必要道具",
+        icon: <Package size={10} />,
+      },
+      {
+        label: "变量冲突", passed: noVariableConflicts,
+        detail: noVariableConflicts ? "未发现变量冲突" : varConflictDetail,
+        icon: <GitMerge size={10} />,
+      },
+      {
+        label: "分支长度", passed: branchLengthsOk,
+        detail: branchLengthsOk ? "所有分支长度满足要求" :
+          shortBranch ? `${shortBranch.nodes[0]}→${shortBranch.nodes[shortBranch.nodes.length - 1]} 分支仅 ${shortBranch.nodes.length} 节点 (<4)` : "部分分支过短",
+        icon: <Ruler size={10} />,
+      },
+      {
+        label: "选择影响力", passed: choiceImpact,
+        detail: choiceImpact ? "选择节点对后续路径有影响" : "部分选择未产生实质性分支",
+        icon: <Zap size={10} />,
+      },
+    ];
+  }, [testResults, playableGraph]);
 
   const advPassCount = advDiagnostics.filter(d => d.passed).length;
   const advFailCount = advDiagnostics.filter(d => !d.passed).length;
@@ -268,6 +304,24 @@ export default function SimulatorScreen() {
       return false;
     });
   };
+
+  // ── Empty state check ─────────────────────────────────────────────────────
+  if (Object.keys(playableGraph).length === 0) {
+    return (
+      <div className="h-svh flex items-center justify-center" style={{ background: "#000" }}>
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(124,108,245,0.15)' }}>
+            <Play size={28} style={{ color: '#7C6CF5' }} />
+          </div>
+          <h3 className="text-base font-bold mb-2 text-white">还没有可试玩的内容</h3>
+          <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>请先完成节点设计，模拟器将自动加载</p>
+          <Link href="/nodes" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+            前往节点设计 →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   // ── Error boundary ───────────────────────────────────────────────────────
   if (!node) {

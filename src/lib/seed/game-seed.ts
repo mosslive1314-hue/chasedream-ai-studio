@@ -1,6 +1,6 @@
 // ChaseDream Creator Studio — Game Seed Data
 
-import type { GameCharacter, GameScene, GameProp, GameVariable, PlayableNode } from '../types/game';
+import type { GameCharacter, GameScene, GameProp, GameVariable, PlayableNode, EntityRelation, CharacterSceneAppearance } from '../types/game';
 
 // ── 角色数据（统一）────────────────────────────────────────────────────────
 
@@ -93,3 +93,23 @@ export const PLAYABLE_GRAPH: Record<string, PlayableNode> = {
   GOOD: { id: 'GOOD', char: '结局A', text: '【幽灵归来】\n艾拉带着证据安全撤离。真相终将浮出水面，而她已消失在霓虹夜幕中。城市的暗处多了一个守护者。', isEnding: true, endingType: 'good' },
   BAD: { id: 'BAD', char: '结局B', text: '【今夜失败】\n艾拉被捕，证据湮没。但她记住了这条路，还有下一次机会。', isEnding: true, endingType: 'bad' },
 };
+
+// ── 实体关系图谱（P11-⑳）────────────────────────────────────────────────────
+
+export const ENTITY_RELATIONS: EntityRelation[] = [
+  { sourceId: 'c1', targetId: 'c2', relationType: 'stranger', strength: 40, description: '艾拉与线人：利益交换关系，信任尚未建立', changesAtNodes: ['N02', 'N03', 'N08'] },
+  { sourceId: 'c1', targetId: 'c3', relationType: 'enemy', strength: 80, description: '艾拉与反派主管：对立阵营，核心冲突', changesAtNodes: ['N05', 'N09'] },
+  { sourceId: 'c2', targetId: 'c3', relationType: 'rival', strength: 60, description: '线人与反派主管：线人是对方的卧底目标' },
+];
+
+export const CHARACTER_SCENE_APPEARANCES: CharacterSceneAppearance[] = [
+  { characterId: 'c1', sceneId: 's1', role: 'main', nodeIds: ['N01'] },
+  { characterId: 'c1', sceneId: 's2', role: 'main', nodeIds: ['N02', 'N03'] },
+  { characterId: 'c1', sceneId: 's3', role: 'main', nodeIds: ['N04'] },
+  { characterId: 'c1', sceneId: 's4', role: 'main', nodeIds: ['N05', 'N06', 'N07'] },
+  { characterId: 'c1', sceneId: 's5', role: 'main', nodeIds: ['N08', 'N10'] },
+  { characterId: 'c2', sceneId: 's2', role: 'main', nodeIds: ['N02', 'N03'] },
+  { characterId: 'c2', sceneId: 's5', role: 'supporting', nodeIds: ['N08'] },
+  { characterId: 'c3', sceneId: 's4', role: 'supporting', nodeIds: ['N05'] },
+  { characterId: 'c3', sceneId: 's6', role: 'main', nodeIds: ['N09', 'N11'] },
+];

@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Settings, Cpu, Download, Code2, History,
   ChevronDown, Save, CloudUpload, RotateCcw,
   Sparkles, Globe, Shield,
 } from "lucide-react";
+import { useSettingsStore } from "@/store";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -124,26 +124,40 @@ function SelectField<T extends string>({
 /* ── 主页面 ──────────────────────────────────────────────────────────────── */
 export default function SettingsScreen() {
   /* 项目设置 */
-  const [projectName, setProjectName] = useState("幽灵协议");
-  const [workType, setWorkType] = useState<"h5" | "video" | "text">("h5");
-  const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9" | "auto">("9:16");
-  const [payMode, setPayMode] = useState<"free_trial" | "paid" | "free">("free_trial");
+  const projectName = useSettingsStore(s => s.projectName);
+  const setProjectName = useSettingsStore(s => s.setProjectName);
+  const workType = useSettingsStore(s => s.workType);
+  const setWorkType = useSettingsStore(s => s.setWorkType);
+  const aspectRatio = useSettingsStore(s => s.aspectRatio);
+  const setAspectRatio = useSettingsStore(s => s.setAspectRatio);
+  const payMode = useSettingsStore(s => s.payMode);
+  const setPayMode = useSettingsStore(s => s.setPayMode);
 
   /* AI 配置 */
-  const [aiModel, setAiModel] = useState<"gpt4" | "claude" | "qwen">("gpt4");
-  const [aiLang, setAiLang] = useState<"zh" | "en" | "ja">("zh");
-  const [aiAutoSave, setAiAutoSave] = useState(true);
-  const [aiFrequency, setAiFrequency] = useState<"active" | "moderate" | "conservative">("moderate");
+  const aiModel = useSettingsStore(s => s.aiModel);
+  const setAiModel = useSettingsStore(s => s.setAiModel);
+  const aiLang = useSettingsStore(s => s.aiLang);
+  const setAiLang = useSettingsStore(s => s.setAiLang);
+  const aiAutoSave = useSettingsStore(s => s.aiAutoSave);
+  const setAiAutoSave = useSettingsStore(s => s.setAiAutoSave);
+  const aiFrequency = useSettingsStore(s => s.aiFrequency);
+  const setAiFrequency = useSettingsStore(s => s.setAiFrequency);
 
   /* 导出与备份 */
-  const [exportFormat, setExportFormat] = useState<"json" | "webgal" | "custom">("json");
-  const [autoBackup, setAutoBackup] = useState(false);
-  const [backupInterval, setBackupInterval] = useState<"hourly" | "daily" | "weekly">("daily");
+  const exportFormat = useSettingsStore(s => s.exportFormat);
+  const setExportFormat = useSettingsStore(s => s.setExportFormat);
+  const autoBackup = useSettingsStore(s => s.autoBackup);
+  const setAutoBackup = useSettingsStore(s => s.setAutoBackup);
+  const backupInterval = useSettingsStore(s => s.backupInterval);
+  const setBackupInterval = useSettingsStore(s => s.setBackupInterval);
 
   /* 开发者选项 */
-  const [debugInfo, setDebugInfo] = useState(false);
-  const [experimentalFeatures, setExperimentalFeatures] = useState(false);
-  const [apiEndpoint, setApiEndpoint] = useState("https://api.zhuomeng.ai/v1");
+  const debugInfo = useSettingsStore(s => s.debugInfo);
+  const setDebugInfo = useSettingsStore(s => s.setDebugInfo);
+  const experimentalFeatures = useSettingsStore(s => s.experimentalFeatures);
+  const setExperimentalFeatures = useSettingsStore(s => s.setExperimentalFeatures);
+  const apiEndpoint = useSettingsStore(s => s.apiEndpoint);
+  const setApiEndpoint = useSettingsStore(s => s.setApiEndpoint);
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>

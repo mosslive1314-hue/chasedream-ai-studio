@@ -59,8 +59,10 @@ const NODE_TYPE: Record<string, { label:string; color:string; bg:string; border:
   ending_bad:  { label:"结局", color:"#EF4444", bg:"rgba(239,68,68,0.08)",   border:"rgba(239,68,68,0.4)"   },
 };
 
-// ── 剧本 Tab 内容 ─────────────────────────────────────────────────────────
+// ── 剧本 Tab 内容（P12-#23: 从 store 读取 scriptBlocks）─────────────────
 function ScriptContent() {
+  const scriptBlocks = useNarrativeStore(state => state.scriptBlocks);
+  const typeLabel: Record<string, string> = { scene: "场景", dialog: "台词", choice: "选择", narr: "旁白", cond: "条件" };
   return (
     <div className="p-4 space-y-3 overflow-y-auto h-full">
       <div className="flex items-center justify-between mb-2">
@@ -73,26 +75,19 @@ function ScriptContent() {
           </motion.button>
         </Link>
       </div>
-      {[
-        { type:"scene",  label:"场景", content:"序章·霓虹夜幕  |  2047年，积水路面，广告牌投影" },
-        { type:"dialog", label:"台词", char:"艾拉", content:"线人在哪？已经等了20分钟了。" },
-        { type:"choice", label:"选择", content:"是否相信来电？",
-          options:["A. 相信，进地下酒吧","B. 拒绝，离开现场"] },
-        { type:"scene",  label:"场景", content:"地下酒吧  |  昏暗灯光，嘈杂人群" },
-        { type:"dialog", label:"台词", char:"线人", content:"你来了。那枚追踪芯片……他们已经发现了。" },
-      ].map((b,i) => (
-        <div key={i} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+      {scriptBlocks.map((b) => (
+        <div key={b.id} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
               style={{ background: b.type==="choice" ? "rgba(245,158,11,0.12)" : "rgba(124,108,245,0.10)",
                 color: b.type==="choice" ? S.warning : S.primary }}>
-              {b.label}
+              {typeLabel[b.type] ?? b.type}
             </span>
             {b.char && <span className="text-[10px] font-bold" style={{ color:S.primary }}>{b.char}</span>}
           </div>
           <p className="text-xs" style={{ color:S.text2 }}>{b.content}</p>
-          {b.options && <div className="mt-1.5 space-y-1">
-            {b.options.map((o,j) => (
+          {b.options && b.options.length > 0 && <div className="mt-1.5 space-y-1">
+            {b.options.map((o: string, j: number) => (
               <div key={j} className="text-[10px] px-2 py-0.5 rounded"
                 style={{ background:S.s2, color:S.text3 }}>{o}</div>
             ))}
@@ -747,17 +742,14 @@ function StoryContent() {
   );
 }
 
-// ── 角色 Tab ──────────────────────────────────────────────────────────────
+// ── 角色 Tab（P12-#23: 从 store 读取 characters）─────────────────────────
 function CharacterContent() {
+  const characters = useNarrativeStore(state => state.characters);
   return (
     <div className="p-4 space-y-3 overflow-y-auto h-full">
       <h3 className="text-sm font-bold" style={{ color:S.text }}>角色配置</h3>
-      {[
-        { name:"艾拉",    role:"女主角·侦探", desc:"黑色短发，银色义眼，黑色风衣，冷静警觉",         nodes:11, color:S.primary },
-        { name:"线人",    role:"关键NPC",     desc:"神秘男性，中年，隐藏身份，不可信任",              nodes:4,  color:S.warning },
-        { name:"反派主管",role:"反派",        desc:"西装笔挺，冷峻表情，幕后操控者",                  nodes:3,  color:S.error   },
-      ].map(c => (
-        <div key={c.name} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+      {characters.map(c => (
+        <div key={c.id} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
           <div className="flex items-center gap-2 mb-1.5">
             <div className="w-7 h-7 rounded-full flex items-center justify-center"
               style={{ background:`${c.color}15` }}>
@@ -768,17 +760,34 @@ function CharacterContent() {
               <span className="text-[9px] ml-1.5 px-1.5 py-0.5 rounded"
                 style={{ background:`${c.color}12`, color:c.color }}>{c.role}</span>
             </div>
-            <span className="ml-auto text-[9px]" style={{ color:S.text3 }}>出现 {c.nodes} 节点</span>
+            <span className="ml-auto text-[9px]" style={{ color:S.text3 }}>出现 {c.appearNodes?.length ?? 0} 节点</span>
           </div>
-          <p className="text-[10px]" style={{ color:S.text3 }}>{c.desc}</p>
+          <p className="text-[10px]" style={{ color:S.text3 }}>{c.description}</p>
         </div>
       ))}
     </div>
   );
 }
 
-// ── 资产 Tab ──────────────────────────────────────────────────────────────
+// ── 资产 Tab（P12-#23: 从 store 读取 assetCards）─────────────────────────
 function AssetsContent() {
+  const assetCards = useNarrativeStore(state => state.assetCards);
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+
+  const assetProgress = useMemo(() => {
+    const total = assetCards.length || storyNodes.length || 1;
+    const imgOk = assetCards.filter(c => c.hasImage).length;
+    const bgmOk = assetCards.filter(c => c.hasBgm).length;
+    const voiceOk = assetCards.filter(c => c.hasVoice).length;
+    return [
+      { label: "场景背景", ok: imgOk, total },
+      { label: "BGM", ok: bgmOk, total },
+      { label: "配音", ok: voiceOk, total },
+    ];
+  }, [assetCards, storyNodes]);
+
+  const missingAssets = assetCards.filter(c => !c.hasImage || !c.hasBgm);
+
   return (
     <div className="p-4 space-y-3 overflow-y-auto h-full">
       <div className="flex items-center justify-between mb-1">
@@ -789,26 +798,26 @@ function AssetsContent() {
           </span>
         </Link>
       </div>
-      <div className="p-3 rounded-xl" style={{ background:"rgba(245,158,11,0.06)", border:`1px solid rgba(245,158,11,0.25)` }}>
-        <div className="flex items-center gap-1.5 mb-1">
-          <AlertTriangle size={12} style={{ color:S.warning }} />
-          <span className="text-xs font-bold" style={{ color:S.warning }}>1 个节点缺少图片</span>
+      {missingAssets.length > 0 && (
+        <div className="p-3 rounded-xl" style={{ background:"rgba(245,158,11,0.06)", border:`1px solid rgba(245,158,11,0.25)` }}>
+          <div className="flex items-center gap-1.5 mb-1">
+            <AlertTriangle size={12} style={{ color:S.warning }} />
+            <span className="text-xs font-bold" style={{ color:S.warning }}>{missingAssets.length} 个资产待补充</span>
+          </div>
+          <p className="text-[10px]" style={{ color:S.text3 }}>
+            {missingAssets.slice(0, 2).map(a => a.nodeId).join(', ')} 等节点资产尚未完成
+          </p>
+          <Link href="/assets">
+            <motion.button whileTap={{ scale:0.97 }}
+              className="mt-2 flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg focus:outline-none"
+              style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
+              <ExternalLink size={9} /> 补充资产
+            </motion.button>
+          </Link>
         </div>
-        <p className="text-[10px]" style={{ color:S.text3 }}>N06 警卫逼近场景图片尚未生成</p>
-        <Link href="/assets">
-          <motion.button whileTap={{ scale:0.97 }}
-            className="mt-2 flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg focus:outline-none"
-            style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
-            <ExternalLink size={9} /> 补充资产
-          </motion.button>
-        </Link>
-      </div>
+      )}
       <div className="grid grid-cols-3 gap-2">
-        {[
-          { label:"场景背景", ok:8,  total:9  },
-          { label:"角色立绘", ok:6,  total:12 },
-          { label:"BGM",     ok:0,  total:9  },
-        ].map(a => (
+        {assetProgress.map(a => (
           <div key={a.label} className="p-2.5 rounded-xl text-center"
             style={{ background:S.card, border:`1px solid ${S.border}` }}>
             <p className="text-[9px] mb-1" style={{ color:S.text3 }}>{a.label}</p>
@@ -2731,6 +2740,24 @@ export default function NodesScreen() {
     return node.type === nodeFilter;
   });
 
+  // ── Empty state check ─────────────────────────────────────────────────────
+  if (storyNodes.length === 0) {
+    return (
+      <div className="h-svh flex items-center justify-center" style={{ background: S.bg }}>
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: '#F4F6FC' }}>
+            <Layers size={28} style={{ color: '#7C6CF5' }} />
+          </div>
+          <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有节点</h3>
+          <p className="text-sm text-gray-500 mb-4">请先完成互动设计，节点图谱将自动生成</p>
+          <Link href="/interaction" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+            前往互动设计 →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
 
@@ -3238,6 +3265,15 @@ export default function NodesScreen() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Next Step Navigation */}
+      <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
+        style={{ borderColor: S.border }}>
+        <span className="text-xs text-gray-500">下一步：预览演出效果</span>
+        <Link href="/simulator" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+          打开演出预览 →
+        </Link>
+      </div>
     </div>
   );
 }

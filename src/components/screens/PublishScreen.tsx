@@ -24,25 +24,9 @@ const S = {
 
 // ── 发布检查 — now sourced from store ────────────────────────────────────
 
-// ── 版本快照数据 ─────────────────────────────────────────────────────────
-const SNAPSHOTS = [
-  { version: "v1.2.3", date: "2026-06-02 14:30", summary: "修复 N07 潜行判定失败反馈文案", status: "current" as const, changes: 3 },
-  { version: "v1.2.2", date: "2026-06-01 10:15", summary: "添加 QTE 节点 UI 模板配置", status: "published" as const, changes: 7 },
-  { version: "v1.2.1", date: "2026-05-30 16:45", summary: "更新角色立绘和场景背景图", status: "published" as const, changes: 12 },
-  { version: "v1.2.0", date: "2026-05-28 09:00", summary: "新增分支路线 B（暴露路线）", status: "published" as const, changes: 24 },
-];
+// ── 版本快照数据 — now derived from store (versionDiffs) ──────────────
 
-// ── 变更记录数据 ─────────────────────────────────────────────────────────
-const CHANGE_LOG = [
-  { time: "14:32", user: "你", action: "edit", actionLabel: "编辑", target: "N07 潜行判定", detail: "补充失败反馈文案", color: "#5E50E8" },
-  { time: "14:20", user: "你", action: "edit", actionLabel: "编辑", target: "N06 警卫逼近", detail: "调整 QTE 时间限制 2s→1.5s", color: "#5E50E8" },
-  { time: "13:55", user: "AI助手", action: "add", actionLabel: "新增", target: "N05 换装渗透", detail: "AI 生成场景描述", color: "#00A99D" },
-  { time: "13:40", user: "你", action: "edit", actionLabel: "编辑", target: "变量系统", detail: "修改潜行值初始值 50→55", color: "#5E50E8" },
-  { time: "11:15", user: "你", action: "add", actionLabel: "新增", target: "N10 结局A", detail: "添加好结局文案", color: "#00A99D" },
-  { time: "10:30", user: "AI助手", action: "add", actionLabel: "新增", target: "角色设定", detail: "AI 提取反派主管角色卡", color: "#00A99D" },
-  { time: "09:45", user: "你", action: "publish", actionLabel: "发布", target: "H5 链接", detail: "更新发布版本 v1.2.2", color: "#059669" },
-  { time: "09:00", user: "系统", action: "delete", actionLabel: "删除", target: "废弃节点 N12", detail: "清理未连接的孤立节点", color: "#DC2626" },
-];
+// ── 变更记录数据 — now derived from store (collabTasks + collabComments) ─
 
 // ── 快照状态配置 ─────────────────────────────────────────────────────────
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
@@ -109,21 +93,9 @@ const EXPORT_FORMATS = [
   },
 ];
 
-// ── 团队协作数据 ─────────────────────────────────────────────────────────
-const TEAM_MEMBERS = [
-  { name: '你', role: '项目负责人', avatar: '\u{1F464}', color: '#5E50E8', online: true, lastEdit: '刚刚' },
-  { name: '编剧小王', role: '剧本编辑', avatar: '\u270D\uFE0F', color: '#00A99D', online: true, lastEdit: '10 分钟前' },
-  { name: '美术小李', role: '资产制作', avatar: '\u{1F3A8}', color: '#D97706', online: false, lastEdit: '2 小时前' },
-  { name: '策划小张', role: '互动设计', avatar: '\u{1F9E9}', color: '#DC2626', online: false, lastEdit: '昨天' },
-];
+// ── 团队协作数据 — now derived from store (collabTasks + collabComments) ─
 
-const COLLAB_ACTIVITIES = [
-  { user: '编剧小王', action: '编辑了 N05 对白文案', time: '10 分钟前', type: 'edit' },
-  { user: '美术小李', action: '上传了 N03 场景图片', time: '2 小时前', type: 'upload' },
-  { user: '你', action: '创建了版本快照 v1.2.3', time: '3 小时前', type: 'publish' },
-  { user: '策划小张', action: '添加了 N07 互动设计意图', time: '昨天', type: 'design' },
-  { user: '编剧小王', action: '审核通过了 AI 生成的角色设定', time: '昨天', type: 'review' },
-];
+// ── 协作动态数据 — now derived from store (collabComments) ──────────────
 
 const PERMISSION_LEVELS = [
   { role: '项目负责人', permissions: ['全部权限', '发布管理', '成员管理', '版本回滚'] },
@@ -338,15 +310,120 @@ export default function PublishScreen() {
     }, 2500);
   };
 
+  // ── 动态数据：版本快照（from versionDiffs）──
+  const snapshots = useMemo(() => {
+    if (versionDiffs.length === 0) return [];
+    const now = new Date();
+    return versionDiffs.map((d, i) => ({
+      version: d.toVersion,
+      status: i === versionDiffs.length - 1 ? 'current' as const : 'published' as const,
+      date: `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate() - (versionDiffs.length - 1 - i)).padStart(2, '0')}`,
+      changes: d.nodesAdded + d.nodesModified + d.nodesRemoved + d.variablesChanged + d.assetsUpdated + d.scriptChanges,
+      summary: d.summary,
+    }));
+  }, [versionDiffs]);
+
+  // ── 动态数据：变更记录（from collabTasks + collabComments）──
+  const changeLog = useMemo(() => {
+    const taskActionMap: Record<string, { action: string; actionLabel: string; color: string }> = {
+      '节点编辑': { action: 'edit', actionLabel: '编辑', color: S.primary },
+      '资产制作': { action: 'add', actionLabel: '新增', color: S.accent },
+      '剧本编写': { action: 'edit', actionLabel: '编写', color: S.primary },
+      '质检修复': { action: 'edit', actionLabel: '修复', color: S.warning },
+      'UI设计':   { action: 'edit', actionLabel: '设计', color: S.primary },
+      '互动设计': { action: 'edit', actionLabel: '设计', color: S.accent },
+    };
+    const taskEntries = collabTasks.map(t => {
+      const cfg = taskActionMap[t.category] ?? { action: 'edit', actionLabel: '编辑', color: S.text2 };
+      return {
+        time: t.dueDate ? t.dueDate.slice(5) : '—',
+        action: cfg.action,
+        actionLabel: cfg.actionLabel,
+        target: t.title,
+        user: t.assignee,
+        detail: t.description,
+        color: cfg.color,
+      };
+    });
+    const commentEntries = collabComments.map(c => ({
+      time: c.timestamp.slice(5, 16),
+      action: 'edit' as const,
+      actionLabel: '评论',
+      target: c.taskId ? `任务 ${c.taskId}` : `节点 ${c.nodeId}`,
+      user: c.author,
+      detail: c.content.slice(0, 50),
+      color: S.text3,
+    }));
+    return [...taskEntries, ...commentEntries];
+  }, [collabTasks, collabComments]);
+
+  // ── 动态数据：团队成员（from collabTasks + collabComments）──
+  const teamMembers = useMemo(() => {
+    const memberMap = new Map<string, { name: string; role: string; avatar: string; color: string; tasks: number; online: boolean; lastEdit: string }>();
+    const ROLE_COLORS: Record<string, string> = {
+      'Project Lead': '#5E50E8',
+      'Script Editor': '#059669',
+      'Asset Artist': '#D97706',
+      'Interaction Designer': '#00A99D',
+    };
+    collabTasks.forEach(t => {
+      if (!memberMap.has(t.assignee)) {
+        memberMap.set(t.assignee, {
+          name: t.assignee,
+          role: t.assigneeRole,
+          avatar: t.assignee.slice(0, 1),
+          color: ROLE_COLORS[t.assigneeRole] ?? S.primary,
+          tasks: 0,
+          online: false,
+          lastEdit: t.dueDate ? t.dueDate.slice(5) : '—',
+        });
+      }
+      const m = memberMap.get(t.assignee)!;
+      m.tasks++;
+      if (t.status === 'in_progress') m.online = true;
+    });
+    collabComments.forEach(c => {
+      if (!memberMap.has(c.author)) {
+        memberMap.set(c.author, {
+          name: c.author,
+          role: c.authorRole,
+          avatar: c.author.slice(0, 1),
+          color: ROLE_COLORS[c.authorRole] ?? S.primary,
+          tasks: 0,
+          online: false,
+          lastEdit: c.timestamp.slice(5, 10),
+        });
+      }
+    });
+    return Array.from(memberMap.values());
+  }, [collabTasks, collabComments]);
+
+  // ── 动态数据：协作动态（from collabComments）──
+  const collabActivities = useMemo(() => {
+    return collabComments.map(c => {
+      let action = '编辑了';
+      let type = 'edit';
+      if (c.content.includes('审核') || c.content.includes('确认')) { action = '提交了审核'; type = 'review'; }
+      else if (c.content.includes('方案') || c.content.includes('设计')) { action = '设计了'; type = 'design'; }
+      else if (c.content.includes('同步') || c.content.includes('更新')) { action = '更新了'; type = 'edit'; }
+      return {
+        user: c.author,
+        action,
+        type,
+        time: c.timestamp.slice(5, 16),
+      };
+    });
+  }, [collabComments]);
+
   // 快照对比数据
   const comparePair = useMemo(() => {
     if (selectedSnapshots.length !== 2) return null;
-    const a = SNAPSHOTS.find((s) => s.version === selectedSnapshots[0]);
-    const b = SNAPSHOTS.find((s) => s.version === selectedSnapshots[1]);
+    const a = snapshots.find((s) => s.version === selectedSnapshots[0]);
+    const b = snapshots.find((s) => s.version === selectedSnapshots[1]);
     if (!a || !b) return null;
     // 确保 a 是较新版本
     return a.changes <= b.changes ? { newer: b, older: a } : { newer: a, older: b };
-  }, [selectedSnapshots]);
+  }, [selectedSnapshots, snapshots]);
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
@@ -464,7 +541,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={Camera}
             title="版本快照"
-            subtitle={`当前 ${SNAPSHOTS[0].version} · ${SNAPSHOTS.length} 个版本`}
+            subtitle={`当前 ${snapshots[0]?.version ?? '—'} · ${snapshots.length} 个版本`}
             open={secSnapshots.open}
             onToggle={secSnapshots.toggle}
             action={
@@ -506,7 +583,7 @@ export default function PublishScreen() {
                 className="overflow-hidden"
               >
                 <div className="space-y-2 mt-3">
-                  {SNAPSHOTS.map((snap) => {
+                  {snapshots.map((snap) => {
                     const cfg = STATUS_CFG[snap.status];
                     const isSelected = selectedSnapshots.includes(snap.version);
                     return (
@@ -647,7 +724,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={History}
             title="变更记录"
-            subtitle={`今日 ${CHANGE_LOG.length} 条编辑`}
+            subtitle={`今日 ${changeLog.length} 条编辑`}
             open={secChangelog.open}
             onToggle={secChangelog.toggle}
           />
@@ -661,7 +738,7 @@ export default function PublishScreen() {
                 className="overflow-hidden"
               >
                 <div className="space-y-1 mt-3">
-                  {CHANGE_LOG.map((log, i) => {
+                  {changeLog.map((log, i) => {
                     const ActionIcon = ACTION_ICONS[log.action] ?? Pencil;
                     return (
                       <div key={i} className="flex items-start gap-2.5 py-2 border-b last:border-0"
@@ -859,7 +936,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={User}
             title="团队协作"
-            subtitle={`${TEAM_MEMBERS.filter((m) => m.online).length}/${TEAM_MEMBERS.length} 人在线`}
+            subtitle={`${teamMembers.filter((m) => m.online).length}/${teamMembers.length} 人在线`}
             open={secCollab.open}
             onToggle={secCollab.toggle}
             action={
@@ -885,7 +962,7 @@ export default function PublishScreen() {
                 <div className="mt-3">
                   <div className="text-[9px] font-bold mb-2" style={{ color: S.text3 }}>团队成员</div>
                   <div className="space-y-2">
-                    {TEAM_MEMBERS.map((member) => (
+                    {teamMembers.map((member) => (
                       <div key={member.name} className="flex items-center gap-2.5 p-2.5 rounded-xl"
                         style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                         {/* Avatar with online indicator */}
@@ -925,9 +1002,9 @@ export default function PublishScreen() {
                 <div className="mt-4">
                   <div className="text-[9px] font-bold mb-2" style={{ color: S.text3 }}>协作动态</div>
                   <div className="space-y-0">
-                    {COLLAB_ACTIVITIES.map((act, i) => {
+                    {collabActivities.map((act, i) => {
                       const ActIcon = COLLAB_TYPE_ICONS[act.type] ?? Pencil;
-                      const member = TEAM_MEMBERS.find((m) => m.name === act.user);
+                      const member = teamMembers.find((m) => m.name === act.user);
                       const iconColor = member?.color ?? S.text3;
                       return (
                         <div key={i} className="flex items-start gap-2.5 py-2 border-b last:border-0"
@@ -938,7 +1015,7 @@ export default function PublishScreen() {
                               style={{ background: `${iconColor}12` }}>
                               <ActIcon size={10} style={{ color: iconColor }} />
                             </div>
-                            {i < COLLAB_ACTIVITIES.length - 1 && (
+                            {i < collabActivities.length - 1 && (
                               <div className="w-px flex-1 mt-1" style={{ background: S.border, minHeight: '12px' }} />
                             )}
                           </div>

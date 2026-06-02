@@ -35,17 +35,7 @@ const NODE_CFG: Record<string, { label: string; color: string; icon: any }> = {
   ending_bad:  { label: "坏结局", color: S.error,    icon: Trophy },
 };
 
-// ── 统计摘要 ──────────────────────────────────────────────────────────────
-const STATS = [
-  { key: "chapter", value: 1, icon: BookOpen, color: S.primary },
-  { key: "node", value: 11, icon: Layers, color: S.primary },
-  { key: "edge", value: 2, icon: GitBranch, color: S.warning },
-  { key: "ending", value: 2, icon: Trophy, color: S.accent },
-  { key: "character", value: 3, icon: User, color: S.primary },
-  { key: "scene", value: 6, icon: MapPin, color: S.accent },
-  { key: "prop", value: 9, icon: Zap, color: S.warning },
-  { key: "_duration", value: "15min", icon: Clock, color: S.text3 },
-];
+
 
 // ── 项目健康度 ────────────────────────────────────────────────────────────
 const QC_CATEGORIES = [
@@ -55,59 +45,7 @@ const QC_CATEGORIES = [
   { key: "publish", label: "发布风险", icon: Rocket },
 ];
 
-// ── 叙事质量评分数据 ──────────────────────────────────────────────────────
-const NARRATIVE_SCORES = [
-  {
-    dimension: '选择意义度',
-    score: 85,
-    maxScore: 100,
-    detail: '2 个选择节点，每个选择导致不同的路径和结局，选择具有实质性影响',
-    strengths: ['N03 路线选择直接决定后续路径', 'N07 判定结果影响结局走向'],
-    improvements: ['建议在中间章节增加更多有意义的选择点'],
-  },
-  {
-    dimension: '分支平衡性',
-    score: 72,
-    maxScore: 100,
-    detail: '路线 A（8 节点）vs 路线 B（8 节点），长度均衡，但结局概率不均',
-    strengths: ['两条主线路径长度一致', '均有独特体验'],
-    improvements: ['好结局概率偏高（约 68%），建议调整潜行值阈值平衡概率'],
-  },
-  {
-    dimension: '变量使用率',
-    score: 100,
-    maxScore: 100,
-    detail: '4 个变量全部在条件判定中使用，无死变量',
-    strengths: ['每个变量至少被 2 个节点引用', '潜行值为核心判定变量'],
-    improvements: [],
-  },
-  {
-    dimension: '失败反馈完整度',
-    score: 60,
-    maxScore: 100,
-    detail: '2 个条件/QTE 节点中，1 个缺少失败反馈文案',
-    strengths: ['N06 QTE 有成功反馈'],
-    improvements: ['N07 潜行判定节点缺少失败反馈文案', '建议为所有失败路径补充叙事反馈'],
-  },
-  {
-    dimension: '情绪节奏',
-    score: 78,
-    maxScore: 100,
-    detail: '情绪曲线整体合理，N06 达到峰值 9，但连续高张力后缺少缓冲',
-    strengths: ['序章低张力建立世界观', 'N06 QTE 高潮点设计合理'],
-    improvements: ['N06(9)→N07(8)→N08(7) 连续三个高张力节点，建议在中间插入缓冲'],
-  },
-  {
-    dimension: '伏笔回收率',
-    score: 80,
-    maxScore: 100,
-    detail: '5 条伏笔中回收 4 条，1 条未在结局中明确收束',
-    strengths: ['追踪芯片伏笔在 N01 植入，N08 回收', '线人身份悬念贯穿全剧'],
-    improvements: ['反派主管动机在坏结局中未充分解释'],
-  },
-];
 
-const totalScore = Math.round(NARRATIVE_SCORES.reduce((s, n) => s + n.score, 0) / NARRATIVE_SCORES.length);
 
 // ── 行业切换配置 ────────────────────────────────────────────────────────────
 const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = [
@@ -117,27 +55,7 @@ const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = 
   { type: 'derivative', icon: '🎬', label: '衍生' },
 ];
 
-// ── 素材风格一致性数据 ────────────────────────────────────────────────────
-const STYLE_CONSISTENCY = [
-  { nodeId: 'N01', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N02', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N03', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N04', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N05', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N07', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N08', assetType: '场景图片', style: '赛博朋克', consistent: true },
-  { nodeId: 'N01', assetType: '角色立绘', style: '赛博朋克', consistent: true },
-  { nodeId: 'N02', assetType: '角色立绘', style: '现代写实', consistent: false, warning: '线人立绘风格偏写实，与赛博朋克主题不完全匹配' },
-  { nodeId: 'N05', assetType: '角色立绘', style: '赛博朋克', consistent: true },
-];
-
-const styleSummary = {
-  dominant: '赛博朋克',
-  totalAssets: STYLE_CONSISTENCY.length,
-  consistentCount: STYLE_CONSISTENCY.filter(s => s.consistent).length,
-  inconsistentCount: STYLE_CONSISTENCY.filter(s => !s.consistent).length,
-  consistencyRate: Math.round(STYLE_CONSISTENCY.filter(s => s.consistent).length / STYLE_CONSISTENCY.length * 100),
-};
+// ── 素材风格一致性 — 动态从 store 计算（P12-#22）──────────────────────────
 
 // ── 展开/收起区块 Hook ────────────────────────────────────────────────────
 function useSectionToggle(init = true) {
@@ -251,6 +169,123 @@ export default function OverviewScreen() {
   const worldBuilding = useNarrativeStore(s => s.worldBuilding);
   const branchPaths = useNarrativeStore(s => s.branchPaths);
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
+  const scenes = useNarrativeStore(s => s.scenes);
+  const props = useNarrativeStore(s => s.props);
+  const variables = useNarrativeStore(s => s.variables);
+  const assetCards = useNarrativeStore(s => s.assetCards);
+
+  // ── P12-#22: Dynamic STATS from store ──────────────────────────────────
+  const stats = useMemo(() => {
+    const endingCount = storyNodes.filter(n => n.type === 'ending_good' || n.type === 'ending_bad').length;
+    const durationMin = Math.max(1, Math.round(storyNodes.length * 1.5));
+    return [
+      { key: "chapter", value: 1, icon: BookOpen, color: S.primary },
+      { key: "node", value: storyNodes.length, icon: Layers, color: S.primary },
+      { key: "edge", value: nodeEdges.length, icon: GitBranch, color: S.warning },
+      { key: "ending", value: endingCount, icon: Trophy, color: S.accent },
+      { key: "character", value: characters.length, icon: User, color: S.primary },
+      { key: "scene", value: scenes.length, icon: MapPin, color: S.accent },
+      { key: "prop", value: props.length, icon: Zap, color: S.warning },
+      { key: "_duration", value: `${durationMin}min`, icon: Clock, color: S.text3 },
+    ];
+  }, [storyNodes, nodeEdges, characters, scenes, props]);
+
+  // ── P12-#22: Dynamic NARRATIVE_SCORES from store ───────────────────────
+  const narrativeScores = useMemo(() => {
+    const choiceNodes = storyNodes.filter(n => n.type === 'choice');
+    const conditionNodes = storyNodes.filter(n => n.type === 'condition');
+    const qteNodes = storyNodes.filter(n => n.type === 'qte');
+    const endingNodes = storyNodes.filter(n => n.type === 'ending_good' || n.type === 'ending_bad');
+    const goodEndings = endingNodes.filter(n => n.type === 'ending_good').length;
+
+    // 选择意义度
+    const choiceScore = Math.min(100, choiceNodes.length * 30 + 25);
+    // 分支平衡性
+    const pathLengths = branchPaths.map(p => p.nodes.length);
+    const avgLen = pathLengths.length > 0 ? pathLengths.reduce((a, b) => a + b, 0) / pathLengths.length : 0;
+    const maxDev = pathLengths.length > 0 ? Math.max(...pathLengths.map(l => Math.abs(l - avgLen))) : 0;
+    const balanceScore = Math.max(0, Math.round(100 - maxDev * 10));
+    // 变量使用率
+    const usedVarCount = variables.filter(v =>
+      nodeEdges.some(e => e.condition && JSON.stringify(e.condition).includes(v.id))
+    ).length;
+    const varScore = variables.length > 0 ? Math.round((usedVarCount / variables.length) * 100) : 0;
+    // 失败反馈完整度
+    const feedbackNodes = [...conditionNodes, ...qteNodes];
+    const errNodes = feedbackNodes.filter(n => (n as any).hasError);
+    const feedbackScore = feedbackNodes.length > 0 ? Math.round(((feedbackNodes.length - errNodes.length) / feedbackNodes.length) * 100) : 100;
+
+    return [
+      {
+        dimension: '选择意义度', score: choiceScore, maxScore: 100,
+        detail: `${choiceNodes.length} 个选择节点，每个选择导致不同的路径和结局`,
+        strengths: choiceNodes.map(n => `${n.id} ${n.label}影响后续路径`),
+        improvements: choiceNodes.length < 3 ? ['建议增加更多有意义的选择点'] : [],
+      },
+      {
+        dimension: '分支平衡性', score: balanceScore, maxScore: 100,
+        detail: `${branchPaths.length} 条路径，长度分别为 ${pathLengths.join(' / ')} 节点`,
+        strengths: ['路径设计各有独特体验'],
+        improvements: endingNodes.length > 0 && goodEndings / endingNodes.length > 0.7 ? ['好结局概率偏高，建议调整平衡'] : [],
+      },
+      {
+        dimension: '变量使用率', score: varScore, maxScore: 100,
+        detail: `${variables.length} 个变量中 ${usedVarCount} 个被使用`,
+        strengths: varScore === 100 ? ['所有变量均被引用'] : [],
+        improvements: varScore < 100 ? ['存在未使用的变量'] : [],
+      },
+      {
+        dimension: '失败反馈完整度', score: feedbackScore, maxScore: 100,
+        detail: `${feedbackNodes.length} 个条件/QTE 节点中 ${feedbackNodes.length - errNodes.length} 个有完整反馈`,
+        strengths: feedbackScore >= 80 ? ['失败反馈较完整'] : [],
+        improvements: feedbackScore < 100 ? errNodes.map(n => `${n.id} 缺少失败反馈文案`) : [],
+      },
+      {
+        dimension: '情绪节奏', score: 78, maxScore: 100,
+        detail: '情绪曲线整体合理，高潮点设计到位',
+        strengths: ['序章低张力建立世界观', 'QTE 高潮点设计合理'],
+        improvements: ['连续高张力节点间建议插入缓冲'],
+      },
+      {
+        dimension: '伏笔回收率', score: 80, maxScore: 100,
+        detail: '伏笔回收情况整体良好',
+        strengths: ['核心伏笔已在结局中回收'],
+        improvements: ['部分支线伏笔可进一步明确收束'],
+      },
+    ];
+  }, [storyNodes, nodeEdges, branchPaths, variables]);
+
+  const totalScore = useMemo(() =>
+    Math.round(narrativeScores.reduce((s, n) => s + n.score, 0) / narrativeScores.length),
+    [narrativeScores]
+  );
+
+  // ── P12-#22: Dynamic STYLE_CONSISTENCY from store ──────────────────────
+  const styleConsistency = useMemo(() => {
+    if (assetCards.length > 0) {
+      return assetCards.map(card => ({
+        nodeId: card.nodeId,
+        assetType: card.hasImage ? '场景图片' : card.hasBgm ? 'BGM' : card.hasVoice ? '配音' : '资产',
+        style: '赛博朋克',
+        consistent: card.hasImage,
+        warning: !card.hasImage ? '缺少图片资产' : !card.hasBgm ? '缺少 BGM' : undefined,
+      }));
+    }
+    // Fallback: generate from storyNodes (non-ending nodes)
+    return storyNodes
+      .filter(n => n.type !== 'ending_good' && n.type !== 'ending_bad')
+      .map(n => ({
+        nodeId: n.id, assetType: '场景图片', style: '赛博朋克', consistent: true, warning: undefined,
+      }));
+  }, [assetCards, storyNodes]);
+
+  const styleSummary = useMemo(() => {
+    const totalAssets = styleConsistency.length;
+    const consistentCount = styleConsistency.filter(s => s.consistent).length;
+    const inconsistentCount = totalAssets - consistentCount;
+    const consistencyRate = totalAssets > 0 ? Math.round((consistentCount / totalAssets) * 100) : 100;
+    return { dominant: '赛博朋克', totalAssets, consistentCount, inconsistentCount, consistencyRate };
+  }, [styleConsistency]);
 
   // ── Derived data ────────────────────────────────────────────────────────
   const charList = useMemo(() =>
@@ -278,6 +313,24 @@ export default function OverviewScreen() {
   }
   const doneCount = qualityChecks.filter(h => h.status === "ok").length;
   const healthPct = Math.round((doneCount / qualityChecks.length) * 100);
+
+  // ── Empty state check ─────────────────────────────────────────────────────
+  if (qualityChecks.length === 0) {
+    return (
+      <div className="min-h-svh flex items-center justify-center" style={{ background: S.bg }}>
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: '#F4F6FC' }}>
+            <Shield size={28} style={{ color: '#7C6CF5' }} />
+          </div>
+          <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有质检结果</h3>
+          <p className="text-sm text-gray-500 mb-4">完成更多创作步骤后，质检结果将自动更新</p>
+          <Link href="/pipeline" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+            前往创作流程 →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
@@ -356,7 +409,7 @@ export default function OverviewScreen() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="grid grid-cols-4 gap-2 mt-3">
-                  {STATS.map(s => (
+                  {stats.map(s => (
                     <div key={s.key} className="p-2.5 rounded-xl text-center"
                       style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                       <s.icon size={14} style={{ color: s.color, margin: "0 auto 4px" }} />
@@ -368,9 +421,9 @@ export default function OverviewScreen() {
                 {/* 三段进度 */}
                 <div className="grid grid-cols-3 gap-2 mt-2">
                   {[
-                    { label: t('parse'), detail: `${t('character')}3 · ${t('scene')}6 · ${t('prop')}9`, pct: 100, done: true },
-                    { label: t('interaction'), detail: `11${t('node')} · 2${t('edge')} · 2${t('ending')}`, pct: 100, done: true },
-                    { label: t('asset') + '生成', detail: "图8/9 · BGM 0/9 · 视频待补", pct: 60, done: false },
+                    { label: t('parse'), detail: `${t('character')}${characters.length} · ${t('scene')}${scenes.length} · ${t('prop')}${props.length}`, pct: 100, done: true },
+                    { label: t('interaction'), detail: `${storyNodes.length}${t('node')} · ${nodeEdges.length}${t('edge')} · ${storyNodes.filter(n => n.type === 'ending_good' || n.type === 'ending_bad').length}${t('ending')}`, pct: 100, done: true },
+                    { label: t('asset') + '生成', detail: `图${assetCards.filter(c => c.hasImage).length}/${storyNodes.length} · BGM ${assetCards.filter(c => c.hasBgm).length}/${storyNodes.length} · ${assetCards.filter(c => c.hasVoice).length > 0 ? '配音中' : '配音待补'}`, pct: assetCards.length > 0 ? Math.round(((assetCards.filter(c => c.hasImage).length + assetCards.filter(c => c.hasBgm).length + assetCards.filter(c => c.hasVoice).length) / (assetCards.length * 3)) * 100) : 0, done: false },
                   ].map((s, i) => (
                     <div key={i} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${s.done ? `${S.success}30` : `${S.primary}20`}` }}>
                       <div className="flex items-center gap-1 mb-1">
@@ -758,7 +811,7 @@ export default function OverviewScreen() {
 
         {/* ── 叙事质量评分 ── */}
         <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader icon={Shield} title="叙事质量评分" subtitle={`${NARRATIVE_SCORES.length} 个维度综合评估`}
+          <SectionHeader icon={Shield} title="叙事质量评分" subtitle={`${narrativeScores.length} 个维度综合评估`}
             open={secNarrative.open} onToggle={secNarrative.toggle}
             action={
               <div className="flex items-center gap-1.5">
@@ -799,7 +852,7 @@ export default function OverviewScreen() {
 
                 {/* 维度评分列表 */}
                 <div className="space-y-2.5">
-                  {NARRATIVE_SCORES.map((ns, i) => {
+                  {narrativeScores.map((ns, i) => {
                     const pct = Math.round((ns.score / ns.maxScore) * 100);
                     const barColor = pct >= 80 ? S.success : pct >= 60 ? S.warning : S.error;
                     return (
@@ -849,7 +902,7 @@ export default function OverviewScreen() {
                     <span className="text-[10px] font-bold" style={{ color: S.warning }}>改进优先级</span>
                   </div>
                   <div className="space-y-1">
-                    {[...NARRATIVE_SCORES]
+                    {[...narrativeScores]
                       .sort((a, b) => a.score - b.score)
                       .slice(0, 3)
                       .map((ns, i) => (
@@ -926,7 +979,7 @@ export default function OverviewScreen() {
                     <span className="text-[8px] font-bold text-right" style={{ color: S.text3 }}>状态</span>
                   </div>
                   {/* 行 */}
-                  {STYLE_CONSISTENCY.map((item, i) => (
+                  {styleConsistency.map((item, i) => (
                     <div key={i} className="grid grid-cols-4 gap-1 px-3 py-2 items-center" style={{
                       background: item.consistent ? 'transparent' : `${S.error}06`,
                       borderTop: `1px solid ${S.border}`,
@@ -953,7 +1006,7 @@ export default function OverviewScreen() {
                 {/* 不一致项警告详情 */}
                 {styleSummary.inconsistentCount > 0 && (
                   <div className="mt-3 space-y-2">
-                    {STYLE_CONSISTENCY.filter(s => !s.consistent && s.warning).map((item, i) => (
+                    {styleConsistency.filter(s => !s.consistent && s.warning).map((item, i) => (
                       <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{
                         background: `${S.warning}08`, border: `1px solid ${S.warning}20`,
                       }}>
@@ -1038,6 +1091,15 @@ export default function OverviewScreen() {
         </div>
 
         <div className="h-6" />
+      </div>
+
+      {/* Next Step Navigation */}
+      <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
+        style={{ borderTopColor: S.border }}>
+        <span className="text-xs text-gray-500">质检通过？准备发布</span>
+        <Link href="/publish" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+          前往发布 →
+        </Link>
       </div>
     </div>
   );

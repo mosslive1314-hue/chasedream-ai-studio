@@ -201,6 +201,24 @@ export default function AssetsScreen() {
   const char = CHARACTERS[selectedChar];
   const scene = SCENES[selectedScene];
 
+  // ── Empty state check ─────────────────────────────────────────────────────
+  if (assetCards.length === 0) {
+    return (
+      <div className="h-svh flex items-center justify-center" style={{ background: S.bg }}>
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: '#F4F6FC' }}>
+            <Package size={28} style={{ color: '#7C6CF5' }} />
+          </div>
+          <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有资产需求</h3>
+          <p className="text-sm text-gray-500 mb-4">节点设计完成后，这里会自动生成资产需求</p>
+          <Link href="/nodes" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+            前往节点设计 →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
 
@@ -852,6 +870,15 @@ export default function AssetsScreen() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Next Step Navigation */}
+      <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
+        style={{ borderColor: S.border }}>
+        <span className="text-xs text-gray-500">下一步：查看质检结果</span>
+        <Link href="/overview" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+          前往质检总览 →
+        </Link>
       </div>
     </div>
   );

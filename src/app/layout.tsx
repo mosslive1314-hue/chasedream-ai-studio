@@ -7,6 +7,11 @@ import { Toaster } from "@/components/ui/sonner";
 import { UserSyncEffect } from "@/components/user-profile/user-sync-effect";
 import { BottomNav, SideNav } from "@/components/layout/nav";
 import { ToastContainer } from "@/components/ui/ToastContainer";
+import { OnboardingGate } from "@/components/ui/OnboardingGate";
+import { UndoRedoListener } from "@/components/ui/UndoRedoListener";
+import { CommandPalette } from "@/components/ui/CommandPalette";
+import { SaveIndicator } from "@/components/ui/SaveIndicator";
+import { Breadcrumb } from "@/components/ui/Breadcrumb";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -51,16 +56,28 @@ export default function RootLayout({
       <body className="min-h-svh flex flex-col" style={{ background: "var(--app-bg)" }}>
         <EazoProvider>
           <UserSyncEffect />
+          {/* P13: Undo/Redo keyboard listener + auto-save tracking */}
+          <UndoRedoListener />
+          {/* P13: Cmd+K command palette */}
+          <CommandPalette />
           {/* Desktop sidebar — hidden on mobile */}
           <SideNav />
           {/* Main content — offset on desktop for sidebar */}
           <main className="flex-1 flex flex-col md:ml-[200px] pb-16 md:pb-0" style={{ transition:"margin-left 220ms ease" }}>
+            {/* P13: Top bar with breadcrumb + save indicator */}
+            <div className="flex items-center justify-between">
+              <Breadcrumb />
+              <div className="px-4 py-2">
+                <SaveIndicator />
+              </div>
+            </div>
             {children}
           </main>
           {/* Mobile bottom nav — hidden on desktop */}
           <BottomNav />
           <Toaster />
           <ToastContainer />
+          <OnboardingGate />
         </EazoProvider>
       </body>
     </html>

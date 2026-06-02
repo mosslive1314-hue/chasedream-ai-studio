@@ -41,6 +41,8 @@ import type {
   FactoryTask,
   PathTestResult,
   PipelineStage,
+  EntityRelation,
+  CharacterSceneAppearance,
 } from '@/lib/studio-data';
 
 // Import seed data - these will be created as part of the studio-data split
@@ -88,6 +90,10 @@ import {
   REVIEW_ITEMS as SEED_REVIEW_ITEMS,
   VERSION_DIFFS as SEED_VERSION_DIFFS,
 } from '@/lib/seed/narrative-seed';
+import {
+  ENTITY_RELATIONS as SEED_ENTITY_RELATIONS,
+  CHARACTER_SCENE_APPEARANCES as SEED_CHARACTER_SCENE_APPEARANCES,
+} from '@/lib/seed/game-seed';
 
 // Using NarrativeStoreState to avoid naming collision with the NarrativeState type from studio-data
 interface NarrativeStoreState {
@@ -162,6 +168,10 @@ interface NarrativeStoreState {
 
   // --- Factory ---
   factoryTasks: FactoryTask[];
+
+  // --- Entity Relations (P11) ---
+  entityRelations: EntityRelation[];
+  characterSceneAppearances: CharacterSceneAppearance[];
 
   // --- Node Actions ---
   updateNode: (id: string, updates: Partial<StoryNode>) => void;
@@ -273,6 +283,10 @@ const seedState = {
 
   // --- Factory ---
   factoryTasks: SEED_FACTORY_TASKS,
+
+  // --- Entity Relations (P11) ---
+  entityRelations: SEED_ENTITY_RELATIONS,
+  characterSceneAppearances: SEED_CHARACTER_SCENE_APPEARANCES,
 };
 
 export const useNarrativeStore = create<NarrativeStoreState>()(

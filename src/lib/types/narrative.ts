@@ -1,7 +1,13 @@
 // ChaseDream Creator Studio — Narrative Types
 
+import type { Condition } from '../condition-engine';
+
 // Node graph data
 export type NodeType = 'start' | 'scene' | 'choice' | 'condition' | 'qte' | 'ending_good' | 'ending_bad';
+
+export type EdgeType = 'causal' | 'conditional' | 'parallel' | 'exclusive' | 'implied';
+
+export type InteractionType = 'exploration' | 'dialogue' | 'decision' | 'confrontation';
 
 export interface StoryNode {
   id: string;
@@ -17,6 +23,8 @@ export interface NodeEdge {
   from: string;
   to: string;
   label?: string;
+  edgeType?: EdgeType;    // typed edge relationship
+  condition?: Condition;   // optional condition for conditional edges
 }
 
 // ── 叙事设计意图（P0-3）─────────────────────────────────────────────────────
@@ -162,6 +170,7 @@ export interface InteractionPoint {
   narrativePurpose: string;
   tested: boolean;
   visibleCondition?: string;
+  interactionType?: InteractionType;  // exploration | dialogue | decision | confrontation
 }
 
 // ── 制作管线阶段数据（P3-1）─────────────────────────────────────────────
