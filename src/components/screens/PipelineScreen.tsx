@@ -8,9 +8,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
-  PIPELINE_STAGES, INDUSTRY_TEMPLATES, INDUSTRY_LABELS,
+  INDUSTRY_TEMPLATES, INDUSTRY_LABELS, PIPELINE_STAGES,
   type PipelineStage, type IndustryType,
 } from "@/lib/studio-data";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -51,27 +52,26 @@ const INDUSTRY_SWITCHER: { type: IndustryType; icon: string; label: string }[] =
 const STEP_ICONS = ['📋', '📥', '🔍', '🗺️', '✏️', '🎨', '⚙️', '🔧', '🎵', '▶️', '✅', '🚀'];
 
 // ── 根据行业模板生成管线阶段 ──────────────────────────────────────────
-function generateIndustryStages(industry: IndustryType): PipelineStage[] {
-  if (industry === 'game') return PIPELINE_STAGES;
+function generateIndustryStages(
+  industry: IndustryType,
+  pipelineStages: PipelineStage[],
+  stageProgress: number[],
+): PipelineStage[] {
+  if (industry === 'game') return pipelineStages;
   const template = INDUSTRY_TEMPLATES.find(t => t.industryType === industry);
-  if (!template) return PIPELINE_STAGES;
+  if (!template) return pipelineStages;
 
   const steps = template.workflow;
-  const completedCount = Math.min(3, Math.floor(steps.length * 0.3));
-  const activeCount = Math.min(2, steps.length - completedCount);
 
   return steps.map((step, i) => {
+    const progress = stageProgress[i] ?? 0;
     let status: PipelineStage['status'];
-    let progress: number;
-    if (i < completedCount) {
+    if (progress >= 100) {
       status = 'completed';
-      progress = 100;
-    } else if (i < completedCount + activeCount) {
+    } else if (progress > 0) {
       status = 'active';
-      progress = 40 + Math.floor(Math.random() * 31);
     } else {
       status = 'upcoming';
-      progress = 0;
     }
 
     return {
@@ -385,10 +385,52 @@ function BlockingIssuesSummary({ stages }: { stages: PipelineStage[] }) {
 // ── 主页面 ──────────────────────────────────────────────────────────────
 export default function PipelineScreen() {
   const [selectedId, setSelectedId] = useState<string | null>('stage-06');
-  const [industry, setIndustry] = useState<IndustryType>('game');
+  const industry = useUIStore(state => state.industry);
+  const setIndustry = useUIStore(state => state.setIndustry);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const currentStages = useMemo(() => generateIndustryStages(industry), [industry]);
+  // Narrative store selectors for pipeline data and progress calculation
+  const pipelineStages = useNarrativeStore(state => state.pipelineStages);
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+  const variables = useNarrativeStore(state => state.variables);
+  const characters = useNarrativeStore(state => state.characters);
+  const qualityChecks = useNarrativeStore(state => state.qualityChecks);
+  const chapterPlans = useNarrativeStore(state => state.chapterPlans);
+  const scenes = useNarrativeStore(state => state.scenes);
+  const worldBuilding = useNarrativeStore(state => state.worldBuilding);
+
+  // Deterministic stage progress based on actual data availability
+  const stageProgress = useMemo(() => {
+    const hasNodes = storyNodes.length > 0;
+    const hasVars = variables.length > 0;
+    const hasChars = characters.length > 0;
+    const hasQuality = qualityChecks.length > 0;
+    const hasPlans = chapterPlans.length > 0;
+    const hasScenes = scenes.length > 0;
+    const hasWorld = worldBuilding.length > 0;
+
+    // Map each template workflow step to a data-completeness check.
+    // Step names come from INDUSTRY_TEMPLATES workflow definitions.
+    return INDUSTRY_TEMPLATES
+      .find(t => t.industryType === industry)
+      ?.workflow.map((step) => {
+        const name = step.step;
+        if (name.includes('解构') || name.includes('素材')) return hasNodes ? 100 : 0;
+        if (name.includes('角色') || name.includes('人物')) return hasChars ? 100 : 0;
+        if (name.includes('世界观') || name.includes('世界')) return hasWorld ? 100 : 0;
+        if (name.includes('场景') || name.includes('空间')) return hasScenes ? 100 : 0;
+        if (name.includes('剧本') || name.includes('叙事')) return hasPlans ? 100 : 0;
+        if (name.includes('变量') || name.includes('逻辑')) return hasVars ? 100 : 0;
+        if (name.includes('质检') || name.includes('测试')) return hasQuality ? 100 : 0;
+        // Default: stages not yet mapped to data show as 0
+        return 0;
+      }) ?? [];
+  }, [industry, storyNodes, variables, characters, qualityChecks, chapterPlans, scenes, worldBuilding]);
+
+  const currentStages = useMemo(
+    () => generateIndustryStages(industry, pipelineStages, stageProgress),
+    [industry, pipelineStages, stageProgress]
+  );
   const currentTemplate = INDUSTRY_TEMPLATES.find(t => t.industryType === industry);
 
   const selected = currentStages.find(s => s.id === selectedId) ?? null;

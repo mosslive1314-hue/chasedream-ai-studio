@@ -7,7 +7,8 @@ import {
   Image, Music, Mic, Film, Plus, Edit2, Check
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, GAME_SCENES, GAME_CHARACTERS, GAME_PROPS, ASSET_CARDS, INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, IndustryType } from "@/lib/studio-data";
+import { INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, type IndustryType, type AssetCard } from "@/lib/studio-data";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -159,7 +160,7 @@ const INDUSTRY_SUGGESTIONS: Record<IndustryType, string[]> = {
   ],
 };
 
-const ASSET_FILTER_MAP: Record<string, (a: typeof ASSET_CARDS[number]) => boolean> = {
+const ASSET_FILTER_MAP: Record<string, (a: AssetCard) => boolean> = {
   image: a => a.hasImage, character: a => a.hasImage, bgm: a => a.hasBgm,
   sfx: a => a.hasVoice, voice: a => a.hasVoice, video: a => a.hasVideo, ui: a => a.hasImage,
   exhibit_photo: a => a.hasImage, history_photo: a => a.hasImage, map: a => a.hasImage,
@@ -171,13 +172,22 @@ const ASSET_FILTER_MAP: Record<string, (a: typeof ASSET_CARDS[number]) => boolea
 };
 
 export default function AssetsScreen() {
+  // ── Store selectors ──
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+  const gameScenes = useNarrativeStore(s => s.scenes);
+  const gameCharacters = useNarrativeStore(s => s.characters);
+  const gameProps = useNarrativeStore(s => s.props);
+  const assetCards = useNarrativeStore(s => s.assetCards);
+  const industry = useUIStore(s => s.industry);
+  const setIndustry = useUIStore(s => s.setIndustry);
+
   const [activeStep, setActiveStep] = useState<string>("character");
   const [selectedChar, setSelectedChar] = useState(0);
   const [selectedScene, setSelectedScene] = useState(0);
   const [generating, setGenerating] = useState<string|null>(null);
   const [genDone, setGenDone] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"pipeline" | "by-node">("pipeline");
-  const [industry, setIndustry] = useState<IndustryType>('game');
   const [activeAssetFilter, setActiveAssetFilter] = useState<string | null>(null);
 
   const handleGenerate = (id: string) => {
@@ -685,10 +695,10 @@ export default function AssetsScreen() {
             {/* Summary stats */}
             <div className="grid grid-cols-4 gap-2">
               {[
-                { label: `${INDUSTRY_LABELS.node[industry]}总数`, value: STORY_NODES.length, color: S.primary },
-                { label: `有${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[0]?.label || '图片'}`, value: ASSET_CARDS.filter(a => a.hasImage).length, color: S.success },
-                { label: `缺${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || 'BGM'}`, value: ASSET_CARDS.filter(a => !a.hasBgm).length, color: S.warning },
-                { label: `${INDUSTRY_LABELS.asset[industry]}覆盖率`, value: `${Math.round(ASSET_CARDS.filter(a => a.hasImage).length / ASSET_CARDS.length * 100)}%`, color: S.accent },
+                { label: `${INDUSTRY_LABELS.node[industry]}总数`, value: storyNodes.length, color: S.primary },
+                { label: `有${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[0]?.label || '图片'}`, value: assetCards.filter(a => a.hasImage).length, color: S.success },
+                { label: `缺${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || 'BGM'}`, value: assetCards.filter(a => !a.hasBgm).length, color: S.warning },
+                { label: `${INDUSTRY_LABELS.asset[industry]}覆盖率`, value: `${Math.round(assetCards.filter(a => a.hasImage).length / assetCards.length * 100)}%`, color: S.accent },
               ].map(stat => (
                 <div key={stat.label} className="p-3 rounded-xl text-center"
                   style={{ background: S.card, border: `1px solid ${S.border}` }}>
@@ -717,14 +727,14 @@ export default function AssetsScreen() {
                 { 
                   priority: "阻塞发布", 
                   color: S.error, 
-                  items: ASSET_CARDS.filter(a => !a.hasImage && (!activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true))).map(a => ({
+                  items: assetCards.filter(a => !a.hasImage && (!activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true))).map(a => ({
                     node: a, type: INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[0]?.label || "场景图片", reason: `缺少核心${INDUSTRY_LABELS.asset[industry]}`
                   }))
                 },
                 { 
                   priority: "影响体验", 
                   color: S.warning, 
-                  items: ASSET_CARDS.filter(a => !a.hasBgm && (!activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true))).map(a => ({
+                  items: assetCards.filter(a => !a.hasBgm && (!activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true))).map(a => ({
                     node: a, type: INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || "背景音乐", reason: `缺少 ${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || 'BGM'} 影响沉浸感`
                   }))
                 },
@@ -768,11 +778,11 @@ export default function AssetsScreen() {
             <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
               <h3 className="text-xs font-bold mb-3" style={{ color: S.text }}>{INDUSTRY_NODE_PREFIX[industry]}资产依赖详情</h3>
               <div className="space-y-2">
-                {ASSET_CARDS.filter(a => !activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true)).map(asset => {
-                  const node = STORY_NODES.find(n => n.id === asset.nodeId);
-                  const scene = GAME_SCENES.find(s => s.refNodes.includes(asset.nodeId));
-                  const chars = GAME_CHARACTERS.filter(c => c.appearNodes.includes(asset.nodeId));
-                  const props = GAME_PROPS.filter(p => p.refNodes.includes(asset.nodeId));
+                {assetCards.filter(a => !activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true)).map(asset => {
+                  const node = storyNodes.find(n => n.id === asset.nodeId);
+                  const scene = gameScenes.find(s => s.refNodes.includes(asset.nodeId));
+                  const chars = gameCharacters.filter(c => c.appearNodes.includes(asset.nodeId));
+                  const props = gameProps.filter(p => p.refNodes.includes(asset.nodeId));
                   const missing = [!asset.hasImage, !asset.hasBgm, !asset.hasVoice, !asset.hasVideo].filter(Boolean).length;
                   
                   return (

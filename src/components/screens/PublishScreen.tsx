@@ -8,9 +8,7 @@ import {
   History, ArrowLeftRight, X, Layers, Download, UserPlus,
   Shield, Upload, Eye, Globe, MessageCircle, GitCompare, LayoutGrid,
 } from "lucide-react";
-import {
-  ENGINE_EXPORT_CONFIGS, COLLAB_TASKS, COLLAB_COMMENTS, REVIEW_ITEMS, VERSION_DIFFS,
-} from "../../lib/studio-data";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -24,19 +22,7 @@ const S = {
   error: "#DC2626", error10: "rgba(220,38,38,0.10)",
 };
 
-// ── 发布检查（本地定义，不导入 studio-data）────────────────────────────────
-const QUALITY_CHECKS = [
-  { id: "qc01", label: "主线连通", ok: true },
-  { id: "qc02", label: "所有结局可达", ok: true },
-  { id: "qc03", label: "无孤立节点", ok: true },
-  { id: "qc04", label: "无死路", ok: true },
-  { id: "qc05", label: "选择有意义", ok: true },
-  { id: "qc06", label: "分支不过短", ok: true },
-  { id: "qc07", label: "失败反馈完整", ok: false },
-  { id: "qc08", label: "BGM 覆盖", ok: false },
-  { id: "qc09", label: "场景图片覆盖", ok: false },
-  { id: "qc10", label: "试玩已通过", ok: false },
-];
+// ── 发布检查 — now sourced from store ────────────────────────────────────
 
 // ── 版本快照数据 ─────────────────────────────────────────────────────────
 const SNAPSHOTS = [
@@ -270,9 +256,18 @@ function renderWithMentions(text: string, mentions?: string[]) {
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function PublishScreen() {
+  // ── Store selectors ──
+  const qualityChecks = useNarrativeStore(s => s.qualityChecks);
+  const engineExportConfigs = useNarrativeStore(s => s.engineExportConfigs);
+  const collabTasks = useNarrativeStore(s => s.collabTasks);
+  const collabComments = useNarrativeStore(s => s.collabComments);
+  const reviewItems = useNarrativeStore(s => s.reviewItems);
+  const versionDiffs = useNarrativeStore(s => s.versionDiffs);
+  const addToast = useUIStore(s => s.addToast);
+
   const [copied, setCopied] = useState(false);
   const url = "https://play.zhuomeng.ai/ghost-protocol-v1";
-  const pass = QUALITY_CHECKS.filter((c) => c.ok).length;
+  const pass = qualityChecks.filter((c) => c.status === 'ok').length;
 
   // 区块折叠状态
   const secStatus = useSectionToggle(true);
@@ -331,6 +326,7 @@ export default function PublishScreen() {
     setExportStates((prev) => ({ ...prev, [formatId]: { status: 'exporting' } }));
     setTimeout(() => {
       setExportStates((prev) => ({ ...prev, [formatId]: { status: 'done' } }));
+      addToast({ type: 'success', title: '导出完成', message: `已成功导出 ${formatId} 格式` });
     }, 2000);
   };
 
@@ -338,6 +334,7 @@ export default function PublishScreen() {
     setEngineExportStates((prev) => ({ ...prev, [engineId]: { status: 'exporting' } }));
     setTimeout(() => {
       setEngineExportStates((prev) => ({ ...prev, [engineId]: { status: 'done' } }));
+      addToast({ type: 'success', title: '引擎导出完成', message: `已成功导出 ${engineId} 引擎格式` });
     }, 2500);
   };
 
@@ -419,21 +416,21 @@ export default function PublishScreen() {
           <SectionHeader
             icon={CheckCircle2}
             title="发布检查"
-            subtitle={`${pass}/${QUALITY_CHECKS.length} 项通过`}
+            subtitle={`${pass}/${qualityChecks.length} 项通过`}
             open={secChecks.open}
             onToggle={secChecks.toggle}
             action={
               <div className="flex items-center gap-1.5">
                 <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: S.s3 }}>
                   <div className="h-full rounded-full" style={{
-                    width: `${Math.round((pass / QUALITY_CHECKS.length) * 100)}%`,
-                    background: pass === QUALITY_CHECKS.length ? S.success : S.warning,
+                    width: `${Math.round((pass / qualityChecks.length) * 100)}%`,
+                    background: pass === qualityChecks.length ? S.success : S.warning,
                   }} />
                 </div>
                 <span className="text-[9px] font-mono font-bold" style={{
-                  color: pass === QUALITY_CHECKS.length ? S.success : S.warning,
+                  color: pass === qualityChecks.length ? S.success : S.warning,
                 }}>
-                  {Math.round((pass / QUALITY_CHECKS.length) * 100)}%
+                  {Math.round((pass / qualityChecks.length) * 100)}%
                 </span>
               </div>
             }
@@ -448,12 +445,12 @@ export default function PublishScreen() {
                 className="overflow-hidden"
               >
                 <div className="space-y-1.5 mt-3">
-                  {QUALITY_CHECKS.map((c) => (
+                  {qualityChecks.map((c) => (
                     <div key={c.id} className="flex items-center gap-2">
-                      {c.ok
+                      {c.status === 'ok'
                         ? <CheckCircle2 size={13} color={S.success} className="shrink-0" />
                         : <AlertTriangle size={13} color={S.warning} className="shrink-0" />}
-                      <span className="text-[10px]" style={{ color: c.ok ? S.text2 : S.warning }}>{c.label}</span>
+                      <span className="text-[10px]" style={{ color: c.status === 'ok' ? S.text2 : S.warning }}>{c.label}</span>
                     </div>
                   ))}
                 </div>
@@ -1016,7 +1013,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={Rocket}
             title="引擎导出 (Beta)"
-            subtitle={`${ENGINE_EXPORT_CONFIGS.length} 个引擎目标`}
+            subtitle={`${engineExportConfigs.length} 个引擎目标`}
             open={secEngineExport.open}
             onToggle={secEngineExport.toggle}
           />
@@ -1030,7 +1027,7 @@ export default function PublishScreen() {
                 className="overflow-hidden"
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                  {ENGINE_EXPORT_CONFIGS.map((engine) => {
+                  {engineExportConfigs.map((engine) => {
                     const state = engineExportStates[engine.id]?.status ?? 'idle';
                     const statusColor = engine.status === 'stable' ? S.success : engine.status === 'beta' ? S.warning : S.error;
                     const statusLabel = engine.status === 'stable' ? 'Stable' : engine.status === 'beta' ? 'Beta' : 'Alpha';
@@ -1244,7 +1241,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={LayoutGrid}
             title="任务看板"
-            subtitle={`${COLLAB_TASKS.length} 个任务`}
+            subtitle={`${collabTasks.length} 个任务`}
             open={secTaskBoard.open}
             onToggle={secTaskBoard.toggle}
           />
@@ -1264,7 +1261,7 @@ export default function PublishScreen() {
                     { key: 'review', label: '审核中', color: S.warning },
                     { key: 'done', label: '已完成', color: S.success },
                   ] as const).map((col) => {
-                    const colTasks = COLLAB_TASKS.filter((t) => t.status === col.key);
+                    const colTasks = collabTasks.filter((t) => t.status === col.key);
                     return (
                       <div key={col.key} className="rounded-lg p-2" style={{ background: S.s2, minHeight: '80px' }}>
                         <div className="flex items-center gap-1 mb-2">
@@ -1348,7 +1345,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={MessageCircle}
             title="评论动态"
-            subtitle={`${COLLAB_COMMENTS.length} 条评论`}
+            subtitle={`${collabComments.length} 条评论`}
             open={secCommentsFeed.open}
             onToggle={secCommentsFeed.toggle}
           />
@@ -1362,7 +1359,7 @@ export default function PublishScreen() {
                 className="overflow-hidden"
               >
                 <div className="space-y-0 mt-3">
-                  {COLLAB_COMMENTS.map((comment, i) => (
+                  {collabComments.map((comment, i) => (
                     <div key={comment.id} className="p-3 rounded-xl"
                       style={{ background: i % 2 === 0 ? S.s2 : S.card, border: `1px solid ${S.border}`, marginBottom: '4px' }}>
                       {/* Header */}
@@ -1409,7 +1406,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={Shield}
             title="审核流程"
-            subtitle={`${REVIEW_ITEMS.length} 个审核项`}
+            subtitle={`${reviewItems.length} 个审核项`}
             open={secReviewWorkflow.open}
             onToggle={secReviewWorkflow.toggle}
           />
@@ -1423,7 +1420,7 @@ export default function PublishScreen() {
                 className="overflow-hidden"
               >
                 <div className="space-y-3 mt-3">
-                  {REVIEW_ITEMS.map((item) => {
+                  {reviewItems.map((item) => {
                     const TypeIcon = REVIEW_TYPE_ICONS[item.type] ?? Pencil;
                     const currentStageIdx = REVIEW_STAGES.findIndex((s) => s.key === item.stage);
                     return (
@@ -1486,7 +1483,7 @@ export default function PublishScreen() {
           <SectionHeader
             icon={GitCompare}
             title="版本差异对比"
-            subtitle={`${VERSION_DIFFS.length} 组对比数据`}
+            subtitle={`${versionDiffs.length} 组对比数据`}
             open={secVersionDiff.open}
             onToggle={secVersionDiff.toggle}
           />
@@ -1507,7 +1504,7 @@ export default function PublishScreen() {
                     className="flex-1 text-[10px] px-2 py-1.5 rounded-lg focus:outline-none"
                     style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
                   >
-                    {VERSION_DIFFS.map((d, i) => (
+                    {versionDiffs.map((d, i) => (
                       <option key={i} value={i}>{d.fromVersion} → {d.toVersion}</option>
                     ))}
                   </select>
@@ -1518,14 +1515,14 @@ export default function PublishScreen() {
                     className="flex-1 text-[10px] px-2 py-1.5 rounded-lg focus:outline-none"
                     style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
                   >
-                    {VERSION_DIFFS.map((d, i) => (
+                    {versionDiffs.map((d, i) => (
                       <option key={i} value={i}>{d.fromVersion} → {d.toVersion}</option>
                     ))}
                   </select>
                 </div>
                 {/* Diff summary card */}
                 {(() => {
-                  const diff = VERSION_DIFFS[diffFromIdx] ?? VERSION_DIFFS[0];
+                  const diff = versionDiffs[diffFromIdx] ?? versionDiffs[0];
                   const metrics = [
                     { label: '节点新增', value: diff.nodesAdded, color: S.success },
                     { label: '节点修改', value: diff.nodesModified, color: S.primary },

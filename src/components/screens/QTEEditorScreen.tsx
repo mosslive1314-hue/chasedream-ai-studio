@@ -8,13 +8,8 @@ import {
   CircleDot, Keyboard,
 } from "lucide-react";
 import Link from "next/link";
-import {
-  QTE_CONFIGS,
-  HOTSPOT_CONFIGS,
-  STORY_NODES,
-  type QTEConfig,
-  type HotspotConfig,
-} from "@/lib/studio-data";
+import type { QTEConfig, HotspotConfig } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -60,30 +55,33 @@ type TabKey = "qte" | "hotspot";
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function QTEEditorScreen() {
+  const qteConfigs = useNarrativeStore(s => s.qteConfigs);
+  const hotspotConfigs = useNarrativeStore(s => s.hotspotConfigs);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
   const [activeTab, setActiveTab] = useState<TabKey>("qte");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   // ── Statistics ──────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const qteCount = QTE_CONFIGS.length;
-    const hotspotCount = HOTSPOT_CONFIGS.length;
-    const tested = QTE_CONFIGS.filter((q) => q.tested).length;
+    const qteCount = qteConfigs.length;
+    const hotspotCount = hotspotConfigs.length;
+    const tested = qteConfigs.filter((q) => q.tested).length;
     const untested = qteCount - tested;
 
     // Nodes without hotspots (scene/start nodes)
-    const sceneNodeIds = STORY_NODES
+    const sceneNodeIds = storyNodes
       .filter((n) => n.type === "scene" || n.type === "start")
       .map((n) => n.id);
-    const hotspotNodeIds = new Set(HOTSPOT_CONFIGS.map((h) => h.nodeId));
-    const missingHotspotNodes = STORY_NODES.filter(
+    const hotspotNodeIds = new Set(hotspotConfigs.map((h) => h.nodeId));
+    const missingHotspotNodes = storyNodes.filter(
       (n) => sceneNodeIds.includes(n.id) && !hotspotNodeIds.has(n.id)
     );
 
     // QTE time analysis
-    const timeWarnings = QTE_CONFIGS.filter((q) => q.timeLimit < 1 || q.timeLimit > 10);
+    const timeWarnings = qteConfigs.filter((q) => q.timeLimit < 1 || q.timeLimit > 10);
 
     return { qteCount, hotspotCount, tested, untested, missingHotspotNodes, timeWarnings };
-  }, []);
+  }, [qteConfigs, hotspotConfigs, storyNodes]);
 
   // ── Toggle expand ──────────────────────────────────────────────────────
   const toggle = (id: string) => {
@@ -149,7 +147,7 @@ export default function QTEEditorScreen() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              {QTE_CONFIGS.map((qte) => {
+              {qteConfigs.map((qte) => {
                 const expanded = expandedIds.has(qte.id);
                 const diff = difficultyStyle(qte.difficulty);
                 return (
@@ -311,7 +309,7 @@ export default function QTEEditorScreen() {
                 );
               })}
 
-              {QTE_CONFIGS.length === 0 && (
+              {qteConfigs.length === 0 && (
                 <div className="text-center py-16">
                   <Sparkles size={32} className="mx-auto mb-3" style={{ color: S.text3 }} />
                   <p className="text-sm" style={{ color: S.text3 }}>暂无 QTE 事件</p>
@@ -330,7 +328,7 @@ export default function QTEEditorScreen() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              {HOTSPOT_CONFIGS.map((hs) => {
+              {hotspotConfigs.map((hs) => {
                 const expanded = expandedIds.has(hs.id);
                 const sz = sizeStyle(hs.size);
                 return (
@@ -522,7 +520,7 @@ export default function QTEEditorScreen() {
                 );
               })}
 
-              {HOTSPOT_CONFIGS.length === 0 && (
+              {hotspotConfigs.length === 0 && (
                 <div className="text-center py-16">
                   <Sparkles size={32} className="mx-auto mb-3" style={{ color: S.text3 }} />
                   <p className="text-sm" style={{ color: S.text3 }}>暂无 Hotspot 热区</p>
@@ -558,7 +556,7 @@ export default function QTEEditorScreen() {
                 <p className="text-xs" style={{ color: S.success }}>所有 QTE 均已测试</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {QTE_CONFIGS.filter((q) => !q.tested).map((q) => (
+                  {qteConfigs.filter((q) => !q.tested).map((q) => (
                     <li key={q.id} className="flex items-center gap-2 text-xs" style={{ color: S.text2 }}>
                       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: S.warning }} />
                       <span className="font-medium">{q.name}</span>
@@ -604,7 +602,7 @@ export default function QTEEditorScreen() {
                 <div className="space-y-2">
                   <p className="text-xs" style={{ color: S.success }}>所有 QTE 时间设置合理</p>
                   <div className="space-y-1.5 pt-1">
-                    {QTE_CONFIGS.map((q) => (
+                    {qteConfigs.map((q) => (
                       <div key={q.id} className="flex items-center justify-between text-xs">
                         <span style={{ color: S.text2 }}>{q.name}</span>
                         <span className="font-bold" style={{ color: S.text }}>{q.timeLimit}s</span>
@@ -621,7 +619,7 @@ export default function QTEEditorScreen() {
                       <span style={{ color: S.warning }}>{q.timeLimit}s {q.timeLimit < 1 ? "过短" : "过长"}</span>
                     </li>
                   ))}
-                  {QTE_CONFIGS.filter((q) => !stats.timeWarnings.includes(q)).map((q) => (
+                  {qteConfigs.filter((q) => !stats.timeWarnings.includes(q)).map((q) => (
                     <li key={q.id} className="flex items-center justify-between text-xs">
                       <span className="flex items-center gap-2" style={{ color: S.text2 }}>
                         <CheckCircle2 size={11} className="shrink-0" style={{ color: S.success }} />

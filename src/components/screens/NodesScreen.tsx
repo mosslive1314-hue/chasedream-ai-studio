@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye, Sparkles, Save, Rocket, AlertTriangle,
@@ -14,7 +14,8 @@ import {
   Users, Clock
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, STAGE_CHECKS, NARRATIVE_INTENTS, GAME_VARIABLES, GAME_CHARACTERS, HEATMAP_DATA, BRANCH_PATHS, CHARACTER_TIMELINES, CROSS_CHARACTER_EFFECTS, NARRATIVE_STATES, type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
+import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory, type BranchPath } from "@/lib/studio-data";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 const S = {
   bg:      "#F5F6FA",
@@ -105,7 +106,9 @@ function ScriptContent() {
 // ── 热力图 Tab ────────────────────────────────────────────────────────────
 function HeatmapContent() {
   const [viewMode, setViewMode] = useState<"overview"|"detail">("overview");
-  const hmMap = Object.fromEntries(HEATMAP_DATA.map(h => [h.nodeId, h]));
+  const heatmapData = useNarrativeStore(state => state.heatmapData);
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+  const hmMap = Object.fromEntries(heatmapData.map(h => [h.nodeId, h]));
   
   const heatColor = (level: string) => {
     switch(level) {
@@ -118,13 +121,13 @@ function HeatmapContent() {
   };
 
   // 汇总统计
-  const totalPlays = HEATMAP_DATA.reduce((s,h) => s+h.playCount, 0);
-  const avgDropOff = Math.round(HEATMAP_DATA.reduce((s,h) => s+h.dropOffRate, 0) / HEATMAP_DATA.length);
-  const hotNodes = HEATMAP_DATA.filter(h => h.heatLevel === 'hot');
-  const coldNodes = HEATMAP_DATA.filter(h => h.heatLevel === 'cold' || h.heatLevel === 'cool');
-  const highestDrop = [...HEATMAP_DATA].sort((a,b) => b.dropOffRate - a.dropOffRate)[0];
+  const totalPlays = heatmapData.reduce((s,h) => s+h.playCount, 0);
+  const avgDropOff = Math.round(heatmapData.reduce((s,h) => s+h.dropOffRate, 0) / heatmapData.length);
+  const hotNodes = heatmapData.filter(h => h.heatLevel === 'hot');
+  const coldNodes = heatmapData.filter(h => h.heatLevel === 'cold' || h.heatLevel === 'cool');
+  const highestDrop = [...heatmapData].sort((a,b) => b.dropOffRate - a.dropOffRate)[0];
 
-  const choiceNode = STORY_NODES.find(n => n.type === 'choice');
+  const choiceNode = storyNodes.find(n => n.type === 'choice');
   const choiceHm = choiceNode ? hmMap[choiceNode.id] : null;
 
   return (
@@ -169,7 +172,7 @@ function HeatmapContent() {
         <div className="p-4 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
           <h3 className="text-xs font-bold mb-3" style={{ color:S.text }}>节点到达率</h3>
           <div className="space-y-2">
-            {STORY_NODES.map(node => {
+            {storyNodes.map(node => {
               const hm = hmMap[node.id];
               if (!hm) return null;
               const hc = heatColor(hm.heatLevel);
@@ -179,7 +182,7 @@ function HeatmapContent() {
                   <span className="text-[10px] w-28 truncate shrink-0" style={{ color:S.text2 }}>{node.label}</span>
                   <div className="flex-1 h-4 rounded-full overflow-hidden relative" style={{ background:S.s2 }}>
                     <motion.div initial={{ width:0 }} animate={{ width:`${hm.visitRate}%` }}
-                      transition={{ duration:0.8, delay: STORY_NODES.indexOf(node) * 0.05 }}
+                      transition={{ duration:0.8, delay: storyNodes.indexOf(node) * 0.05 }}
                       className="h-full rounded-full" style={{ background: hc.color, opacity:0.7 }} />
                     <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold"
                       style={{ color: hm.visitRate > 50 ? '#fff' : S.text2 }}>
@@ -200,11 +203,11 @@ function HeatmapContent() {
             <h3 className="text-xs font-bold" style={{ color:S.error }}>流失预警</h3>
           </div>
           <p className="text-[10px] mb-3" style={{ color:S.text2 }}>
-            「{highestDrop?.nodeId} {STORY_NODES.find(n=>n.id===highestDrop?.nodeId)?.label}」节点流失率最高（{highestDrop?.dropOffRate}%），建议检查该节点难度和文案吸引力。
+            「{highestDrop?.nodeId} {storyNodes.find(n=>n.id===highestDrop?.nodeId)?.label}」节点流失率最高（{highestDrop?.dropOffRate}%），建议检查该节点难度和文案吸引力。
           </p>
           <div className="space-y-1.5">
-            {[...HEATMAP_DATA].sort((a,b) => b.dropOffRate - a.dropOffRate).slice(0, 3).map(h => {
-              const node = STORY_NODES.find(n => n.id === h.nodeId);
+            {[...heatmapData].sort((a,b) => b.dropOffRate - a.dropOffRate).slice(0, 3).map(h => {
+              const node = storyNodes.find(n => n.id === h.nodeId);
               return (
                 <div key={h.nodeId} className="flex items-center gap-2">
                   <span className="text-[9px] font-mono w-6" style={{ color:S.error }}>{h.nodeId}</span>
@@ -220,7 +223,7 @@ function HeatmapContent() {
       {/* 详细模式 */}
       {viewMode === 'detail' && (
         <div className="space-y-2">
-          {STORY_NODES.map(node => {
+          {storyNodes.map(node => {
             const hm = hmMap[node.id];
             if (!hm) return null;
             const hc = heatColor(hm.heatLevel);
@@ -271,13 +274,14 @@ function HeatmapContent() {
 }
 
 // ── 路径对比组件 ────────────────────────────────────────────────────────────
-function PathComparison({ pathA, pathB }: { pathA: typeof BRANCH_PATHS[0]; pathB: typeof BRANCH_PATHS[0] }) {
+function PathComparison({ pathA, pathB }: { pathA: BranchPath; pathB: BranchPath }) {
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
   const sharedNodes = pathA.nodes.filter((n: string) => pathB.nodes.includes(n));
   const uniqueToA = pathA.nodes.filter((n: string) => !pathB.nodes.includes(n));
   const uniqueToB = pathB.nodes.filter((n: string) => !pathA.nodes.includes(n));
   const divergePoint = sharedNodes[sharedNodes.length - 1];
 
-  const getNodeInfo = (id: string) => STORY_NODES.find(n => n.id === id);
+  const getNodeInfo = (id: string) => storyNodes.find(n => n.id === id);
 
   return (
     <div className="space-y-3">
@@ -459,7 +463,11 @@ function PathComparison({ pathA, pathB }: { pathA: typeof BRANCH_PATHS[0]; pathB
 
 // ── 分支平衡分析组件 ──────────────────────────────────────────────────────
 function BranchBalanceAnalysis() {
-  const branchMetrics = BRANCH_PATHS.map(path => ({
+  const branchPaths = useNarrativeStore(state => state.branchPaths);
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+  const nodeEdges = useNarrativeStore(state => state.nodeEdges);
+
+  const branchMetrics = branchPaths.map(path => ({
     label: path.label,
     nodeCount: path.nodes.length,
     ending: path.ending,
@@ -467,10 +475,10 @@ function BranchBalanceAnalysis() {
     nodes: path.nodes,
   }));
 
-  const totalNodes = STORY_NODES.length;
-  const choiceNodes = STORY_NODES.filter(n => n.type === "choice");
-  const conditionNodes = STORY_NODES.filter(n => n.type === "condition");
-  const endingNodes = STORY_NODES.filter(n => n.type === "ending_good" || n.type === "ending_bad");
+  const totalNodes = storyNodes.length;
+  const choiceNodes = storyNodes.filter(n => n.type === "choice");
+  const conditionNodes = storyNodes.filter(n => n.type === "condition");
+  const endingNodes = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad");
 
   // Balance score calculation
   const lengthDiff = Math.abs(branchMetrics[0].nodeCount - branchMetrics[1].nodeCount);
@@ -481,8 +489,8 @@ function BranchBalanceAnalysis() {
   const balanceScore = Math.round((lengthBalance * 0.4 + endingDiversity * 0.3 + choiceRichness * 0.3));
 
   // Ending probability estimation
-  const totalEndingPaths = BRANCH_PATHS.length;
-  const endingProbabilities = BRANCH_PATHS.map(path => ({
+  const totalEndingPaths = branchPaths.length;
+  const endingProbabilities = branchPaths.map(path => ({
     ending: path.ending,
     type: path.type,
     probability: Math.round(100 / totalEndingPaths),
@@ -591,7 +599,7 @@ function BranchBalanceAnalysis() {
         </div>
         <div className="mt-2 space-y-1">
           {choiceNodes.map(cn => {
-            const edges = NODE_EDGES.filter(e => e.from === cn.id);
+            const edges = nodeEdges.filter(e => e.from === cn.id);
             return (
               <div key={cn.id} className="flex items-center gap-2 p-1.5 rounded-lg" style={{ background: S.s2 }}>
                 <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
@@ -656,12 +664,13 @@ function BranchBalanceAnalysis() {
 
 // ── 故事 Tab ──────────────────────────────────────────────────────────────
 function StoryContent() {
-  const [comparePathA, setComparePathA] = useState<string>(BRANCH_PATHS[0]?.id || "");
-  const [comparePathB, setComparePathB] = useState<string>(BRANCH_PATHS[1]?.id || "");
+  const branchPaths = useNarrativeStore(state => state.branchPaths);
+  const [comparePathA, setComparePathA] = useState<string>(branchPaths[0]?.id || "");
+  const [comparePathB, setComparePathB] = useState<string>(branchPaths[1]?.id || "");
   const [showComparison, setShowComparison] = useState(false);
 
-  const pathA = BRANCH_PATHS.find(p => p.id === comparePathA);
-  const pathB = BRANCH_PATHS.find(p => p.id === comparePathB);
+  const pathA = branchPaths.find(p => p.id === comparePathA);
+  const pathB = branchPaths.find(p => p.id === comparePathB);
 
   return (
     <div className="p-4 space-y-3 overflow-y-auto h-full">
@@ -690,7 +699,7 @@ function StoryContent() {
               <select value={comparePathA} onChange={e => { setComparePathA(e.target.value); setShowComparison(false); }}
                 className="w-full px-2 py-1.5 rounded-lg text-[10px] focus:outline-none"
                 style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
-                {BRANCH_PATHS.map(p => (
+                {branchPaths.map(p => (
                   <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </select>
@@ -700,7 +709,7 @@ function StoryContent() {
               <select value={comparePathB} onChange={e => { setComparePathB(e.target.value); setShowComparison(false); }}
                 className="w-full px-2 py-1.5 rounded-lg text-[10px] focus:outline-none"
                 style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
-                {BRANCH_PATHS.map(p => (
+                {branchPaths.map(p => (
                   <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </select>
@@ -819,7 +828,12 @@ type DiagView = 'all' | 'mainline' | 'branch' | 'ending' | 'problem' | 'variable
 
 // ── 主节点画布（对齐原站 React Flow 风格）──────────────────────────────────
 function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null; setSel:(id:string|null)=>void; nodeFilter:string; diagView:DiagView }) {
-  const filteredNodes = STORY_NODES.filter(node => {
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+  const nodeEdges = useNarrativeStore(state => state.nodeEdges);
+  const variables = useNarrativeStore(state => state.variables);
+  const characters = useNarrativeStore(state => state.characters);
+
+  const filteredNodes = storyNodes.filter(node => {
     if (nodeFilter === "all") return true;
     if (nodeFilter === "error") return (node as any).hasError;
     if (nodeFilter === "ending") return node.type === "ending_good" || node.type === "ending_bad";
@@ -828,38 +842,38 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
 
   // 诊断视图高亮节点计算
   const highlightedNodeIds = ((): Set<string> => {
-    if (diagView === 'all') return new Set(STORY_NODES.map(n => n.id));
+    if (diagView === 'all') return new Set(storyNodes.map(n => n.id));
     switch (diagView) {
       case 'mainline':
         return new Set(['N01','N02','N03','N04','N06','N07','N08','N10']);
       case 'branch': {
         const ids = new Set(['N03','N07']);
-        NODE_EDGES.filter(e => e.from === 'N03' || e.from === 'N07').forEach(e => ids.add(e.to));
+        nodeEdges.filter(e => e.from === 'N03' || e.from === 'N07').forEach(e => ids.add(e.to));
         return ids;
       }
       case 'ending': {
         const ids = new Set(['N08','N09','N10','N11']);
-        NODE_EDGES.filter(e => e.to === 'N10' || e.to === 'N11').forEach(e => ids.add(e.from));
+        nodeEdges.filter(e => e.to === 'N10' || e.to === 'N11').forEach(e => ids.add(e.from));
         return ids;
       }
       case 'problem':
-        return new Set(STORY_NODES.filter(n => (n as any).hasError).map(n => n.id));
+        return new Set(storyNodes.filter(n => (n as any).hasError).map(n => n.id));
       case 'variable': {
         const ids = new Set<string>();
-        GAME_VARIABLES.forEach(v => { v.modifiedBy.forEach(id => ids.add(id)); v.readBy.forEach(id => ids.add(id)); });
+        variables.forEach(v => { v.modifiedBy.forEach(id => ids.add(id)); v.readBy.forEach(id => ids.add(id)); });
         return ids;
       }
       case 'character': {
         const ids = new Set<string>();
-        GAME_CHARACTERS.forEach(c => c.appearNodes.forEach(id => ids.add(id)));
+        characters.forEach(c => c.appearNodes.forEach(id => ids.add(id)));
         return ids;
       }
       default:
-        return new Set(STORY_NODES.map(n => n.id));
+        return new Set(storyNodes.map(n => n.id));
     }
   })();
 
-  const getNodeLabel = (id: string) => STORY_NODES.find(n => n.id === id)?.label || id;
+  const getNodeLabel = (id: string) => storyNodes.find(n => n.id === id)?.label || id;
 
   return (
     <div className="relative w-full h-full overflow-auto"
@@ -938,7 +952,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
           )}
           {diagView === 'problem' && (
             <div className="space-y-1.5">
-              {STORY_NODES.filter(n => (n as any).hasError).map(node => (
+              {storyNodes.filter(n => (n as any).hasError).map(node => (
                 <div key={node.id} className="p-1.5 rounded-lg" style={{ background: `${S.error}08`, border: `1px solid ${S.error}20` }}>
                   <div className="flex items-center gap-1">
                     <AlertTriangle size={9} style={{ color: S.error }} />
@@ -947,14 +961,14 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                   <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{(node as any).errorMsg || '未知错误'}</p>
                 </div>
               ))}
-              {STORY_NODES.filter(n => (n as any).hasError).length === 0 && (
+              {storyNodes.filter(n => (n as any).hasError).length === 0 && (
                 <span className="text-[9px]" style={{ color: S.success }}>✓ 暂无问题节点</span>
               )}
             </div>
           )}
           {diagView === 'variable' && (
             <div className="space-y-1.5">
-              {GAME_VARIABLES.map(v => (
+              {variables.map(v => (
                 <div key={v.id} className="p-1.5 rounded-lg" style={{ background: S.s2 }}>
                   <span className="text-[9px] font-bold" style={{ color: S.text }}>{v.label}</span>
                   <div className="text-[8px] mt-0.5" style={{ color: S.text3 }}>
@@ -969,7 +983,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
           )}
           {diagView === 'character' && (
             <div className="space-y-1.5">
-              {GAME_CHARACTERS.map(c => (
+              {characters.map(c => (
                 <div key={c.id} className="p-1.5 rounded-lg" style={{ background: S.s2 }}>
                   <div className="flex items-center gap-1">
                     <span className="text-[10px]">{c.emoji}</span>
@@ -1007,9 +1021,9 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
               <path d="M0,0 L0,6 L6,3 Z" fill={S.primary} opacity="0.5" />
             </marker>
           </defs>
-          {NODE_EDGES.map((edge,i) => {
-            const fn = STORY_NODES.find(n=>n.id===edge.from);
-            const tn = STORY_NODES.find(n=>n.id===edge.to);
+          {nodeEdges.map((edge,i) => {
+            const fn = storyNodes.find(n=>n.id===edge.from);
+            const tn = storyNodes.find(n=>n.id===edge.to);
             if (!fn||!tn) return null;
             const x1=fn.x, y1=fn.y+42, x2=tn.x, y2=tn.y;
             const cy = (y1+y2)/2;
@@ -1096,6 +1110,8 @@ const UI_ASSET_CHECKLIST = [
 ];
 
 function UIContent() {
+  const uiTemplates = useNarrativeStore(state => state.uiTemplates);
+  const gameUISettings = useNarrativeStore(state => state.gameUISettings);
   const [catFilter, setCatFilter] = useState<UITemplateCategory | "all">("all");
   const [selectedTpl, setSelectedTpl] = useState<UITemplate | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
@@ -1105,15 +1121,15 @@ function UIContent() {
   const [aiGenResult, setAiGenResult] = useState<UITemplate | null>(null);
   const [marketOpen, setMarketOpen] = useState(false);
   const [appliedTemplates, setAppliedTemplates] = useState<string[]>(
-    UI_TEMPLATES.filter(t => t.isApplied).map(t => t.id)
+    uiTemplates.filter(t => t.isApplied).map(t => t.id)
   );
   const [editingComponent, setEditingComponent] = useState<UIComponentDef | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [coverageOpen, setCoverageOpen] = useState(false);
-  const [globalTextSpeed, setGlobalTextSpeed] = useState(GAME_UI_SETTINGS.globalTextSpeed);
-  const [showSkip, setShowSkip] = useState(GAME_UI_SETTINGS.showSkipButton);
-  const [showAuto, setShowAuto] = useState(GAME_UI_SETTINGS.showAutoPlay);
-  const [showSave, setShowSave] = useState(GAME_UI_SETTINGS.showSaveLoad);
+  const [globalTextSpeed, setGlobalTextSpeed] = useState(gameUISettings.globalTextSpeed);
+  const [showSkip, setShowSkip] = useState(gameUISettings.showSkipButton);
+  const [showAuto, setShowAuto] = useState(gameUISettings.showAutoPlay);
+  const [showSave, setShowSave] = useState(gameUISettings.showSaveLoad);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -1121,7 +1137,7 @@ function UIContent() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const filteredTemplates = UI_TEMPLATES.filter(t => {
+  const filteredTemplates = uiTemplates.filter(t => {
     if (catFilter !== "all" && t.category !== catFilter) return false;
     if (searchQuery && !t.name.includes(searchQuery) && !t.description.includes(searchQuery)) return false;
     return true;
@@ -1410,7 +1426,7 @@ function UIContent() {
                   {/* HUD */}
                   {appliedTemplates.includes("tpl-cyber-hud") && (
                     <div className="relative z-10 pt-3 px-3">
-                      <HudPreview tpl={UI_TEMPLATES.find(t => t.id === "tpl-cyber-hud")!} />
+                      <HudPreview tpl={uiTemplates.find(t => t.id === "tpl-cyber-hud")!} />
                     </div>
                   )}
                   {/* 角色立绘占位 */}
@@ -1423,13 +1439,13 @@ function UIContent() {
                   {/* 对话框 */}
                   <div className="relative z-10 px-3 mt-2">
                     {appliedTemplates.includes("tpl-cyber-dialog") && (
-                      <DialogPreview tpl={UI_TEMPLATES.find(t => t.id === "tpl-cyber-dialog")!} />
+                      <DialogPreview tpl={uiTemplates.find(t => t.id === "tpl-cyber-dialog")!} />
                     )}
                   </div>
                   {/* 选项按钮 */}
                   <div className="relative z-10 px-3 mt-2 pb-4">
                     {appliedTemplates.includes("tpl-cyber-dialog") && (
-                      <ChoicePreview tpl={UI_TEMPLATES.find(t => t.id === "tpl-cyber-dialog")!} />
+                      <ChoicePreview tpl={uiTemplates.find(t => t.id === "tpl-cyber-dialog")!} />
                     )}
                   </div>
                   {/* 底部操作栏 */}
@@ -1592,7 +1608,7 @@ function UIContent() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {UI_TEMPLATES.filter(t => appliedTemplates.includes(t.id)).map(tpl => (
+                {uiTemplates.filter(t => appliedTemplates.includes(t.id)).map(tpl => (
                   <div key={tpl.id}>
                     <div className="flex items-center gap-1.5 mb-1">
                       <span className="text-[9px] font-bold" style={{ color: S.text }}>{tpl.name}</span>
@@ -1956,7 +1972,7 @@ function UIContent() {
                   <Download size={14} style={{ color: S.accent }} />
                   <h3 className="text-sm font-bold" style={{ color: S.text }}>UI 素材市场</h3>
                   <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}10`, color: S.accent }}>
-                    {UI_TEMPLATES.filter(t => t.source === "marketplace").length} 个可用
+                    {uiTemplates.filter(t => t.source === "marketplace").length} 个可用
                   </span>
                 </div>
                 <motion.button whileTap={{ scale: 0.9 }} onClick={() => setMarketOpen(false)}
@@ -1967,7 +1983,7 @@ function UIContent() {
               </div>
               {/* 市场模板列表 */}
               <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
-                {UI_TEMPLATES.filter(t => t.source === "marketplace").map(tpl => (
+                {uiTemplates.filter(t => t.source === "marketplace").map(tpl => (
                   <div key={tpl.id} className="rounded-xl overflow-hidden"
                     style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                     <div className="p-3">
@@ -2003,7 +2019,7 @@ function UIContent() {
                     </div>
                   </div>
                 ))}
-                {UI_TEMPLATES.filter(t => t.source === "marketplace").length === 0 && (
+                {uiTemplates.filter(t => t.source === "marketplace").length === 0 && (
                   <div className="flex flex-col items-center py-8 gap-2">
                     <Package size={24} style={{ color: S.text3, opacity: 0.4 }} />
                     <p className="text-xs font-bold" style={{ color: S.text3 }}>市场暂无 UI 模板</p>
@@ -2021,12 +2037,14 @@ function UIContent() {
 
 // ── 角色线 (Character Timeline) Tab ──────────────────────────────────────────
 function CharacterTimelineContent() {
-  const [selectedCharId, setSelectedCharId] = useState<string>(CHARACTER_TIMELINES[0]?.characterId || '');
+  const characterTimelines = useNarrativeStore(state => state.characterTimelines);
+  const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
+  const [selectedCharId, setSelectedCharId] = useState<string>(characterTimelines[0]?.characterId || '');
 
-  const selectedChar = CHARACTER_TIMELINES.find(c => c.characterId === selectedCharId);
+  const selectedChar = characterTimelines.find(c => c.characterId === selectedCharId);
 
-  const getCharName = (id: string) => CHARACTER_TIMELINES.find(c => c.characterId === id)?.characterName || id;
-  const getCharColor = (id: string) => CHARACTER_TIMELINES.find(c => c.characterId === id)?.color || S.text3;
+  const getCharName = (id: string) => characterTimelines.find(c => c.characterId === id)?.characterName || id;
+  const getCharColor = (id: string) => characterTimelines.find(c => c.characterId === id)?.color || S.text3;
 
   const statusConfig: Record<CharacterStatus, { label: string; color: string; bg: string }> = {
     alive:    { label: '存活', color: '#10B981', bg: 'rgba(16,185,129,0.12)' },
@@ -2048,7 +2066,7 @@ function CharacterTimelineContent() {
   const chapterLabels: Record<string, string> = { ch0: '序章', ch1: '第一章', ch2: '第二章' };
 
   // Group events by chapter for selected character
-  const eventsByChapter: Record<string, typeof CHARACTER_TIMELINES[0]['events']> = {};
+  const eventsByChapter: Record<string, CharacterTimeline['events']> = {};
   if (selectedChar) {
     selectedChar.events.forEach(ev => {
       if (!eventsByChapter[ev.chapterId]) eventsByChapter[ev.chapterId] = [];
@@ -2065,7 +2083,7 @@ function CharacterTimelineContent() {
           角色概览
         </h3>
         <div className="grid grid-cols-3 gap-3">
-          {CHARACTER_TIMELINES.map(char => {
+          {characterTimelines.map(char => {
             const isSelected = selectedCharId === char.characterId;
             const sc = statusConfig[char.status];
             return (
@@ -2212,7 +2230,7 @@ function CharacterTimelineContent() {
             <span className="text-[8px] font-bold" style={{ color: S.text3 }}>描述</span>
           </div>
           {/* Rows */}
-          {CROSS_CHARACTER_EFFECTS.map((effect, idx) => {
+          {crossCharacterEffects.map((effect, idx) => {
             const srcColor = getCharColor(effect.sourceCharacterId);
             const tgtColor = getCharColor(effect.targetCharacterId);
             const etc = effectTypeConfig[effect.effectType];
@@ -2264,17 +2282,20 @@ function CharacterTimelineContent() {
 
 // ── 变量系统编辑器 Tab ─────────────────────────────────────────────────────
 function VariablesContent() {
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+  const variables = useNarrativeStore(state => state.variables);
+  const narrativeStates = useNarrativeStore(state => state.narrativeStates);
   const [selectedVar, setSelectedVar] = useState<string | null>(null);
   const [stateCategoryFilter, setStateCategoryFilter] = useState<StateCategory | 'all'>('all');
 
-  const getNodeLabel = (id: string) => STORY_NODES.find(n => n.id === id)?.label || id;
+  const getNodeLabel = (id: string) => storyNodes.find(n => n.id === id)?.label || id;
 
-  const totalVars = GAME_VARIABLES.length;
-  const usedVars = GAME_VARIABLES.filter(v => v.modifiedBy.length > 0 || v.readBy.length > 0).length;
+  const totalVars = variables.length;
+  const usedVars = variables.filter(v => v.modifiedBy.length > 0 || v.readBy.length > 0).length;
 
   type VarIssue = { type: string; message: string; varLabel: string; varId: string };
   const issues: VarIssue[] = [];
-  GAME_VARIABLES.forEach(v => {
+  variables.forEach(v => {
     if (v.readBy.length === 0 && v.modifiedBy.length > 0) {
       issues.push({ type: '死变量', message: '被修改但从未被读取', varLabel: v.label, varId: v.id });
     }
@@ -2286,7 +2307,7 @@ function VariablesContent() {
     }
   });
 
-  const getVarStatus = (v: typeof GAME_VARIABLES[0]) => {
+  const getVarStatus = (v: typeof variables[0]) => {
     if (v.modifiedBy.length > 0 && v.readBy.length > 0) return { label: '正常', color: S.success, icon: '✅' };
     if (v.readBy.length === 0 && v.modifiedBy.length > 0) return { label: '死变量', color: S.warning, icon: '⚠️' };
     if (v.modifiedBy.length === 0 && v.readBy.length > 0) return { label: '只读', color: S.warning, icon: '⚠️' };
@@ -2303,14 +2324,14 @@ function VariablesContent() {
 
   const valueTypeLabels: Record<string, string> = { enum: '枚举', numeric: '数值', boolean: '布尔' };
 
-  const filteredNarrativeStates = NARRATIVE_STATES.filter(ns =>
+  const filteredNarrativeStates = narrativeStates.filter(ns =>
     stateCategoryFilter === 'all' || ns.category === stateCategoryFilter
   );
 
   // Build dependency map for visualization
-  const statesWithDeps = NARRATIVE_STATES.filter(ns => ns.dependsOn && ns.dependsOn.length > 0);
-  const statesWithoutDeps = NARRATIVE_STATES.filter(ns => !ns.dependsOn || ns.dependsOn.length === 0);
-  const getStateName = (id: string) => NARRATIVE_STATES.find(ns => ns.id === id)?.name || id;
+  const statesWithDeps = narrativeStates.filter(ns => ns.dependsOn && ns.dependsOn.length > 0);
+  const statesWithoutDeps = narrativeStates.filter(ns => !ns.dependsOn || ns.dependsOn.length === 0);
+  const getStateName = (id: string) => narrativeStates.find(ns => ns.id === id)?.name || id;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -2339,12 +2360,12 @@ function VariablesContent() {
           <div className="w-px h-3" style={{ background: S.border }} />
           <div className="flex items-center gap-1">
             <span className="text-[9px]" style={{ color: S.text3 }}>叙事状态</span>
-            <span className="text-[11px] font-bold font-mono" style={{ color: S.primary }}>{NARRATIVE_STATES.length}</span>
+            <span className="text-[11px] font-bold font-mono" style={{ color: S.primary }}>{narrativeStates.length}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[9px]" style={{ color: S.text3 }}>影响结局</span>
             <span className="text-[11px] font-bold font-mono" style={{ color: S.accent }}>
-              {NARRATIVE_STATES.filter(ns => ns.affectsEndings && ns.affectsEndings.length > 0).length}
+              {narrativeStates.filter(ns => ns.affectsEndings && ns.affectsEndings.length > 0).length}
             </span>
           </div>
         </div>
@@ -2373,7 +2394,7 @@ function VariablesContent() {
               {cat.label}
               {cat.id !== 'all' && (
                 <span className="ml-1 text-[8px] opacity-70">
-                  ({NARRATIVE_STATES.filter(ns => ns.category === cat.id).length})
+                  ({narrativeStates.filter(ns => ns.category === cat.id).length})
                 </span>
               )}
             </motion.button>
@@ -2546,7 +2567,7 @@ function VariablesContent() {
                     {/* Dependencies */}
                     <div className="flex items-center gap-1 flex-wrap">
                       {ns.dependsOn?.map(depId => {
-                        const depState = NARRATIVE_STATES.find(s => s.id === depId);
+                        const depState = narrativeStates.find(s => s.id === depId);
                         const depCatConf = depState ? categoryConfig[depState.category] : { color: S.text3, bg: S.s2 };
                         return (
                           <span key={depId} className="text-[8px] px-1.5 py-0.5 rounded"
@@ -2581,7 +2602,7 @@ function VariablesContent() {
             游戏变量 (Legacy)
           </h4>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {GAME_VARIABLES.map(v => {
+            {variables.map(v => {
               const status = getVarStatus(v);
               const isSelected = selectedVar === v.id;
               return (
@@ -2675,6 +2696,12 @@ function VariablesContent() {
 
 // ── 主编辑器页面 ──────────────────────────────────────────────────────────
 export default function NodesScreen() {
+  const storyNodes = useNarrativeStore(state => state.storyNodes);
+  const stageChecks = useNarrativeStore(state => state.stageChecks);
+  const narrativeIntents = useNarrativeStore(state => state.narrativeIntents);
+  const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
+  const narrativeStates = useNarrativeStore(state => state.narrativeStates);
+  const variables = useNarrativeStore(state => state.variables);
   const [activeTab, setActiveTab] = useState<TabId>("canvas");
   const [sel, setSel] = useState<string|null>(null);
   const [checkOpen, setCheckOpen] = useState(true);
@@ -2694,10 +2721,10 @@ export default function NodesScreen() {
     { id: "error", label: "有问题", icon: AlertTriangle },
   ];
 
-  const doneCount = STAGE_CHECKS.filter(c=>c.status==="ok").length;
-  const pct = Math.round((doneCount/STAGE_CHECKS.length)*100);
+  const doneCount = stageChecks.filter(c=>c.status==="ok").length;
+  const pct = Math.round((doneCount/stageChecks.length)*100);
 
-  const filteredSidebarNodes = STORY_NODES.filter(node => {
+  const filteredSidebarNodes = storyNodes.filter(node => {
     if (nodeFilter === "all") return true;
     if (nodeFilter === "error") return (node as any).hasError;
     if (nodeFilter === "ending") return node.type === "ending_good" || node.type === "ending_bad";
@@ -2832,9 +2859,9 @@ export default function NodesScreen() {
             </motion.button>
           ))}
           <span className="ml-auto text-[8px]" style={{ color: S.text3 }}>
-            {nodeFilter === "all" ? STORY_NODES.length : nodeFilter === "error"
-              ? STORY_NODES.filter(n => (n as any).hasError).length
-              : STORY_NODES.filter(n => n.type === nodeFilter || (nodeFilter === "ending" && (n.type === "ending_good" || n.type === "ending_bad"))).length
+            {nodeFilter === "all" ? storyNodes.length : nodeFilter === "error"
+              ? storyNodes.filter(n => (n as any).hasError).length
+              : storyNodes.filter(n => n.type === nodeFilter || (nodeFilter === "ending" && (n.type === "ending_good" || n.type === "ending_bad"))).length
             } 个节点
           </span>
         </div>
@@ -2900,9 +2927,9 @@ export default function NodesScreen() {
               <motion.div initial={{ height:0 }} animate={{ height:"auto" }} exit={{ height:0 }}
                 className="overflow-hidden">
                 <div className="px-3 py-2 space-y-1">
-                  {STAGE_CHECKS.map((c,i) => (
+                  {stageChecks.map((c,i) => (
                     <div key={i} className="py-1.5"
-                      style={{ borderBottom: i<STAGE_CHECKS.length-1 ? `1px solid ${S.border}` : "none" }}>
+                      style={{ borderBottom: i<stageChecks.length-1 ? `1px solid ${S.border}` : "none" }}>
                       <div className="flex items-start gap-1.5">
                         {c.status==="ok"
                           ? <CheckCircle2 size={12} style={{ color:S.success, marginTop:1, flexShrink:0 }} />
@@ -2940,7 +2967,7 @@ export default function NodesScreen() {
           <div className="px-3 py-2 border-b" style={{ borderColor: S.border }}>
             <p className="text-[9px] font-bold mb-1.5" style={{ color: S.text3 }}>叙事情绪曲线</p>
             <div className="flex items-end gap-0.5 h-8">
-              {NARRATIVE_INTENTS.map((ni, i) => (
+              {narrativeIntents.map((ni, i) => (
                 <div key={ni.nodeId} className="flex-1 flex flex-col items-center gap-0.5">
                   <div className="w-full rounded-t-sm transition-all"
                     style={{
@@ -2988,8 +3015,8 @@ export default function NodesScreen() {
 
           {/* 叙事设计意图面板 (P0-3) */}
           {sel && (() => {
-            const intent = NARRATIVE_INTENTS.find(ni => ni.nodeId === sel);
-            const nodeVars = GAME_VARIABLES.filter(v => v.modifiedBy.includes(sel) || v.readBy.includes(sel));
+            const intent = narrativeIntents.find(ni => ni.nodeId === sel);
+            const nodeVars = variables.filter(v => v.modifiedBy.includes(sel) || v.readBy.includes(sel));
             if (intent) return (
               <div className="px-3 py-2" style={{ borderTop: `1px solid ${S.border}` }}>
                 <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: S.primary }}>

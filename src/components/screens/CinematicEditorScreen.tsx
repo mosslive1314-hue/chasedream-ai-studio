@@ -8,10 +8,10 @@ import {
   ZoomIn, ZoomOut,
 } from "lucide-react";
 import {
-  CINEMATIC_DIRECTIONS, STORY_NODES,
   type CinematicDirection, type CameraShotType, type CameraMovement,
   type TransitionType, type EmotionIntensity,
 } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -94,22 +94,27 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function CinematicEditorScreen() {
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(CINEMATIC_DIRECTIONS[0]?.nodeId ?? "N01");
+  // ── Store selectors ──
+  const cinematicDirections = useNarrativeStore(s => s.cinematicDirections);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const characters = useNarrativeStore(s => s.characters);
+
+  const [selectedNodeId, setSelectedNodeId] = useState<string>(cinematicDirections[0]?.nodeId ?? "N01");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Map nodeId to its cinematic direction
   const directionMap = useMemo(() => {
     const m = new Map<string, CinematicDirection>();
-    CINEMATIC_DIRECTIONS.forEach((d) => m.set(d.nodeId, d));
+    cinematicDirections.forEach((d) => m.set(d.nodeId, d));
     return m;
-  }, []);
+  }, [cinematicDirections]);
 
   // Map nodeId to story node info
   const nodeMap = useMemo(() => {
     const m = new Map<string, { id: string; label: string; type: string }>();
-    STORY_NODES.forEach((n) => m.set(n.id, { id: n.id, label: n.label, type: n.type }));
+    storyNodes.forEach((n) => m.set(n.id, { id: n.id, label: n.label, type: n.type }));
     return m;
-  }, []);
+  }, [storyNodes]);
 
   const currentDirection = directionMap.get(selectedNodeId);
   const currentNode = nodeMap.get(selectedNodeId);
@@ -164,7 +169,7 @@ export default function CinematicEditorScreen() {
                   className="absolute right-0 top-full mt-2 z-50 py-1 rounded-xl shadow-lg min-w-[220px]"
                   style={{ background: S.card, border: `1px solid ${S.border}` }}
                 >
-                  {CINEMATIC_DIRECTIONS.map((d) => {
+                  {cinematicDirections.map((d) => {
                     const node = nodeMap.get(d.nodeId);
                     const isSelected = d.nodeId === selectedNodeId;
                     return (
@@ -236,7 +241,7 @@ export default function CinematicEditorScreen() {
 
         {/* ── C. Node Timeline ───────────────────────────────────────────── */}
         <NodeTimeline
-          directions={CINEMATIC_DIRECTIONS}
+          directions={cinematicDirections}
           nodeMap={nodeMap}
           selectedNodeId={selectedNodeId}
           onSelect={setSelectedNodeId}

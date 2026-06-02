@@ -7,7 +7,7 @@ import {
   Search, Clapperboard, ChevronDown, Zap,
   X, ChevronLeft, ChevronRight, Check, Sparkles,
   Monitor, Smartphone, Gamepad2, Globe, Eye, Palette,
-  Bot, ShieldCheck, Wand2,
+  Bot, ShieldCheck, Wand2, Trash2,
 } from "lucide-react";
 import {
   PROJECT_SPEC_TEMPLATES,
@@ -16,6 +16,7 @@ import {
   type ProjectSpecTemplate,
   type IndustryType,
 } from "@/lib/studio-data";
+import { useProjectStore, useUIStore } from "@/store";
 
 // ── 设计 tokens（现有页面 + 向导共用基础色）─────────────────────────────
 const S = {
@@ -30,21 +31,6 @@ const S = {
 };
 
 // ── 现有页面数据 ─────────────────────────────────────────────────────────
-const PROJECTS = [
-  { id: "ghost",    title: "幽灵协议",           genre: "赛博朋克·间谍惊悚",
-    desc: "城市的夜幕下，每一秒都是生死抉择",          status: "published",
-    chapters: 1, nodes: 11, branches: 2,
-    cover: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=400&q=60" },
-  { id: "nuclear",  title: "可控核聚变已经实现",  genre: "科幻未来",
-    desc: "可控核聚变已经实现",                        status: "draft",
-    chapters: 1, nodes: 7,  branches: 4,
-    cover: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=400&q=60" },
-  { id: "hospital", title: "废旧医院谜案",         genre: "悬疑惊悚",
-    desc: "我无意中翻出了一份十年前的医院死亡档案……",   status: "draft",
-    chapters: 1, nodes: 11, branches: 6,
-    cover: "https://images.unsplash.com/photo-1584432810601-6c7f27d2362b?w=400&q=60" },
-];
-
 const STATS = [
   { icon: Play,         label: "总游玩次数", value: "12", note: "↑ 1 部作品", color: S.primary,  bg: S.primary10 },
   { icon: Users,        label: "独立玩家",   value: "0",  note: "暂无数据",   color: S.accent,   bg: "rgba(0,169,157,0.08)" },
@@ -53,8 +39,10 @@ const STATS = [
 ];
 
 const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
-  published: { label: "已发布", bg: "rgba(5,150,105,0.12)",  color: S.success },
-  draft:     { label: "草稿",   bg: "rgba(100,116,139,0.12)", color: "#64748B" },
+  published:   { label: "已发布",   bg: "rgba(5,150,105,0.12)",  color: S.success },
+  in_progress: { label: "制作中",   bg: "rgba(94,80,232,0.12)",  color: S.primary },
+  idle:        { label: "空闲",     bg: "rgba(100,116,139,0.12)", color: "#64748B" },
+  draft:       { label: "草稿",     bg: "rgba(100,116,139,0.12)", color: "#64748B" },
 };
 
 // ── 向导常量 ─────────────────────────────────────────────────────────────
@@ -123,7 +111,11 @@ export default function HomeScreen() {
   const [form, setForm] = useState<WizardForm>(INIT_FORM);
   const [industryType, setIndustryType] = useState<IndustryType>('game');
 
-  const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); };
+  // ── 从 store 获取项目数据 ────────────────────────────────────────────────
+  const projects = useProjectStore(state => state.projects);
+  const currentProjectId = useProjectStore(state => state.currentProjectId);
+
+  const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); useUIStore.getState().setIndustry('game'); };
   const closeWizard = () => setWizardOpen(false);
 
   // 当前选中行业模板
@@ -160,9 +152,43 @@ export default function HomeScreen() {
   }, [step, form]);
 
   const handleCreate = () => {
-    // TODO: 实际创建项目逻辑
-    alert(`项目「${form.name}」已创建！（规格已确认）`);
+    const title = form.name.trim();
+    if (!title) return;
+
+    const newProject = {
+      title,
+      genre: form.genres.join("、"),
+      cover: "",
+      status: "draft" as const,
+      healthScore: 0,
+      healthLabel: "DRAFT",
+      healthType: "warning" as const,
+      progress: 0,
+      stage1: 0,
+      stage2: 0,
+      stage3: 0,
+      chapters: form.chapters ?? 1,
+      nodes: 0,
+      branches: 0,
+      endings: form.endings ?? 0,
+      lastEdited: "刚刚",
+    };
+
+    useProjectStore.getState().createProject(newProject);
+    useUIStore.getState().addToast({
+      type: "success",
+      title: "项目创建成功",
+      message: `「${title}」已创建`,
+      link: { href: "/pipeline", label: "前往制作管线" },
+    });
     closeWizard();
+  };
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    useProjectStore.getState().deleteProject(id);
+    useUIStore.getState().addToast({ type: "info", title: "项目已删除" });
   };
 
   // ── 渲染 ──────────────────────────────────────────────────────────────
@@ -265,7 +291,7 @@ export default function HomeScreen() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold" style={{ color: S.text }}>创作台</h1>
-            <p className="text-xs mt-0.5" style={{ color: S.text3 }}>{PROJECTS.length} 个项目</p>
+            <p className="text-xs mt-0.5" style={{ color: S.text3 }}>{projects.length} 个项目</p>
           </div>
           <Link href="/parse">
             <motion.button whileTap={{ scale: 0.97 }}
@@ -323,26 +349,52 @@ export default function HomeScreen() {
           </motion.div>
 
           {/* 项目卡片 */}
-          {PROJECTS.map((p, i) => {
+          {projects.map((p, i) => {
             const st = STATUS_STYLE[p.status] ?? STATUS_STYLE.draft;
+            const isCurrent = currentProjectId === p.id;
             return (
-              <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
-                className="rounded-2xl overflow-hidden"
-                style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                onClick={() => useProjectStore.getState().setCurrentProject(p.id)}
+                className="group rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-150"
+                style={{
+                  background: S.card,
+                  border: isCurrent ? `2px solid ${S.primary}` : `1px solid ${S.border}`,
+                  boxShadow: isCurrent ? `0 0 0 3px ${S.primary20}` : "none",
+                }}
+              >
                 <div className="relative overflow-hidden" style={{ height: 160 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.cover} alt={p.title} className="w-full h-full object-cover" />
+                  <img
+                    src={p.cover || `https://placehold.co/400x160/${S.s3.slice(1)}/${S.text3.slice(1)}?text=${encodeURIComponent(p.title)}`}
+                    alt={p.title}
+                    className="w-full h-full object-cover"
+                  />
                   <div className="absolute inset-0" style={{ background: "linear-gradient(to top,rgba(0,0,0,0.4),transparent)" }} />
                   <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full"
                     style={{ background: st.bg, color: st.color }}>
                     {st.label}
                   </span>
+                  {/* 删除按钮（悬停显示） */}
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => handleDelete(e, p.id)}
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 focus:outline-none z-10"
+                    style={{ background: "rgba(220,38,38,0.85)", color: "#fff" }}
+                    title="删除项目"
+                  >
+                    <Trash2 size={11} />
+                  </motion.button>
                 </div>
                 <div className="p-3 space-y-2">
                   <h3 className="text-sm font-bold truncate" style={{ color: S.text }}>{p.title}</h3>
                   <p className="text-[10px]" style={{ color: S.text3 }}>{p.genre}</p>
-                  <p className="text-[10px] line-clamp-2" style={{ color: S.text3 }}>{p.desc}</p>
+                  {(p as any).desc && (
+                    <p className="text-[10px] line-clamp-2" style={{ color: S.text3 }}>{(p as any).desc}</p>
+                  )}
                   <p className="text-[9px] font-mono" style={{ color: S.text3 }}>
                     {p.chapters}章 · {p.nodes}节点 · {p.branches}分支
                   </p>
@@ -469,7 +521,7 @@ export default function HomeScreen() {
                                 <motion.button
                                   key={ind.industryType}
                                   whileTap={{ scale: 0.97 }}
-                                  onClick={() => setIndustryType(ind.industryType)}
+                                  onClick={() => { setIndustryType(ind.industryType); useUIStore.getState().setIndustry(ind.industryType); }}
                                   className="text-left p-3 rounded-2xl transition-all duration-150 focus:outline-none flex flex-col"
                                   style={{
                                     background: active ? "rgba(94,80,232,0.06)" : S.card,

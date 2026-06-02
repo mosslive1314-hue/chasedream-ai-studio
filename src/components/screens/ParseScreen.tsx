@@ -7,7 +7,8 @@ import {
   Network, CheckSquare, List, Rocket, Shield, AlertTriangle, Lightbulb
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { WORLD_RULES, WorldRule, WorldRuleType, GAME_CHARACTERS, GAME_SCENES } from "@/lib/studio-data";
+import type { WorldRule, WorldRuleType } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -284,6 +285,9 @@ function StepArtifact({ stepN, reviewItems, onApprove, onReject, reviewMode }: {
 // -- 主组件 --------------------------------------------------------------------
 export default function ParseScreen() {
   const router = useRouter();
+  const worldRules = useNarrativeStore(s => s.worldRules);
+  const characters = useNarrativeStore(s => s.characters);
+  const scenes = useNarrativeStore(s => s.scenes);
   const [mode, setMode]         = useState<"faithful"|"optimize"|"interactive">("interactive");
   const [viewStep, setViewStep] = useState(3);
   const [msgs, setMsgs]         = useState(INIT_MSGS);
@@ -293,7 +297,7 @@ export default function ParseScreen() {
   const [reviewItems, setReviewItems] = useState<Record<string, "approved" | "rejected" | "pending">>({});
   const [reviewMode, setReviewMode] = useState(false);
   const [rightTab, setRightTab] = useState<"artifact"|"rules">("artifact");
-  const [rules, setRules] = useState<WorldRule[]>(WORLD_RULES);
+  const [rules, setRules] = useState<WorldRule[]>(worldRules);
   const endRef                  = useRef<HTMLDivElement>(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
@@ -613,7 +617,7 @@ export default function ParseScreen() {
                           {(rule.relatedCharacters?.length || rule.relatedScenes?.length) && (
                             <div className="flex gap-1.5 mt-2 flex-wrap">
                               {rule.relatedCharacters?.map(cId => {
-                                const ch = GAME_CHARACTERS.find(c => c.id === cId);
+                                const ch = characters.find(c => c.id === cId);
                                 return ch ? (
                                   <span key={cId} className="text-[8px] px-1.5 py-0.5 rounded"
                                     style={{ background: `${ch.color}10`, color: ch.color, border: `1px solid ${ch.color}25` }}>
@@ -622,7 +626,7 @@ export default function ParseScreen() {
                                 ) : null;
                               })}
                               {rule.relatedScenes?.map(sId => {
-                                const sc = GAME_SCENES.find(s => s.id === sId);
+                                const sc = scenes.find(s => s.id === sId);
                                 return sc ? (
                                   <span key={sId} className="text-[8px] px-1.5 py-0.5 rounded"
                                     style={{ background: `${S.accent}10`, color: S.accent, border: `1px solid ${S.accent}25` }}>
@@ -665,7 +669,7 @@ export default function ParseScreen() {
               <RotateCcw size={11}/> 重新生成
             </motion.button>
             <div className="flex-1" />
-            <motion.button whileTap={{ scale:0.97 }} onClick={() => router.push("/overview")}
+            <motion.button whileTap={{ scale:0.97 }} onClick={() => router.push("/script")}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold focus:outline-none"
               style={{ background:`${S.accent}15`, border:`1px solid ${S.accent}30`, color: S.accent }}>
               ✓ 应用到工作台 <ArrowRight size={11}/>

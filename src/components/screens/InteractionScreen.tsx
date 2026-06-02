@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
-  INTERACTION_POINTS, type InteractionPoint, type InteractionOption,
-  CONSEQUENCE_CHAINS, type ConsequenceChain, type ConsequenceTiming,
+  type InteractionPoint, type InteractionOption,
+  type ConsequenceChain, type ConsequenceTiming,
 } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -31,22 +32,6 @@ function emotionColor(v: number): { color: string; bg: string; label: string } {
   if (v <= 9) return { color: S.warning, bg: "rgba(217,119,6,0.10)", label: "高紧张" };
   return { color: S.error, bg: "rgba(220,38,38,0.10)", label: "极限" };
 }
-
-// ── Chapter label helper ─────────────────────────────────────────────────
-const CHAPTER_LABELS: Record<string, string> = {
-  ch0: "序章",
-  ch1: "第一章",
-  ch2: "第二章",
-};
-
-// ── Character / state name lookups ──────────────────────────────────────
-const CHAR_NAMES: Record<string, string> = { c1: "艾拉", c2: "线人", c3: "反派主管" };
-const STATE_NAMES: Record<string, string> = {
-  "ns-01": "艾拉存活状态", "ns-02": "线人存活状态", "ns-03": "反派主管警觉度",
-  "ns-04": "艾拉-线人信任", "ns-05": "艾拉-反派对立", "ns-06": "城市安保等级",
-  "ns-07": "舆论态势", "ns-08": "EMP 可用状态", "ns-09": "证据链完整度",
-  "ns-10": "身份暴露", "ns-11": "隐藏路线开启",
-};
 
 // ── Tab types ────────────────────────────────────────────────────────────
 type ViewTab = "interactions" | "consequences";
@@ -70,50 +55,76 @@ export default function InteractionScreen() {
   const [testFilter, setTestFilter] = useState<TestFilter>("all");
   const [hoveredChainId, setHoveredChainId] = useState<string | null>(null);
 
+  // ── Store selectors ───────────────────────────────────────────────────
+  const interactionPoints = useNarrativeStore(s => s.interactionPoints);
+  const characters = useNarrativeStore(s => s.characters);
+  const chapterPlans = useNarrativeStore(s => s.chapterPlans);
+  const narrativeStates = useNarrativeStore(s => s.narrativeStates);
+  const consequenceChains = useNarrativeStore(s => s.consequenceChains);
+
+  // ── Derived lookup maps ────────────────────────────────────────────────
+  const chapterLabels = useMemo(() => {
+    const map: Record<string, string> = {};
+    chapterPlans.forEach((cp, i) => { map[cp.id] = cp.title ?? `第${i}章`; });
+    return map;
+  }, [chapterPlans]);
+
+  const charNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    characters.forEach(c => { map[c.id] = c.name; });
+    return map;
+  }, [characters]);
+
+  const stateNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    narrativeStates.forEach(ns => { map[ns.id] = ns.name; });
+    return map;
+  }, [narrativeStates]);
+
   // ── Statistics ──────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const total = INTERACTION_POINTS.length;
-    const totalOptions = INTERACTION_POINTS.reduce((s, ip) => s + ip.options.length, 0);
-    const tested = INTERACTION_POINTS.filter((ip) => ip.tested).length;
+    const total = interactionPoints.length;
+    const totalOptions = interactionPoints.reduce((s, ip) => s + ip.options.length, 0);
+    const tested = interactionPoints.filter((ip) => ip.tested).length;
     const untested = total - tested;
-    const intensities = INTERACTION_POINTS.map((ip) => ip.emotionIntensity);
+    const intensities = interactionPoints.map((ip) => ip.emotionIntensity);
     const maxIntensity = Math.max(...intensities);
     const minIntensity = Math.min(...intensities);
     const avgIntensity = intensities.reduce((a, b) => a + b, 0) / intensities.length;
-    const missingFailFeedback = INTERACTION_POINTS.filter(
+    const missingFailFeedback = interactionPoints.filter(
       (ip) => !ip.failureFeedback && ip.options.some((o) => o.consequence.toLowerCase().includes("失败") || o.consequence.toLowerCase().includes("暴露") || o.consequence.toLowerCase().includes("警报"))
     );
-    const untestedList = INTERACTION_POINTS.filter((ip) => !ip.tested);
+    const untestedList = interactionPoints.filter((ip) => !ip.tested);
     return { total, totalOptions, tested, untested, maxIntensity, minIntensity, avgIntensity, missingFailFeedback, untestedList };
-  }, []);
+  }, [interactionPoints]);
 
   // ── Filtered list ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return INTERACTION_POINTS.filter((ip) => {
+    return interactionPoints.filter((ip) => {
       if (chapterFilter !== "all" && ip.chapterId !== chapterFilter) return false;
       if (testFilter === "tested" && !ip.tested) return false;
       if (testFilter === "untested" && ip.tested) return false;
       return true;
     });
-  }, [chapterFilter, testFilter]);
+  }, [interactionPoints, chapterFilter, testFilter]);
 
   // ── Consequence stats ───────────────────────────────────────────────────
   const conseqStats = useMemo(() => {
-    const total = CONSEQUENCE_CHAINS.length;
-    const immediate = CONSEQUENCE_CHAINS.filter((c) => c.timing === "immediate").length;
-    const delayed = CONSEQUENCE_CHAINS.filter((c) => c.timing === "delayed").length;
-    const ending = CONSEQUENCE_CHAINS.filter((c) => c.timing === "ending").length;
-    const resolved = CONSEQUENCE_CHAINS.filter((c) => c.resolved).length;
-    const unresolved = CONSEQUENCE_CHAINS.filter((c) => !c.resolved);
+    const total = consequenceChains.length;
+    const immediate = consequenceChains.filter((c) => c.timing === "immediate").length;
+    const delayed = consequenceChains.filter((c) => c.timing === "delayed").length;
+    const ending = consequenceChains.filter((c) => c.timing === "ending").length;
+    const resolved = consequenceChains.filter((c) => c.resolved).length;
+    const unresolved = consequenceChains.filter((c) => !c.resolved);
     // Group by source node
     const bySource = new Map<string, ConsequenceChain[]>();
-    CONSEQUENCE_CHAINS.forEach((c) => {
+    consequenceChains.forEach((c) => {
       const list = bySource.get(c.sourceNodeId) ?? [];
       list.push(c);
       bySource.set(c.sourceNodeId, list);
     });
     return { total, immediate, delayed, ending, resolved, unresolved, bySource };
-  }, []);
+  }, [consequenceChains]);
 
   // ── Toggle expand ──────────────────────────────────────────────────────
   const toggle = (id: string) => {
@@ -218,7 +229,7 @@ export default function InteractionScreen() {
                               <div className="flex items-center gap-2 flex-wrap mb-1.5">
                                 <span className="text-base font-bold" style={{ color: S.text }}>{ip.name}</span>
                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: S.s3, color: S.text3 }}>{ip.nodeId}</span>
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: S.primary10, color: S.primary }}>{CHAPTER_LABELS[ip.chapterId] ?? ip.chapterId}</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: S.primary10, color: S.primary }}>{chapterLabels[ip.chapterId] ?? ip.chapterId}</span>
                               </div>
                               {/* Row 2: emotion intensity bar */}
                               <div className="flex items-center gap-2 mb-2">
@@ -431,7 +442,7 @@ export default function InteractionScreen() {
                       </div>
                       {/* Mini bar chart */}
                       <div className="flex items-end gap-1 pt-2 h-12">
-                        {INTERACTION_POINTS.map((ip) => {
+                        {interactionPoints.map((ip) => {
                           const ec = emotionColor(ip.emotionIntensity);
                           return (
                             <div key={ip.id} className="flex-1 flex flex-col items-center gap-0.5">
@@ -527,12 +538,12 @@ export default function InteractionScreen() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 {chain.affectedStates.map((st) => (
                                   <span key={st} className="px-2 py-0.5 rounded-md text-[10px] font-medium" style={{ background: S.primary10, color: S.primary }}>
-                                    {STATE_NAMES[st] ?? st}
+                                    {stateNames[st] ?? st}
                                   </span>
                                 ))}
                                 {chain.affectedCharacters.map((ch) => (
                                   <span key={ch} className="px-2 py-0.5 rounded-md text-[10px] font-medium" style={{ background: S.accent10, color: S.accent }}>
-                                    {CHAR_NAMES[ch] ?? ch}
+                                    {charNames[ch] ?? ch}
                                   </span>
                                 ))}
                                 {chain.payoffNodeId && (
@@ -584,7 +595,7 @@ export default function InteractionScreen() {
                     {/* Right column: outcome nodes */}
                     {(() => {
                       const allTargets = new Set<string>();
-                      CONSEQUENCE_CHAINS.forEach((c) => c.affectedNodeIds.forEach((n) => allTargets.add(n)));
+                      consequenceChains.forEach((c) => c.affectedNodeIds.forEach((n) => allTargets.add(n)));
                       const targets = Array.from(allTargets).sort();
                       const yStep = 26;
                       const yStart = 14;
@@ -602,13 +613,13 @@ export default function InteractionScreen() {
                     {(() => {
                       const sources = Array.from(conseqStats.bySource.keys()).sort();
                       const allTargets = new Set<string>();
-                      CONSEQUENCE_CHAINS.forEach((c) => c.affectedNodeIds.forEach((n) => allTargets.add(n)));
+                      consequenceChains.forEach((c) => c.affectedNodeIds.forEach((n) => allTargets.add(n)));
                       const targets = Array.from(allTargets).sort();
                       const srcYStep = 56;
                       const srcYStart = 30;
                       const tgtYStep = 26;
                       const tgtYStart = 14;
-                      return CONSEQUENCE_CHAINS.map((chain) => {
+                      return consequenceChains.map((chain) => {
                         const srcIdx = sources.indexOf(chain.sourceNodeId);
                         if (srcIdx < 0) return null;
                         const srcY = srcYStart + srcIdx * srcYStep + 16;
@@ -684,12 +695,12 @@ export default function InteractionScreen() {
                           <div className="flex items-center gap-2 flex-wrap mb-3">
                             {chain.affectedStates.map((st) => (
                               <span key={st} className="px-2 py-0.5 rounded-md text-[10px] font-medium" style={{ background: S.primary10, color: S.primary }}>
-                                {STATE_NAMES[st] ?? st}
+                                {stateNames[st] ?? st}
                               </span>
                             ))}
                             {chain.affectedCharacters.map((ch) => (
                               <span key={ch} className="px-2 py-0.5 rounded-md text-[10px] font-medium" style={{ background: S.accent10, color: S.accent }}>
-                                {CHAR_NAMES[ch] ?? ch}
+                                {charNames[ch] ?? ch}
                               </span>
                             ))}
                           </div>

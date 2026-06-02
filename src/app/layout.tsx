@@ -6,6 +6,7 @@ import { cn } from "@/utils/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { UserSyncEffect } from "@/components/user-profile/user-sync-effect";
 import { BottomNav, SideNav } from "@/components/layout/nav";
+import { ToastContainer } from "@/components/ui/ToastContainer";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -59,6 +60,7 @@ export default function RootLayout({
           {/* Mobile bottom nav — hidden on desktop */}
           <BottomNav />
           <Toaster />
+          <ToastContainer />
         </EazoProvider>
       </body>
     </html>

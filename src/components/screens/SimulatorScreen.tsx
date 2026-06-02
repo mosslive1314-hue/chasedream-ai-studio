@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
@@ -9,10 +9,9 @@ import {
   Target, Users, Package, GitMerge, Ruler, Zap,
 } from "lucide-react";
 import {
-  PLAYABLE_GRAPH, INIT_VARIABLES, PATH_TEST_RESULTS,
-  PLAYER_EXPLORATION,
   type PlayableNode, type PathTestResult, type PlayerExplorationMap,
 } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 const S = {
   primary: "#6355D8",
@@ -108,8 +107,15 @@ interface AdvDiag {
 
 export default function SimulatorScreen() {
   const router = useRouter();
+
+  // ── Store selectors ──
+  const playableGraph = useNarrativeStore(s => s.playableGraph);
+  const initVariables = useNarrativeStore(s => s.initVariables);
+  const pathTestResults = useNarrativeStore(s => s.pathTestResults);
+  const playerExploration = useNarrativeStore(s => s.playerExploration);
+
   const [nodeId, setNodeId] = useState("N01");
-  const [vars, setVars] = useState<Record<string, number>>({ ...INIT_VARIABLES });
+  const [vars, setVars] = useState<Record<string, number>>({ ...initVariables });
   const [path, setPath] = useState<string[]>(["N01"]);
   const [history, setHistory] = useState<{ nodeId: string; vars: Record<string, number>; path: string[] }[]>([]);
 
@@ -125,7 +131,7 @@ export default function SimulatorScreen() {
   // P7-11: Exploration session filter (0 = all overlaid, 1/2/3 = specific session)
   const [exploreSession, setExploreSession] = useState(0);
 
-  const node = PLAYABLE_GRAPH[nodeId];
+  const node = playableGraph[nodeId];
 
   // ── Sync tab → testMode ───────────────────────────────────────────────────
   const switchTab = (t: "play" | "test" | "explore") => {
@@ -151,7 +157,7 @@ export default function SimulatorScreen() {
 
   const reset = () => {
     setNodeId("N01");
-    setVars({ ...INIT_VARIABLES });
+    setVars({ ...initVariables });
     setPath(["N01"]);
     setHistory([]);
   };
@@ -178,7 +184,7 @@ export default function SimulatorScreen() {
       if (elapsed >= duration) {
         clearInterval(interval);
         setTestProgress(100);
-        setTestResults([...PATH_TEST_RESULTS]);
+        setTestResults([...pathTestResults]);
         setTestRunning(false);
       }
     }, 50);
@@ -232,7 +238,7 @@ export default function SimulatorScreen() {
     : [];
 
   // ── P7-11: Exploration computed state ─────────────────────────────────────
-  const exploration = PLAYER_EXPLORATION as PlayerExplorationMap;
+  const exploration = playerExploration as PlayerExplorationMap;
   const currentSession = exploreSession > 0
     ? exploration.sessions.find(s => s.playthroughNumber === exploreSession) ?? null
     : null;
@@ -1300,7 +1306,7 @@ export default function SimulatorScreen() {
 
                 <div className="space-y-2">
                   {currentSession.choicesMade.map((ch, ci) => {
-                    const graphNode = PLAYABLE_GRAPH[ch.nodeId];
+                    const graphNode = playableGraph[ch.nodeId];
                     const allChoices = graphNode?.choices ?? [];
                     const altChoices = allChoices.filter(c => c.label !== ch.choiceLabel);
 

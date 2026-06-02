@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
@@ -10,7 +10,8 @@ import {
   Package, Rocket, Palette, Shield
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, GAME_CHARACTERS, WORLD_BUILDING as WB_DATA, BRANCH_PATHS, QUALITY_CHECKS, INDUSTRY_LABELS, INDUSTRY_TEMPLATES, INDUSTRY_QC_RULES, type IndustryType, type StoryNode } from "@/lib/studio-data";
+import { INDUSTRY_LABELS, INDUSTRY_TEMPLATES, INDUSTRY_QC_RULES, type IndustryType, type StoryNode } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -33,17 +34,6 @@ const NODE_CFG: Record<string, { label: string; color: string; icon: any }> = {
   ending_good: { label: "好结局", color: S.success,  icon: Trophy },
   ending_bad:  { label: "坏结局", color: S.error,    icon: Trophy },
 };
-
-// ── 角色详情 ──────────────────────────────────────────────────────────────
-const CHARACTERS = GAME_CHARACTERS.map(c => ({
-  name: c.name, role: c.role, desc: c.description, appearNodes: c.appearNodes, color: c.color, emoji: c.emoji
-}));
-
-// ── 世界观设定 ────────────────────────────────────────────────────────────
-const WORLD_BUILDING = WB_DATA;
-
-// ── 分支路径分析 ──────────────────────────────────────────────────────────
-const PATHS = BRANCH_PATHS;
 
 // ── 统计摘要 ──────────────────────────────────────────────────────────────
 const STATS = [
@@ -180,7 +170,11 @@ function SectionHeader({ icon: Icon, title, subtitle, open, onToggle, action }: 
 }
 
 // ── 迷你节点地图 ──────────────────────────────────────────────────────────
-function MiniNodeMap({ highlightPath }: { highlightPath?: string[] }) {
+function MiniNodeMap({ highlightPath, storyNodes, nodeEdges }: {
+  highlightPath?: string[];
+  storyNodes: StoryNode[];
+  nodeEdges: { from: string; to: string; label?: string }[];
+}) {
   const scaleX = 0.38;
   const scaleY = 0.22;
   const padX = 20;
@@ -192,9 +186,9 @@ function MiniNodeMap({ highlightPath }: { highlightPath?: string[] }) {
     <div className="relative w-full overflow-hidden rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}`, height: h }}>
       <svg className="w-full h-full" viewBox={`0 0 ${w} ${h}`}>
         {/* 连线 */}
-        {NODE_EDGES.map((edge, i) => {
-          const fn = STORY_NODES.find(n => n.id === edge.from);
-          const tn = STORY_NODES.find(n => n.id === edge.to);
+        {nodeEdges.map((edge, i) => {
+          const fn = storyNodes.find(n => n.id === edge.from);
+          const tn = storyNodes.find(n => n.id === edge.to);
           if (!fn || !tn) return null;
           const x1 = fn.x * scaleX + padX, y1 = (fn.y + 20) * scaleY + padY;
           const x2 = tn.x * scaleX + padX, y2 = tn.y * scaleY + padY;
@@ -209,7 +203,7 @@ function MiniNodeMap({ highlightPath }: { highlightPath?: string[] }) {
           );
         })}
         {/* 节点 */}
-        {STORY_NODES.map(node => {
+        {storyNodes.map(node => {
           const cfg = NODE_CFG[node.type] ?? NODE_CFG.scene;
           const x = node.x * scaleX + padX;
           const y = node.y * scaleY + padY;
@@ -250,6 +244,23 @@ export default function OverviewScreen() {
   const [selectedNode, setSelectedNode] = useState<StoryNode | null>(null);
   const [industry, setIndustry] = useState<IndustryType>('game');
 
+  // ── Store selectors ───────────────────────────────────────────────────
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+  const characters = useNarrativeStore(s => s.characters);
+  const worldBuilding = useNarrativeStore(s => s.worldBuilding);
+  const branchPaths = useNarrativeStore(s => s.branchPaths);
+  const qualityChecks = useNarrativeStore(s => s.qualityChecks);
+
+  // ── Derived data ────────────────────────────────────────────────────────
+  const charList = useMemo(() =>
+    characters.map(c => ({
+      name: c.name, role: c.role, desc: c.description,
+      appearNodes: c.appearNodes, color: c.color, emoji: c.emoji,
+    })),
+    [characters],
+  );
+
   function t(key: string): string {
     const map = INDUSTRY_LABELS[key];
     return map ? map[industry] : key;
@@ -265,8 +276,8 @@ export default function OverviewScreen() {
     if (override) return override[industry];
     return dimension;
   }
-  const doneCount = QUALITY_CHECKS.filter(h => h.status === "ok").length;
-  const healthPct = Math.round((doneCount / QUALITY_CHECKS.length) * 100);
+  const doneCount = qualityChecks.filter(h => h.status === "ok").length;
+  const healthPct = Math.round((doneCount / qualityChecks.length) * 100);
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
@@ -432,7 +443,7 @@ export default function OverviewScreen() {
 
         {/* ── 节点图概览 ── */}
         <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader icon={Layers} title="节点图概览" subtitle={`${STORY_NODES.length} 个节点 · ${NODE_EDGES.length} 条连线`}
+          <SectionHeader icon={Layers} title="节点图概览" subtitle={`${storyNodes.length} 个节点 · ${nodeEdges.length} 条连线`}
             open={secNodes.open} onToggle={secNodes.toggle}
             action={
               <Link href="/nodes">
@@ -446,7 +457,7 @@ export default function OverviewScreen() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-3">
-                  <MiniNodeMap highlightPath={hoveredPath} />
+                  <MiniNodeMap highlightPath={hoveredPath} storyNodes={storyNodes} nodeEdges={nodeEdges} />
                   {/* 图例 */}
                   <div className="flex items-center gap-3 mt-2 flex-wrap">
                     {Object.entries(NODE_CFG).filter(([k]) => !["start"].includes(k)).map(([key, cfg]) => (
@@ -458,7 +469,7 @@ export default function OverviewScreen() {
                   </div>
                   {/* 节点列表 */}
                   <div className="mt-3 grid grid-cols-2 gap-1.5">
-                    {STORY_NODES.map(node => {
+                    {storyNodes.map(node => {
                       const cfg = NODE_CFG[node.type] ?? NODE_CFG.scene;
                       return (
                         <motion.button key={node.id} whileTap={{ scale: 0.97 }}
@@ -497,8 +508,8 @@ export default function OverviewScreen() {
                           </div>
                           <div className="space-y-1 text-[9px]" style={{ color: S.text3 }}>
                             <div>节点ID: {selectedNode.id}</div>
-                            <div>连接入: {NODE_EDGES.filter(e => e.to === selectedNode.id).map(e => e.from).join(", ") || "无（入口节点）"}</div>
-                            <div>连接出: {NODE_EDGES.filter(e => e.from === selectedNode.id).map(e => `${e.to}${e.label ? `(${e.label})` : ""}`).join(", ") || "无（终点节点）"}</div>
+                            <div>连接入: {nodeEdges.filter(e => e.to === selectedNode.id).map(e => e.from).join(", ") || "无（入口节点）"}</div>
+                            <div>连接出: {nodeEdges.filter(e => e.from === selectedNode.id).map(e => `${e.to}${e.label ? `(${e.label})` : ""}`).join(", ") || "无（终点节点）"}</div>
                             {selectedNode.hasError && (
                               <div className="flex items-center gap-1 mt-1 px-2 py-1 rounded" style={{ background: S.error10 }}>
                                 <AlertTriangle size={9} style={{ color: S.error }} />
@@ -525,7 +536,7 @@ export default function OverviewScreen() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-3 space-y-2">
-                  {PATHS.map(path => (
+                  {branchPaths.map(path => (
                     <motion.div key={path.id}
                       onMouseEnter={() => setHoveredPath(path.nodes)}
                       onMouseLeave={() => setHoveredPath(undefined)}
@@ -545,7 +556,7 @@ export default function OverviewScreen() {
                       {/* 路径节点流 */}
                       <div className="flex items-center gap-0.5 flex-wrap">
                         {path.nodes.map((nid, i) => {
-                          const node = STORY_NODES.find(n => n.id === nid);
+                          const node = storyNodes.find(n => n.id === nid);
                           const cfg = NODE_CFG[node?.type ?? "scene"];
                           return (
                             <div key={nid} className="flex items-center gap-0.5">
@@ -578,7 +589,7 @@ export default function OverviewScreen() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-3 space-y-2">
-                  {CHARACTERS.map(char => (
+                  {charList.map(char => (
                     <div key={char.name} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                       <div className="flex items-start gap-2.5">
                         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-lg"
@@ -596,7 +607,7 @@ export default function OverviewScreen() {
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="text-[8px]" style={{ color: S.text3 }}>出场节点:</span>
                             {char.appearNodes.map(nid => {
-                              const node = STORY_NODES.find(n => n.id === nid);
+                              const node = storyNodes.find(n => n.id === nid);
                               return (
                                 <span key={nid} className="text-[8px] px-1 py-0.5 rounded font-mono"
                                   style={{ background: `${char.color}08`, color: char.color, border: `1px solid ${char.color}20` }}>
@@ -627,7 +638,7 @@ export default function OverviewScreen() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-3 grid grid-cols-1 gap-1.5">
-                  {WORLD_BUILDING.map(wb => (
+                  {worldBuilding.map(wb => (
                     <div key={wb.category} className="p-2.5 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                       <p className="text-[8px] font-bold uppercase tracking-wider mb-0.5" style={{ color: S.text3 }}>
                         {wb.category}
@@ -643,7 +654,7 @@ export default function OverviewScreen() {
 
         {/* ── 项目健康度 ── */}
         <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader icon={Activity} title="项目健康度" subtitle={`完成 ${doneCount}/${QUALITY_CHECKS.length} 项检查`}
+          <SectionHeader icon={Activity} title="项目健康度" subtitle={`完成 ${doneCount}/${qualityChecks.length} 项检查`}
             open={secHealth.open} onToggle={secHealth.toggle}
             action={
               <div className="flex items-center gap-1.5">
@@ -661,7 +672,7 @@ export default function OverviewScreen() {
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-3">
                   {QC_CATEGORIES.map(cat => {
-                    const items = QUALITY_CHECKS.filter(qc => qc.category === cat.key);
+                    const items = qualityChecks.filter(qc => qc.category === cat.key);
                     const catOk = items.every(qc => qc.status === "ok");
                     return (
                       <div key={cat.key} className="mb-3">

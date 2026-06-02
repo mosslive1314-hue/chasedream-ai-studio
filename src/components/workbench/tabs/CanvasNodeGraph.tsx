@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
-import { STORY_NODES, NODE_EDGES, type StoryNode } from "@/lib/studio-data";
+import type { StoryNode } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 const NODE_CONFIG: Record<string, { label: string; color: string; border: string }> = {
   start:       { label: "▶ 起始",  color: "#4F8EF7", border: "rgba(79,142,247,0.6)" },
@@ -49,8 +50,10 @@ function NodeCard({ node, selected, onClick }: { node: StoryNode; selected: bool
 }
 
 export default function CanvasNodeGraph() {
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const [selectedId, setSelectedId] = useState<string | null>("N07");
-  const selectedNode = STORY_NODES.find(n => n.id === selectedId);
+  const selectedNode = storyNodes.find(n => n.id === selectedId);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -93,9 +96,9 @@ export default function CanvasNodeGraph() {
                 <stop offset="100%" stopColor="#00D4C8" />
               </linearGradient>
             </defs>
-            {NODE_EDGES.map((edge, i) => {
-              const from = STORY_NODES.find(n => n.id === edge.from);
-              const to   = STORY_NODES.find(n => n.id === edge.to);
+            {nodeEdges.map((edge, i) => {
+              const from = storyNodes.find(n => n.id === edge.from);
+              const to   = storyNodes.find(n => n.id === edge.to);
               if (!from || !to) return null;
               const x1 = from.x, y1 = from.y + 36;
               const x2 = to.x,   y2 = to.y;
@@ -115,7 +118,7 @@ export default function CanvasNodeGraph() {
           </svg>
 
           {/* Nodes */}
-          {STORY_NODES.map(node => (
+          {storyNodes.map(node => (
             <NodeCard
               key={node.id}
               node={node}

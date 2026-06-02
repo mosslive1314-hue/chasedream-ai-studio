@@ -3,7 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GitBranch, Send, Bot, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { SCRIPT_BLOCKS as STUDIO_BLOCKS, AI_SUGGESTIONS as STUDIO_AI, PLAYABLE_GRAPH, INIT_VARIABLES, CHAPTER_PLANS, type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
+import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
+import { useNarrativeStore } from "@/store";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -116,7 +117,8 @@ const NARRATIVE_TEMPLATES: NarrativeTemplate[] = [
 
 // ── 章节规划内容组件（P3-2）──
 function ChapterPlanContent() {
-  const [expandedChapter, setExpandedChapter] = useState<string | null>(CHAPTER_PLANS[0]?.id ?? null);
+  const chapterPlans = useNarrativeStore(state => state.chapterPlans);
+  const [expandedChapter, setExpandedChapter] = useState<string | null>(chapterPlans[0]?.id ?? null);
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [confirmingTemplate, setConfirmingTemplate] = useState<string | null>(null);
@@ -536,7 +538,7 @@ function ChapterPlanContent() {
       </div>
 
       {/* 章节卡片列表 */}
-      {CHAPTER_PLANS.map(chapter => {
+      {chapterPlans.map(chapter => {
         const isExpanded = expandedChapter === chapter.id;
         return (
           <motion.div key={chapter.id} layout
@@ -675,7 +677,9 @@ function ChapterPlanContent() {
 }
 
 export default function ScriptScreen() {
-  const [blocks, setBlocks] = useState<ScriptBlock[]>(STUDIO_BLOCKS);
+  const scriptBlocks = useNarrativeStore(state => state.scriptBlocks);
+  const aiSuggestions = useNarrativeStore(state => state.aiSuggestions);
+  const [blocks, setBlocks] = useState<ScriptBlock[]>(scriptBlocks);
   const [editId, setEditId] = useState<string|null>(null);
   const [editVal, setEditVal] = useState("");
   const [aiMsg, setAiMsg] = useState("");
@@ -712,11 +716,11 @@ export default function ScriptScreen() {
     setTimeout(() => {
       let reply = "收到！正在分析本章剧情结构……";
       if (msg.includes("润色") || msg.includes("优化"))
-        reply = STUDIO_AI.polish[0];
+        reply = aiSuggestions.polish[0];
       else if (msg.includes("续写") || msg.includes("继续"))
-        reply = STUDIO_AI.write[0];
+        reply = aiSuggestions.write[0];
       else if (msg.includes("分支") || msg.includes("选项"))
-        reply = STUDIO_AI.branch[0];
+        reply = aiSuggestions.branch[0];
       else if (msg.includes("节奏"))
         reply = "当前章节节奏分析：\n✓ 开场钩子（霓虹街道）情绪张力良好\n⚠ 第3段台词过短，建议扩充艾拉的心理描写\n✓ 选择节点位置合理，出现在冲突高点";
       else if (msg.includes("角色") || msg.includes("艾拉"))
@@ -731,10 +735,12 @@ export default function ScriptScreen() {
 
   // ── PlayablePreview (P0-2) ──
   const PlayablePreview = () => {
+    const playableGraph = useNarrativeStore(state => state.playableGraph);
+    const initVariables = useNarrativeStore(state => state.initVariables);
     const [pNode, setPNode] = useState("N01");
-    const [pVars, setPVars] = useState({...INIT_VARIABLES});
+    const [pVars, setPVars] = useState({...initVariables});
     const [pPath, setPPath] = useState(["N01"]);
-    const cur = PLAYABLE_GRAPH[pNode];
+    const cur = playableGraph[pNode];
 
     const pChoose = (c: {label:string;next:string;effect:string}) => {
       const nv = {...pVars};
@@ -743,7 +749,7 @@ export default function ScriptScreen() {
       setPVars(nv); setPNode(c.next); setPPath(p => [...p, c.next]);
     };
 
-    const pReset = () => { setPNode("N01"); setPVars({...INIT_VARIABLES}); setPPath(["N01"]); };
+    const pReset = () => { setPNode("N01"); setPVars({...initVariables}); setPPath(["N01"]); };
 
     if (!cur) return <div className="p-8 text-center text-xs" style={{ color: S.text3 }}>节点不存在</div>;
 
