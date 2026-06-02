@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
@@ -7,7 +7,10 @@ import {
   Shield, Eye, ChevronLeft, Sparkles, CircleDot,
 } from "lucide-react";
 import Link from "next/link";
-import { PIPELINE_STAGES, type PipelineStage } from "@/lib/studio-data";
+import {
+  PIPELINE_STAGES, INDUSTRY_TEMPLATES, INDUSTRY_LABELS,
+  type PipelineStage, type IndustryType,
+} from "@/lib/studio-data";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -37,6 +40,55 @@ const LINK_LABELS: Record<string, string> = {
   '/overview': '项目概览',
   '/publish': '发布管理',
 };
+
+const INDUSTRY_SWITCHER: { type: IndustryType; icon: string; label: string }[] = [
+  { type: 'game', icon: '🎮', label: '游戏' },
+  { type: 'tourism', icon: '🏛️', label: '文旅' },
+  { type: 'education', icon: '🎓', label: '教育' },
+  { type: 'derivative', icon: '🎬', label: '衍生' },
+];
+
+const STEP_ICONS = ['📋', '📥', '🔍', '🗺️', '✏️', '🎨', '⚙️', '🔧', '🎵', '▶️', '✅', '🚀'];
+
+// ── 根据行业模板生成管线阶段 ──────────────────────────────────────────
+function generateIndustryStages(industry: IndustryType): PipelineStage[] {
+  if (industry === 'game') return PIPELINE_STAGES;
+  const template = INDUSTRY_TEMPLATES.find(t => t.industryType === industry);
+  if (!template) return PIPELINE_STAGES;
+
+  const steps = template.workflow;
+  const completedCount = Math.min(3, Math.floor(steps.length * 0.3));
+  const activeCount = Math.min(2, steps.length - completedCount);
+
+  return steps.map((step, i) => {
+    let status: PipelineStage['status'];
+    let progress: number;
+    if (i < completedCount) {
+      status = 'completed';
+      progress = 100;
+    } else if (i < completedCount + activeCount) {
+      status = 'active';
+      progress = 40 + Math.floor(Math.random() * 31);
+    } else {
+      status = 'upcoming';
+      progress = 0;
+    }
+
+    return {
+      id: `ind-${industry}-${i}`,
+      order: i + 1,
+      name: step.step,
+      description: step.description,
+      icon: STEP_ICONS[i % STEP_ICONS.length],
+      status,
+      progress,
+      artifacts: status === 'completed' ? [`${step.step}产出`] : [],
+      issues: [],
+      nextAction: status === 'completed' ? '已完成' : status === 'active' ? `继续${step.step}` : `等待${step.step}`,
+      requiresHumanConfirm: false,
+    };
+  });
+}
 
 // ── 阶段卡片组件 ────────────────────────────────────────────────────────
 function StageCard({ stage, isSelected, onClick }: {
@@ -263,8 +315,8 @@ function StageDetail({ stage }: { stage: PipelineStage }) {
 }
 
 // ── 阻塞问题汇总组件 ──────────────────────────────────────────────────
-function BlockingIssuesSummary() {
-  const stagesWithIssues = PIPELINE_STAGES.filter(s => s.issues.length > 0);
+function BlockingIssuesSummary({ stages }: { stages: PipelineStage[] }) {
+  const stagesWithIssues = stages.filter(s => s.issues.length > 0);
   if (stagesWithIssues.length === 0) return null;
 
   // Flatten and sort: blocked stages first, then active, then upcoming
@@ -333,17 +385,21 @@ function BlockingIssuesSummary() {
 // ── 主页面 ──────────────────────────────────────────────────────────────
 export default function PipelineScreen() {
   const [selectedId, setSelectedId] = useState<string | null>('stage-06');
+  const [industry, setIndustry] = useState<IndustryType>('game');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const selected = PIPELINE_STAGES.find(s => s.id === selectedId) ?? null;
+  const currentStages = useMemo(() => generateIndustryStages(industry), [industry]);
+  const currentTemplate = INDUSTRY_TEMPLATES.find(t => t.industryType === industry);
 
-  const completedCount = PIPELINE_STAGES.filter(s => s.status === 'completed').length;
-  const activeCount = PIPELINE_STAGES.filter(s => s.status === 'active').length;
-  const upcomingCount = PIPELINE_STAGES.filter(s => s.status === 'upcoming').length;
-  const blockedCount = PIPELINE_STAGES.filter(s => s.status === 'blocked').length;
+  const selected = currentStages.find(s => s.id === selectedId) ?? null;
+
+  const completedCount = currentStages.filter(s => s.status === 'completed').length;
+  const activeCount = currentStages.filter(s => s.status === 'active').length;
+  const upcomingCount = currentStages.filter(s => s.status === 'upcoming').length;
+  const blockedCount = currentStages.filter(s => s.status === 'blocked').length;
 
   const totalProgress = Math.round(
-    PIPELINE_STAGES.reduce((sum, s) => sum + s.progress, 0) / PIPELINE_STAGES.length
+    currentStages.reduce((sum, s) => sum + s.progress, 0) / currentStages.length
   );
 
   const handleScroll = (dir: 'left' | 'right') => {
@@ -351,6 +407,15 @@ export default function PipelineScreen() {
     const amount = dir === 'left' ? -200 : 200;
     scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
   };
+
+  const handleIndustryChange = (newIndustry: IndustryType) => {
+    setIndustry(newIndustry);
+    setSelectedId(null);
+  };
+
+  const pipelineLabel = industry === 'game'
+    ? '制作管线'
+    : INDUSTRY_LABELS.pipeline[industry];
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
@@ -366,7 +431,7 @@ export default function PipelineScreen() {
                 <Zap size={15} className="text-white" />
               </div>
               <div>
-                <h2 className="text-sm font-bold" style={{ color: S.text }}>制作管线</h2>
+                <h2 className="text-sm font-bold" style={{ color: S.text }}>{pipelineLabel}</h2>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[9px] flex items-center gap-0.5" style={{ color: S.success }}>
                     <CheckCircle2 size={9} /> {completedCount} 已完成
@@ -391,6 +456,7 @@ export default function PipelineScreen() {
                   <span className="text-[9px]" style={{ color: S.text3 }}>总进度</span>
                   <div className="h-2 w-32 rounded-full overflow-hidden" style={{ background: S.s3 }}>
                     <motion.div
+                      key={`progress-${industry}`}
                       initial={{ width: 0 }}
                       animate={{ width: `${totalProgress}%` }}
                       transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -401,7 +467,7 @@ export default function PipelineScreen() {
                   <span className="text-xs font-mono font-black" style={{ color: S.primary }}>{totalProgress}%</span>
                 </div>
                 <span className="text-[8px]" style={{ color: S.text3 }}>
-                  12 阶段 / {completedCount} 完成 / {activeCount} 活跃
+                  {currentStages.length} 阶段 / {completedCount} 完成 / {activeCount} 活跃
                 </span>
               </div>
             </div>
@@ -411,12 +477,52 @@ export default function PipelineScreen() {
 
       <div className="max-w-5xl mx-auto px-5 py-5 space-y-5">
 
+        {/* ── 行业切换栏 ── */}
+        <div className="flex items-center gap-2">
+          {INDUSTRY_SWITCHER.map(item => {
+            const active = industry === item.type;
+            return (
+              <motion.button
+                key={item.type}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handleIndustryChange(item.type)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-colors focus:outline-none"
+                style={{
+                  background: active ? S.primary : S.s2,
+                  color: active ? '#fff' : S.text2,
+                  border: `1.5px solid ${active ? S.primary : S.border}`,
+                  boxShadow: active ? `0 2px 8px ${S.primary}30` : 'none',
+                }}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </motion.button>
+            );
+          })}
+          <AnimatePresence>
+            {industry !== 'game' && currentTemplate && (
+              <motion.span
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                className="text-[9px] ml-2"
+                style={{ color: S.text3 }}
+              >
+                {currentTemplate.description}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* ── 管线流程图 ── */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Eye size={14} style={{ color: S.primary }} />
-              <h3 className="text-xs font-bold" style={{ color: S.text }}>12 阶段生产管线</h3>
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>
+                {currentStages.length} 阶段{industry === 'game' ? '生产管线' : '制作流程'}
+              </h3>
               <span className="text-[9px]" style={{ color: S.text3 }}>点击阶段查看详情</span>
             </div>
             <div className="flex items-center gap-1">
@@ -441,24 +547,35 @@ export default function PipelineScreen() {
             <div className="absolute top-1/2 left-0 right-0 h-px -translate-y-1/2 pointer-events-none z-0"
               style={{ background: `linear-gradient(to right,${S.success},${S.primary},${S.text3}40)` }} />
 
-            <div
-              ref={scrollRef}
-              className="flex gap-3 overflow-x-auto pb-3 pt-1 px-1 relative z-10"
-              style={{ scrollbarWidth: 'thin', scrollbarColor: `${S.border2} transparent` }}
-            >
-              {PIPELINE_STAGES.map((stage, i) => (
-                <div key={stage.id} className="flex items-center gap-1.5">
-                  <StageCard
-                    stage={stage}
-                    isSelected={selectedId === stage.id}
-                    onClick={() => setSelectedId(selectedId === stage.id ? null : stage.id)}
-                  />
-                  {i < PIPELINE_STAGES.length - 1 && (
-                    <ArrowRight size={12} className="shrink-0" style={{ color: S.border2 }} />
-                  )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={industry}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="relative z-10"
+              >
+                <div
+                  ref={scrollRef}
+                  className="flex gap-3 overflow-x-auto pb-3 pt-1 px-1"
+                  style={{ scrollbarWidth: 'thin', scrollbarColor: `${S.border2} transparent` }}
+                >
+                  {currentStages.map((stage, i) => (
+                    <div key={stage.id} className="flex items-center gap-1.5">
+                      <StageCard
+                        stage={stage}
+                        isSelected={selectedId === stage.id}
+                        onClick={() => setSelectedId(selectedId === stage.id ? null : stage.id)}
+                      />
+                      {i < currentStages.length - 1 && (
+                        <ArrowRight size={12} className="shrink-0" style={{ color: S.border2 }} />
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* Status legend */}
@@ -469,11 +586,13 @@ export default function PipelineScreen() {
                 <span className="text-[9px]" style={{ color: S.text3 }}>{cfg.label}</span>
               </div>
             ))}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: S.warning10, color: S.warning }}>需确认</span>
-              <span className="text-[9px]" style={{ color: S.text3 }}>需人工审核</span>
-            </div>
+            {industry === 'game' && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: S.warning10, color: S.warning }}>需确认</span>
+                <span className="text-[9px]" style={{ color: S.text3 }}>需人工审核</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -487,24 +606,65 @@ export default function PipelineScreen() {
         </AnimatePresence>
 
         {/* ── 底部阻塞问题汇总 ── */}
-        <BlockingIssuesSummary />
+        <BlockingIssuesSummary stages={currentStages} />
 
         {/* ── 管线快速导航 ── */}
-        <div className="rounded-xl p-4"
-          style={{ background: `linear-gradient(135deg,${S.primary}08,${S.accent}08)`, border: `1px solid ${S.primary}20` }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={14} style={{ color: S.primary }} />
-            <h3 className="text-xs font-bold" style={{ color: S.text }}>快速导航</h3>
-            <span className="text-[9px]" style={{ color: S.text3 }}>各阶段关联页面</span>
+        {industry === 'game' ? (
+          <div className="rounded-xl p-4"
+            style={{ background: `linear-gradient(135deg,${S.primary}08,${S.accent}08)`, border: `1px solid ${S.primary}20` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={14} style={{ color: S.primary }} />
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>快速导航</h3>
+              <span className="text-[9px]" style={{ color: S.text3 }}>各阶段关联页面</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {PIPELINE_STAGES.filter(s => s.linkedPage).map(stage => {
+                const cfg = STATUS_CFG[stage.status];
+                return (
+                  <Link key={stage.id} href={stage.linkedPage!}>
+                    <motion.div
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer"
+                      style={{ background: S.card, border: `1px solid ${S.border}` }}
+                    >
+                      <span className="text-sm">{stage.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] font-bold truncate" style={{ color: S.text }}>
+                            {LINK_LABELS[stage.linkedPage!] || stage.linkedPage}
+                          </span>
+                          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
+                        </div>
+                        <span className="text-[8px]" style={{ color: S.text3 }}>{stage.name}</span>
+                      </div>
+                      <ExternalLink size={9} style={{ color: S.text3 }} />
+                    </motion.div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {PIPELINE_STAGES.filter(s => s.linkedPage).map(stage => {
-              const cfg = STATUS_CFG[stage.status];
-              return (
-                <Link key={stage.id} href={stage.linkedPage!}>
+        ) : (
+          <div className="rounded-xl p-4"
+            style={{ background: `linear-gradient(135deg,${S.primary}08,${S.accent}08)`, border: `1px solid ${S.primary}20` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={14} style={{ color: S.primary }} />
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>工作流步骤</h3>
+              <span className="text-[9px]" style={{ color: S.text3 }}>{currentTemplate?.label}</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {currentStages.map(stage => {
+                const cfg = STATUS_CFG[stage.status];
+                return (
                   <motion.div
+                    key={stage.id}
                     whileHover={{ y: -1 }}
                     whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      setSelectedId(stage.id);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer"
                     style={{ background: S.card, border: `1px solid ${S.border}` }}
                   >
@@ -512,19 +672,18 @@ export default function PipelineScreen() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <span className="text-[9px] font-bold truncate" style={{ color: S.text }}>
-                          {LINK_LABELS[stage.linkedPage!] || stage.linkedPage}
+                          {stage.name}
                         </span>
                         <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
                       </div>
-                      <span className="text-[8px]" style={{ color: S.text3 }}>{stage.name}</span>
+                      <span className="text-[8px] line-clamp-1" style={{ color: S.text3 }}>{stage.description}</span>
                     </div>
-                    <ExternalLink size={9} style={{ color: S.text3 }} />
                   </motion.div>
-                </Link>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="h-6" />
       </div>

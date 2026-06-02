@@ -7,7 +7,7 @@ import {
   Image, Music, Mic, Film, Plus, Edit2, Check
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, GAME_SCENES, GAME_CHARACTERS, GAME_PROPS, ASSET_CARDS } from "@/lib/studio-data";
+import { STORY_NODES, NODE_EDGES, GAME_SCENES, GAME_CHARACTERS, GAME_PROPS, ASSET_CARDS, INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, IndustryType } from "@/lib/studio-data";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -121,6 +121,55 @@ const UI_TEMPLATES = [
   { type:"ending",   label:"结局画面",  desc:"全屏结局画面+重玩/分享按钮",       color:"#10B981" },
 ];
 
+// ── 行业配置（P6-6）───────────────────────────────────────────────
+const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = [
+  { type: 'game', icon: '🎮', label: '游戏' },
+  { type: 'tourism', icon: '🏛️', label: '文旅' },
+  { type: 'education', icon: '🎓', label: '教育' },
+  { type: 'derivative', icon: '🎬', label: '衍生' },
+];
+
+const INDUSTRY_NODE_PREFIX: Record<IndustryType, string> = {
+  game: '节点',
+  tourism: '体验点',
+  education: '学习环节',
+  derivative: '剧情片段',
+};
+
+const INDUSTRY_SUGGESTIONS: Record<IndustryType, string[]> = {
+  game: [
+    'BGM 覆盖率需达到 100%',
+    '角色立绘建议包含多表情状态',
+    'QTE 节点需要专属 UI 素材',
+  ],
+  tourism: [
+    '建议添加 AR 标记以提升互动体验',
+    '展品照片建议使用统一白底背景',
+    '音频讲解建议控制在 30 秒内',
+  ],
+  education: [
+    '建议为每个知识点添加思维导图',
+    '实验图建议使用矢量格式',
+    '题目截图需包含解析',
+  ],
+  derivative: [
+    '视频片段建议统一分辨率',
+    '分镜图需与视频时间码对应',
+    '建议添加字幕文件提升可访问性',
+  ],
+};
+
+const ASSET_FILTER_MAP: Record<string, (a: typeof ASSET_CARDS[number]) => boolean> = {
+  image: a => a.hasImage, character: a => a.hasImage, bgm: a => a.hasBgm,
+  sfx: a => a.hasVoice, voice: a => a.hasVoice, video: a => a.hasVideo, ui: a => a.hasImage,
+  exhibit_photo: a => a.hasImage, history_photo: a => a.hasImage, map: a => a.hasImage,
+  audio_guide: a => a.hasVoice, qr_code: a => a.hasImage, ar_marker: a => a.hasImage,
+  courseware: a => a.hasImage, animation: a => a.hasVideo, quiz_image: a => a.hasImage,
+  experiment: a => a.hasImage, mindmap: a => a.hasImage, knowledge_card: a => a.hasImage,
+  video_clip: a => a.hasVideo, storyboard: a => a.hasImage, film_still: a => a.hasImage,
+  character_poster: a => a.hasImage, promo: a => a.hasImage, subtitle: a => a.hasVoice,
+};
+
 export default function AssetsScreen() {
   const [activeStep, setActiveStep] = useState<string>("character");
   const [selectedChar, setSelectedChar] = useState(0);
@@ -128,6 +177,8 @@ export default function AssetsScreen() {
   const [generating, setGenerating] = useState<string|null>(null);
   const [genDone, setGenDone] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"pipeline" | "by-node">("pipeline");
+  const [industry, setIndustry] = useState<IndustryType>('game');
+  const [activeAssetFilter, setActiveAssetFilter] = useState<string | null>(null);
 
   const handleGenerate = (id: string) => {
     setGenerating(id);
@@ -191,6 +242,29 @@ export default function AssetsScreen() {
               进入节点图编辑 <ArrowRight size={11} />
             </motion.button>
           </Link>
+        </div>
+      </div>
+
+      {/* ── 行业切换条（P6-6）── */}
+      <div className="flex items-center gap-2 px-4 py-2 shrink-0"
+        style={{ background: S.card, borderBottom: `1px solid ${S.border}` }}>
+        <span className="text-[9px] font-bold" style={{ color: S.text3 }}>行业模式</span>
+        <div className="flex items-center gap-1.5">
+          {INDUSTRY_OPTIONS.map(opt => (
+            <motion.button key={opt.type} whileTap={{ scale: 0.96 }}
+              onClick={() => { setIndustry(opt.type); setActiveAssetFilter(null); }}
+              className="px-3 py-1 rounded-full text-[10px] font-bold focus:outline-none transition-all"
+              style={{
+                background: industry === opt.type ? '#5E50E8' : S.s2,
+                color: industry === opt.type ? '#fff' : S.text2,
+                border: industry === opt.type ? 'none' : `1px solid ${S.border}`,
+              }}>
+              {opt.icon} {opt.label}
+            </motion.button>
+          ))}
+        </div>
+        <div className="ml-auto text-[9px]" style={{ color: S.text3 }}>
+          {INDUSTRY_LABELS.asset[industry]} · {INDUSTRY_LABELS.pipeline[industry]}
         </div>
       </div>
 
@@ -579,13 +653,42 @@ export default function AssetsScreen() {
         {/* 按节点查看 - 资产依赖看板 */}
         {viewMode === "by-node" && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* 行业资产类型筛选（P6-6） */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-bold shrink-0" style={{ color: S.text3 }}>
+                {INDUSTRY_LABELS.asset[industry]}类型
+              </span>
+              <motion.button whileTap={{ scale: 0.96 }}
+                onClick={() => setActiveAssetFilter(null)}
+                className="px-2.5 py-0.5 rounded-full text-[9px] font-bold focus:outline-none"
+                style={{
+                  background: activeAssetFilter === null ? '#5E50E8' : S.s2,
+                  color: activeAssetFilter === null ? '#fff' : S.text2,
+                  border: activeAssetFilter === null ? 'none' : `1px solid ${S.border}`,
+                }}>
+                全部
+              </motion.button>
+              {INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes.map(at => (
+                <motion.button key={at.key} whileTap={{ scale: 0.96 }}
+                  onClick={() => setActiveAssetFilter(activeAssetFilter === at.key ? null : at.key)}
+                  className="px-2.5 py-0.5 rounded-full text-[9px] font-bold focus:outline-none"
+                  style={{
+                    background: activeAssetFilter === at.key ? '#5E50E8' : S.s2,
+                    color: activeAssetFilter === at.key ? '#fff' : S.text2,
+                    border: activeAssetFilter === at.key ? 'none' : `1px solid ${S.border}`,
+                  }}>
+                  {at.icon} {at.label}
+                </motion.button>
+              ))}
+            </div>
+
             {/* Summary stats */}
             <div className="grid grid-cols-4 gap-2">
               {[
-                { label: "总节点", value: STORY_NODES.length, color: S.primary },
-                { label: "有图片", value: ASSET_CARDS.filter(a => a.hasImage).length, color: S.success },
-                { label: "缺 BGM", value: ASSET_CARDS.filter(a => !a.hasBgm).length, color: S.warning },
-                { label: "缺配音", value: ASSET_CARDS.filter(a => !a.hasVoice).length, color: S.error },
+                { label: `${INDUSTRY_LABELS.node[industry]}总数`, value: STORY_NODES.length, color: S.primary },
+                { label: `有${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[0]?.label || '图片'}`, value: ASSET_CARDS.filter(a => a.hasImage).length, color: S.success },
+                { label: `缺${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || 'BGM'}`, value: ASSET_CARDS.filter(a => !a.hasBgm).length, color: S.warning },
+                { label: `${INDUSTRY_LABELS.asset[industry]}覆盖率`, value: `${Math.round(ASSET_CARDS.filter(a => a.hasImage).length / ASSET_CARDS.length * 100)}%`, color: S.accent },
               ].map(stat => (
                 <div key={stat.label} className="p-3 rounded-xl text-center"
                   style={{ background: S.card, border: `1px solid ${S.border}` }}>
@@ -598,13 +701,13 @@ export default function AssetsScreen() {
             {/* Priority production board */}
             <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold" style={{ color: S.text }}>资产生产看板</h3>
+                <h3 className="text-xs font-bold" style={{ color: S.text }}>{INDUSTRY_LABELS.asset[industry]}生产看板</h3>
                 <div className="flex gap-1.5">
                   <motion.button whileTap={{ scale: 0.97 }}
                     onClick={() => handleGenerate("batch-bgm")}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-bold focus:outline-none"
                     style={{ background: `${S.warning}12`, border: `1px solid ${S.warning}25`, color: S.warning }}>
-                    <Music size={9} /> 一键生成全部 BGM
+                    <Music size={9} /> 一键生成全部 {INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || 'BGM'}
                   </motion.button>
                 </div>
               </div>
@@ -614,15 +717,15 @@ export default function AssetsScreen() {
                 { 
                   priority: "阻塞发布", 
                   color: S.error, 
-                  items: ASSET_CARDS.filter(a => !a.hasImage).map(a => ({
-                    node: a, type: "场景图片", reason: "缺少核心视觉资产"
+                  items: ASSET_CARDS.filter(a => !a.hasImage && (!activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true))).map(a => ({
+                    node: a, type: INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[0]?.label || "场景图片", reason: `缺少核心${INDUSTRY_LABELS.asset[industry]}`
                   }))
                 },
                 { 
                   priority: "影响体验", 
                   color: S.warning, 
-                  items: ASSET_CARDS.filter(a => !a.hasBgm).map(a => ({
-                    node: a, type: "背景音乐", reason: "缺少 BGM 影响沉浸感"
+                  items: ASSET_CARDS.filter(a => !a.hasBgm && (!activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true))).map(a => ({
+                    node: a, type: INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || "背景音乐", reason: `缺少 ${INDUSTRY_ASSET_TYPES.find(t => t.industryType === industry)?.assetTypes[2]?.label || 'BGM'} 影响沉浸感`
                   }))
                 },
               ].map(group => group.items.length > 0 && (
@@ -645,7 +748,7 @@ export default function AssetsScreen() {
                             : <Image size={14} style={{ color: group.color }} />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[9px] font-bold truncate" style={{ color: S.text }}>{item.node.nodeLabel}</p>
+                          <p className="text-[9px] font-bold truncate" style={{ color: S.text }}>{INDUSTRY_NODE_PREFIX[industry]}: {item.node.nodeLabel}</p>
                           <p className="text-[8px]" style={{ color: S.text3 }}>缺 {item.type}</p>
                         </div>
                         <motion.button whileTap={{ scale: 0.95 }}
@@ -663,9 +766,9 @@ export default function AssetsScreen() {
 
             {/* Node detail cards */}
             <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <h3 className="text-xs font-bold mb-3" style={{ color: S.text }}>节点资产依赖详情</h3>
+              <h3 className="text-xs font-bold mb-3" style={{ color: S.text }}>{INDUSTRY_NODE_PREFIX[industry]}资产依赖详情</h3>
               <div className="space-y-2">
-                {ASSET_CARDS.map(asset => {
+                {ASSET_CARDS.filter(a => !activeAssetFilter || (ASSET_FILTER_MAP[activeAssetFilter]?.(a) ?? true)).map(asset => {
                   const node = STORY_NODES.find(n => n.id === asset.nodeId);
                   const scene = GAME_SCENES.find(s => s.refNodes.includes(asset.nodeId));
                   const chars = GAME_CHARACTERS.filter(c => c.appearNodes.includes(asset.nodeId));
@@ -677,7 +780,7 @@ export default function AssetsScreen() {
                       style={{ background: S.s2, border: `1px solid ${missing > 0 ? `${S.warning}30` : `${S.success}30`}` }}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{asset.nodeLabel}</span>
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{INDUSTRY_NODE_PREFIX[industry]}: {asset.nodeLabel}</span>
                           <span className="text-[8px] px-1.5 py-0.5 rounded"
                             style={{ background: node ? `${S.primary}10` : S.s2, color: S.primary }}>
                             {node?.type || "unknown"}
@@ -716,6 +819,25 @@ export default function AssetsScreen() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* 行业资产建议面板（P6-6） */}
+            <div className="p-4 rounded-xl" style={{ background: '#F8F7FF', border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Sparkles size={12} style={{ color: '#5E50E8' }} />
+                <h3 className="text-[10px] font-bold" style={{ color: S.text }}>行业资产建议</h3>
+                <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
+                  {INDUSTRY_LABELS.asset[industry]}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {INDUSTRY_SUGGESTIONS[industry].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2 p-2 rounded-lg" style={{ background: '#fff' }}>
+                    <span className="text-[9px] mt-0.5">💡</span>
+                    <span className="text-[9px] leading-relaxed" style={{ color: S.text2 }}>{s}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

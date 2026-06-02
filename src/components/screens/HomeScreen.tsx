@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 import {
   PROJECT_SPEC_TEMPLATES,
+  INDUSTRY_TEMPLATES,
   type ProjectType,
   type ProjectSpecTemplate,
+  type IndustryType,
 } from "@/lib/studio-data";
 
 // ── 设计 tokens（现有页面 + 向导共用基础色）─────────────────────────────
@@ -119,9 +121,16 @@ export default function HomeScreen() {
   const [step, setStep] = useState(1);
   const [dir, setDir] = useState(1); // 1=前进，-1=后退
   const [form, setForm] = useState<WizardForm>(INIT_FORM);
+  const [industryType, setIndustryType] = useState<IndustryType>('game');
 
-  const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setWizardOpen(true); };
+  const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); };
   const closeWizard = () => setWizardOpen(false);
+
+  // 当前选中行业模板
+  const selectedIndustry = useMemo(
+    () => INDUSTRY_TEMPLATES.find(t => t.industryType === industryType) ?? INDUSTRY_TEMPLATES[INDUSTRY_TEMPLATES.length - 1],
+    [industryType],
+  );
 
   const goNext = () => { if (step < 5) { setDir(1); setStep(s => s + 1); } };
   const goPrev = () => { if (step > 1) { setDir(-1); setStep(s => s - 1); } };
@@ -383,7 +392,7 @@ export default function HomeScreen() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 20 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="relative w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
+              className="relative w-full max-w-3xl mx-4 rounded-3xl overflow-hidden flex flex-col"
               style={{ background: S.card, border: `1px solid ${S.border}`, maxHeight: "92vh",
                        boxShadow: "0 24px 80px rgba(94,80,232,0.18), 0 4px 20px rgba(0,0,0,0.12)" }}
               onClick={e => e.stopPropagation()}
@@ -441,35 +450,125 @@ export default function HomeScreen() {
                     exit="exit"
                     transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    {/* ── Step 1: 项目类型 ── */}
+                    {/* ── Step 1: 行业 + 项目类型 ── */}
                     {step === 1 && (
                       <div className="space-y-3">
                         <p className="text-xs mb-1" style={{ color: S.text2 }}>
-                          选择你的项目类型，我们会为你推荐合适的创作流程和规格模板。
+                          选择你的行业方向和项目类型，我们会为你推荐合适的创作流程和规格模板。
                         </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          {PROJECT_SPEC_TEMPLATES.map(t => {
-                            const selected = form.projectType === t.projectType;
-                            return (
-                              <motion.button key={t.projectType}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => update("projectType", t.projectType)}
-                                className="text-left p-4 rounded-2xl transition-all duration-150 focus:outline-none"
-                                style={{
-                                  background: selected ? S.primary10 : S.s2,
-                                  border: `1.5px solid ${selected ? S.primary : S.border}`,
-                                  boxShadow: selected ? `0 0 0 3px ${S.primary20}` : "none",
-                                }}>
-                                <div className="text-2xl mb-2">{t.typeIcon}</div>
-                                <p className="text-sm font-bold" style={{ color: selected ? S.primary : S.text }}>
-                                  {t.typeLabel}
-                                </p>
-                                <p className="text-[10px] mt-1 leading-relaxed" style={{ color: S.text3 }}>
-                                  {t.typeDescription}
-                                </p>
-                              </motion.button>
-                            );
-                          })}
+
+                        {/* ── 行业选择 ── */}
+                        <div>
+                          <label className="block text-xs font-semibold mb-2" style={{ color: S.text }}>
+                            行业选择
+                          </label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {INDUSTRY_TEMPLATES.map(ind => {
+                              const active = industryType === ind.industryType;
+                              return (
+                                <motion.button
+                                  key={ind.industryType}
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => setIndustryType(ind.industryType)}
+                                  className="text-left p-3 rounded-2xl transition-all duration-150 focus:outline-none flex flex-col"
+                                  style={{
+                                    background: active ? "rgba(94,80,232,0.06)" : S.card,
+                                    border: `1.5px solid ${active ? S.primary : "#E2E5F0"}`,
+                                    boxShadow: active ? `0 0 0 2px ${S.primary20}` : "none",
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  <span className="text-[28px] leading-none mb-1.5">{ind.icon}</span>
+                                  <span className="text-[11px] font-bold leading-tight" style={{ color: active ? S.primary : S.text }}>
+                                    {ind.label}
+                                  </span>
+                                  <span className="text-[9px] leading-snug mt-1 line-clamp-2" style={{ color: S.text3 }}>
+                                    {ind.description.length > 60 ? ind.description.slice(0, 60) + "..." : ind.description}
+                                  </span>
+                                  <span className="text-[8px] mt-1.5 leading-tight" style={{ color: S.text3, opacity: 0.75 }}>
+                                    {ind.targetUsers}
+                                  </span>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+
+                          {/* ── 行业特征标签 ── */}
+                          <div className="mt-2.5 space-y-1.5">
+                            {/* 默认对象 */}
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="text-[9px] font-semibold shrink-0 mr-0.5" style={{ color: S.text3 }}>常用对象</span>
+                              {selectedIndustry.defaultObjects.slice(0, 6).map(tag => (
+                                <span key={tag} className="px-2 py-0.5 rounded-full text-[9px] font-medium"
+                                  style={{ background: "rgba(94,80,232,0.07)", color: S.primary }}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                            {/* 默认互动 */}
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="text-[9px] font-semibold shrink-0 mr-0.5" style={{ color: S.text3 }}>互动方式</span>
+                              {selectedIndustry.defaultInteractions.slice(0, 5).map(tag => (
+                                <span key={tag} className="px-2 py-0.5 rounded-full text-[9px] font-medium"
+                                  style={{ background: "rgba(0,169,157,0.08)", color: S.accent }}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                            {/* 发布格式 */}
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="text-[9px] font-semibold shrink-0 mr-0.5" style={{ color: S.text3 }}>发布格式</span>
+                              {selectedIndustry.defaultPublishFormats.slice(0, 5).map(tag => (
+                                <span key={tag} className="px-2 py-0.5 rounded-full text-[9px] font-medium"
+                                  style={{ background: "rgba(217,119,6,0.08)", color: S.warning }}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ── 项目类型 ── */}
+                        <div>
+                          <label className="block text-xs font-semibold mb-2" style={{ color: S.text }}>
+                            创建方式
+                            <span className="font-normal ml-1.5 text-[10px]" style={{ color: S.text3 }}>
+                              — 推荐用于{selectedIndustry.label}
+                            </span>
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {PROJECT_SPEC_TEMPLATES.map(t => {
+                              const selected = form.projectType === t.projectType;
+                              return (
+                                <motion.button key={t.projectType}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => update("projectType", t.projectType)}
+                                  className="text-left p-4 rounded-2xl transition-all duration-150 focus:outline-none"
+                                  style={{
+                                    background: selected ? S.primary10 : S.s2,
+                                    border: `1.5px solid ${selected ? S.primary : S.border}`,
+                                    boxShadow: selected ? `0 0 0 3px ${S.primary20}` : "none",
+                                  }}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-2xl">{t.typeIcon}</span>
+                                    <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full"
+                                      style={{ background: "rgba(94,80,232,0.08)", color: S.primary }}>
+                                      {industryType === "tourism" && t.projectType === "interactive_import" ? "推荐" :
+                                       industryType === "education" && t.projectType === "original_creation" ? "推荐" :
+                                       industryType === "derivative" && t.projectType === "script_adaptation" ? "推荐" :
+                                       industryType === "game" && t.projectType === "novel_adaptation" ? "推荐" : ""}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm font-bold" style={{ color: selected ? S.primary : S.text }}>
+                                    {t.typeLabel}
+                                  </p>
+                                  <p className="text-[10px] mt-1 leading-relaxed" style={{ color: S.text3 }}>
+                                    {t.typeDescription}
+                                  </p>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -729,6 +828,10 @@ export default function HomeScreen() {
 
                         {/* 规格摘要卡片 */}
                         <div className="rounded-2xl p-4 space-y-3" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+
+                          {/* 行业类型 */}
+                          <SummaryRow label="行业方向" value={`${selectedIndustry.icon} ${selectedIndustry.label}`} highlight />
+                          <Divider />
 
                           {/* 项目类型 */}
                           <SummaryRow label="项目类型" value={tpl ? `${tpl.typeIcon} ${tpl.typeLabel}` : "—"} />

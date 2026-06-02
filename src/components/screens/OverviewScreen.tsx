@@ -10,7 +10,7 @@ import {
   Package, Rocket, Palette, Shield
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, GAME_CHARACTERS, WORLD_BUILDING as WB_DATA, BRANCH_PATHS, QUALITY_CHECKS, type StoryNode } from "@/lib/studio-data";
+import { STORY_NODES, NODE_EDGES, GAME_CHARACTERS, WORLD_BUILDING as WB_DATA, BRANCH_PATHS, QUALITY_CHECKS, INDUSTRY_LABELS, INDUSTRY_TEMPLATES, INDUSTRY_QC_RULES, type IndustryType, type StoryNode } from "@/lib/studio-data";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -47,14 +47,14 @@ const PATHS = BRANCH_PATHS;
 
 // ── 统计摘要 ──────────────────────────────────────────────────────────────
 const STATS = [
-  { label: "章节", value: 1, icon: BookOpen, color: S.primary },
-  { label: "节点", value: 11, icon: Layers, color: S.primary },
-  { label: "分支", value: 2, icon: GitBranch, color: S.warning },
-  { label: "结局", value: 2, icon: Trophy, color: S.accent },
-  { label: "角色", value: 3, icon: User, color: S.primary },
-  { label: "场景", value: 6, icon: MapPin, color: S.accent },
-  { label: "道具", value: 9, icon: Zap, color: S.warning },
-  { label: "预估时长", value: "15min", icon: Clock, color: S.text3 },
+  { key: "chapter", value: 1, icon: BookOpen, color: S.primary },
+  { key: "node", value: 11, icon: Layers, color: S.primary },
+  { key: "edge", value: 2, icon: GitBranch, color: S.warning },
+  { key: "ending", value: 2, icon: Trophy, color: S.accent },
+  { key: "character", value: 3, icon: User, color: S.primary },
+  { key: "scene", value: 6, icon: MapPin, color: S.accent },
+  { key: "prop", value: 9, icon: Zap, color: S.warning },
+  { key: "_duration", value: "15min", icon: Clock, color: S.text3 },
 ];
 
 // ── 项目健康度 ────────────────────────────────────────────────────────────
@@ -118,6 +118,14 @@ const NARRATIVE_SCORES = [
 ];
 
 const totalScore = Math.round(NARRATIVE_SCORES.reduce((s, n) => s + n.score, 0) / NARRATIVE_SCORES.length);
+
+// ── 行业切换配置 ────────────────────────────────────────────────────────────
+const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = [
+  { type: 'game', icon: '🎮', label: '游戏' },
+  { type: 'tourism', icon: '🏛️', label: '文旅' },
+  { type: 'education', icon: '🎓', label: '教育' },
+  { type: 'derivative', icon: '🎬', label: '衍生' },
+];
 
 // ── 素材风格一致性数据 ────────────────────────────────────────────────────
 const STYLE_CONSISTENCY = [
@@ -240,6 +248,23 @@ export default function OverviewScreen() {
 
   const [hoveredPath, setHoveredPath] = useState<string[] | undefined>(undefined);
   const [selectedNode, setSelectedNode] = useState<StoryNode | null>(null);
+  const [industry, setIndustry] = useState<IndustryType>('game');
+
+  function t(key: string): string {
+    const map = INDUSTRY_LABELS[key];
+    return map ? map[industry] : key;
+  }
+
+  function dimLabel(dimension: string): string {
+    // Industry-specific overrides for narrative quality dimensions
+    const overrides: Record<string, Record<IndustryType, string>> = {
+      '选择意义度': { game: '选择意义度', tourism: '选择体验价值', education: '选择意义度', derivative: '选择意义度' },
+      '分支平衡性': { game: '分支平衡性', tourism: '路线均衡性', education: '分支平衡性', derivative: '分支平衡性' },
+    };
+    const override = overrides[dimension];
+    if (override) return override[industry];
+    return dimension;
+  }
   const doneCount = QUALITY_CHECKS.filter(h => h.status === "ok").length;
   const healthPct = Math.round((doneCount / QUALITY_CHECKS.length) * 100);
 
@@ -288,6 +313,29 @@ export default function OverviewScreen() {
 
       <div className="max-w-3xl mx-auto px-5 py-4 space-y-4">
 
+        {/* ── 行业模式切换 ── */}
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-bold" style={{ color: S.text3 }}>行业模式</span>
+          <div className="flex items-center gap-2">
+            {INDUSTRY_OPTIONS.map(opt => (
+              <button
+                key={opt.type}
+                onClick={() => setIndustry(opt.type)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors focus:outline-none"
+                style={{
+                  background: industry === opt.type ? S.primary : S.s2,
+                  color: industry === opt.type ? '#fff' : S.text2,
+                  border: `1px solid ${industry === opt.type ? S.primary : S.border}`,
+                  fontSize: '12px',
+                }}
+              >
+                <span>{opt.icon}</span>
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── 项目统计 ── */}
         <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
           <SectionHeader icon={BarChart3} title="项目统计" subtitle="互动叙事核心数据"
@@ -298,20 +346,20 @@ export default function OverviewScreen() {
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="grid grid-cols-4 gap-2 mt-3">
                   {STATS.map(s => (
-                    <div key={s.label} className="p-2.5 rounded-xl text-center"
+                    <div key={s.key} className="p-2.5 rounded-xl text-center"
                       style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                       <s.icon size={14} style={{ color: s.color, margin: "0 auto 4px" }} />
                       <p className="text-sm font-bold font-mono" style={{ color: S.text }}>{s.value}</p>
-                      <p className="text-[8px]" style={{ color: S.text3 }}>{s.label}</p>
+                      <p className="text-[8px]" style={{ color: S.text3 }}>{s.key === '_duration' ? '预估时长' : t(s.key)}</p>
                     </div>
                   ))}
                 </div>
                 {/* 三段进度 */}
                 <div className="grid grid-cols-3 gap-2 mt-2">
                   {[
-                    { label: "结构化拆解", detail: "角色3 · 场景6 · 道具9", pct: 100, done: true },
-                    { label: "互动叙事改编", detail: "11节点 · 2分支 · 2结局", pct: 100, done: true },
-                    { label: "资产生成", detail: "图8/9 · BGM 0/9 · 视频待补", pct: 60, done: false },
+                    { label: t('parse'), detail: `${t('character')}3 · ${t('scene')}6 · ${t('prop')}9`, pct: 100, done: true },
+                    { label: t('interaction'), detail: `11${t('node')} · 2${t('edge')} · 2${t('ending')}`, pct: 100, done: true },
+                    { label: t('asset') + '生成', detail: "图8/9 · BGM 0/9 · 视频待补", pct: 60, done: false },
                   ].map((s, i) => (
                     <div key={i} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${s.done ? `${S.success}30` : `${S.primary}20`}` }}>
                       <div className="flex items-center gap-1 mb-1">
@@ -655,6 +703,42 @@ export default function OverviewScreen() {
                       </div>
                     );
                   })}
+                  {/* 行业专属检查 */}
+                  <div className="mb-3">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Shield size={10} style={{ color: industry === 'game' ? S.text3 : S.primary }} />
+                      <span className="text-[9px] font-bold" style={{ color: S.text }}>
+                        {INDUSTRY_OPTIONS.find(o => o.type === industry)?.icon} 行业专属检查
+                      </span>
+                    </div>
+                    {industry === 'game' ? (
+                      <div className="px-3 py-2.5 rounded-lg text-[9px]" style={{ background: S.s2, color: S.text3, border: `1px solid ${S.border}` }}>
+                        游戏行业使用上方通用质检规则
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {INDUSTRY_QC_RULES.filter(r => r.industryType === industry).map(rule => (
+                          <div key={rule.id} className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg"
+                            style={{
+                              background: rule.severity === 'block' ? S.error10 : rule.severity === 'warn' ? S.warning10 : `${S.primary}08`,
+                            }}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <p className="text-[9px] font-bold" style={{ color: S.text }}>{rule.label}</p>
+                                <span className="text-[7px] px-1 py-0.5 rounded-full font-bold" style={{
+                                  background: rule.severity === 'block' ? S.error10 : rule.severity === 'warn' ? S.warning10 : `${S.primary}10`,
+                                  color: rule.severity === 'block' ? S.error : rule.severity === 'warn' ? S.warning : S.primary,
+                                }}>
+                                  {rule.severity === 'block' ? '阻断' : rule.severity === 'warn' ? '警告' : '提示'}
+                                </span>
+                              </div>
+                              <p className="text-[8px]" style={{ color: S.text3 }}>{rule.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -710,7 +794,7 @@ export default function OverviewScreen() {
                     return (
                       <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{ns.dimension}</span>
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{dimLabel(ns.dimension)}</span>
                           <span className="text-[10px] font-mono font-bold" style={{ color: barColor }}>
                             {ns.score}/{ns.maxScore}
                           </span>
@@ -763,7 +847,7 @@ export default function OverviewScreen() {
                             P{i + 1}
                           </span>
                           <div>
-                            <span className="text-[9px] font-bold" style={{ color: S.text }}>{ns.dimension}</span>
+                            <span className="text-[9px] font-bold" style={{ color: S.text }}>{dimLabel(ns.dimension)}</span>
                             <span className="text-[8px] ml-1" style={{ color: S.text3 }}>
                               ({ns.score}分) — {ns.improvements[0]}
                             </span>

@@ -10,10 +10,11 @@ import {
   Monitor, Star, Download, Wand2,
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings,
-  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3, Scale
+  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3, Scale,
+  Users, Clock
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, STAGE_CHECKS, NARRATIVE_INTENTS, GAME_VARIABLES, GAME_CHARACTERS, HEATMAP_DATA, BRANCH_PATHS, type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent } from "@/lib/studio-data";
+import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, STAGE_CHECKS, NARRATIVE_INTENTS, GAME_VARIABLES, GAME_CHARACTERS, HEATMAP_DATA, BRANCH_PATHS, CHARACTER_TIMELINES, CROSS_CHARACTER_EFFECTS, NARRATIVE_STATES, type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
 
 const S = {
   bg:      "#F5F6FA",
@@ -33,7 +34,7 @@ const S = {
 };
 
 // ── 顶部 Tab 定义（完全对齐截图：剧本/画布/热力图/故事/角色/资产）──────────
-type TabId = "script"|"canvas"|"heatmap"|"story"|"character"|"assets"|"ui"|"variables";
+type TabId = "script"|"canvas"|"heatmap"|"story"|"character"|"assets"|"ui"|"variables"|"timeline";
 const TABS: { id:TabId; label:string; icon:any }[] = [
   { id:"script",    label:"剧本",   icon:FileText  },
   { id:"canvas",    label:"画布",   icon:AlignLeft },
@@ -43,6 +44,7 @@ const TABS: { id:TabId; label:string; icon:any }[] = [
   { id:"assets",    label:"资产",   icon:Package   },
   { id:"ui",        label:"用户界面", icon:Monitor },
   { id:"variables", label:"变量",   icon:BarChart3 },
+  { id:"timeline",  label:"角色线", icon:Users     },
 ];
 
 // ── 节点类型配色（对齐原站颜色风格）────────────────────────────────────────
@@ -2017,9 +2019,253 @@ function UIContent() {
   );
 }
 
+// ── 角色线 (Character Timeline) Tab ──────────────────────────────────────────
+function CharacterTimelineContent() {
+  const [selectedCharId, setSelectedCharId] = useState<string>(CHARACTER_TIMELINES[0]?.characterId || '');
+
+  const selectedChar = CHARACTER_TIMELINES.find(c => c.characterId === selectedCharId);
+
+  const getCharName = (id: string) => CHARACTER_TIMELINES.find(c => c.characterId === id)?.characterName || id;
+  const getCharColor = (id: string) => CHARACTER_TIMELINES.find(c => c.characterId === id)?.color || S.text3;
+
+  const statusConfig: Record<CharacterStatus, { label: string; color: string; bg: string }> = {
+    alive:    { label: '存活', color: '#10B981', bg: 'rgba(16,185,129,0.12)' },
+    injured:  { label: '受伤', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+    missing:  { label: '失踪', color: '#F97316', bg: 'rgba(249,115,22,0.12)' },
+    captured: { label: '被捕', color: '#EF4444', bg: 'rgba(239,68,68,0.12)' },
+    betrayed: { label: '背叛', color: '#DC2626', bg: 'rgba(220,38,38,0.12)' },
+    dead:     { label: '死亡', color: '#991B1B', bg: 'rgba(153,27,27,0.12)' },
+  };
+
+  const effectTypeConfig: Record<CrossCharacterEffect['effectType'], { label: string; color: string; bg: string }> = {
+    help:     { label: '帮助', color: '#10B981', bg: 'rgba(16,185,129,0.10)' },
+    harm:     { label: '伤害', color: '#EF4444', bg: 'rgba(239,68,68,0.10)' },
+    info:     { label: '情报', color: '#3B82F6', bg: 'rgba(59,130,246,0.10)' },
+    betrayal: { label: '背叛', color: '#F97316', bg: 'rgba(249,115,22,0.10)' },
+    ignore:   { label: '忽略', color: '#6B7280', bg: 'rgba(107,114,128,0.10)' },
+  };
+
+  const chapterLabels: Record<string, string> = { ch0: '序章', ch1: '第一章', ch2: '第二章' };
+
+  // Group events by chapter for selected character
+  const eventsByChapter: Record<string, typeof CHARACTER_TIMELINES[0]['events']> = {};
+  if (selectedChar) {
+    selectedChar.events.forEach(ev => {
+      if (!eventsByChapter[ev.chapterId]) eventsByChapter[ev.chapterId] = [];
+      eventsByChapter[ev.chapterId].push(ev);
+    });
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: S.bg }}>
+      {/* ── Character Cards ── */}
+      <div>
+        <h3 className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text }}>
+          <Users size={13} style={{ color: S.primary }} />
+          角色概览
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          {CHARACTER_TIMELINES.map(char => {
+            const isSelected = selectedCharId === char.characterId;
+            const sc = statusConfig[char.status];
+            return (
+              <motion.button key={char.characterId} whileTap={{ scale: 0.97 }}
+                onClick={() => setSelectedCharId(char.characterId)}
+                className="p-3 rounded-xl text-left"
+                style={{
+                  background: S.card,
+                  border: `2px solid ${isSelected ? char.color : S.border}`,
+                  boxShadow: isSelected ? `0 0 0 2px ${char.color}25` : 'none',
+                }}>
+                {/* Name + status */}
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: char.color }} />
+                  <span className="text-xs font-bold" style={{ color: S.text }}>{char.characterName}</span>
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full ml-auto shrink-0"
+                    style={{ background: sc.bg, color: sc.color }}>
+                    {sc.label}
+                  </span>
+                </div>
+                {/* Story arc */}
+                <p className="text-[9px] mb-2 leading-relaxed" style={{ color: S.text3 }}>{char.storyArc}</p>
+                {/* Relationship pills */}
+                <div className="flex flex-wrap gap-1">
+                  {char.relationships.map((rel, i) => {
+                    const targetName = getCharName(rel.targetId);
+                    const targetColor = getCharColor(rel.targetId);
+                    return (
+                      <span key={i} className="text-[7px] px-1.5 py-0.5 rounded-full"
+                        style={{ background: `${targetColor}10`, color: targetColor, border: `1px solid ${targetColor}25` }}>
+                        {targetName} {rel.type}
+                      </span>
+                    );
+                  })}
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Vertical Timeline for selected character ── */}
+      {selectedChar && (
+        <motion.div key={selectedChar.characterId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}>
+          <h3 className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: S.text }}>
+            <div className="w-2 h-2 rounded-full" style={{ background: selectedChar.color }} />
+            {selectedChar.characterName} 时间线
+          </h3>
+          <div className="relative pl-6">
+            {/* Vertical line */}
+            <div className="absolute left-2.5 top-0 bottom-0 w-0.5 rounded-full" style={{ background: `${selectedChar.color}30` }} />
+
+            {Object.entries(eventsByChapter).map(([chapterId, events]) => (
+              <div key={chapterId} className="mb-4">
+                {/* Chapter header */}
+                <div className="flex items-center gap-2 mb-2 -ml-6">
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: `${selectedChar.color}15`, color: selectedChar.color }}>
+                    {chapterLabels[chapterId] || chapterId}
+                  </span>
+                </div>
+
+                {/* Event cards */}
+                <div className="space-y-2">
+                  {events.map((ev, idx) => (
+                    <div key={ev.id} className="relative">
+                      {/* Circle marker */}
+                      <div className="absolute -left-3.5 top-3 w-2.5 h-2.5 rounded-full border-2"
+                        style={{ borderColor: selectedChar.color, background: idx === events.length - 1 ? selectedChar.color : S.card, zIndex: 2 }} />
+                      {/* Event card */}
+                      <div className="p-3 rounded-xl"
+                        style={{ background: S.card, border: `1px solid ${S.border}`, borderLeft: `3px solid ${selectedChar.color}` }}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{ev.eventTitle}</span>
+                          <div className="flex gap-1 ml-auto shrink-0">
+                            {ev.nodeIds.map(nid => (
+                              <span key={nid} className="text-[7px] font-mono px-1 py-0.5 rounded"
+                                style={{ background: S.s2, color: S.text3 }}>{nid}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-[9px] mb-1.5" style={{ color: S.text2 }}>{ev.description}</p>
+                        {ev.choiceMade && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>选择:</span>
+                            <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>
+                              {ev.choiceMade}
+                            </span>
+                          </div>
+                        )}
+                        {ev.statusChange && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>状态变化:</span>
+                            <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: statusConfig[ev.statusChange.from].bg, color: statusConfig[ev.statusChange.from].color }}>
+                              {statusConfig[ev.statusChange.from].label}
+                            </span>
+                            <span className="text-[8px]" style={{ color: S.text3 }}>&rarr;</span>
+                            <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: statusConfig[ev.statusChange.to].bg, color: statusConfig[ev.statusChange.to].color }}>
+                              {statusConfig[ev.statusChange.to].label}
+                            </span>
+                          </div>
+                        )}
+                        {/* Impact on other characters */}
+                        {ev.impactOnOthers && ev.impactOnOthers.length > 0 && (
+                          <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px solid ${S.border}` }}>
+                            {ev.impactOnOthers.map((impact, i) => {
+                              const tName = getCharName(impact.characterId);
+                              const tColor = getCharColor(impact.characterId);
+                              return (
+                                <div key={i} className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[8px]" style={{ color: selectedChar.color }}>&rarr;</span>
+                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded"
+                                    style={{ background: `${tColor}10`, color: tColor }}>{tName}</span>
+                                  <span className="text-[8px]" style={{ color: S.text3 }}>{impact.effect}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Cross-character effects table ── */}
+      <div>
+        <h3 className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text }}>
+          <GitBranch size={13} style={{ color: S.accent }} />
+          跨角色影响矩阵
+        </h3>
+        <div className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          {/* Header */}
+          <div className="grid grid-cols-5 gap-1 px-3 py-2" style={{ background: S.s2, borderBottom: `1px solid ${S.border}` }}>
+            <span className="text-[8px] font-bold" style={{ color: S.text3 }}>来源角色</span>
+            <span className="text-[8px] font-bold" style={{ color: S.text3 }}>事件</span>
+            <span className="text-[8px] font-bold" style={{ color: S.text3 }}>目标角色</span>
+            <span className="text-[8px] font-bold" style={{ color: S.text3 }}>效果类型</span>
+            <span className="text-[8px] font-bold" style={{ color: S.text3 }}>描述</span>
+          </div>
+          {/* Rows */}
+          {CROSS_CHARACTER_EFFECTS.map((effect, idx) => {
+            const srcColor = getCharColor(effect.sourceCharacterId);
+            const tgtColor = getCharColor(effect.targetCharacterId);
+            const etc = effectTypeConfig[effect.effectType];
+            return (
+              <div key={effect.id} className="grid grid-cols-5 gap-1 px-3 py-2 items-center"
+                style={{ background: idx % 2 === 0 ? S.card : S.s2, borderBottom: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: srcColor }} />
+                  <span className="text-[9px] font-bold" style={{ color: srcColor }}>
+                    {getCharName(effect.sourceCharacterId)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[8px]" style={{ color: S.text2 }}>{effect.sourceEvent}</span>
+                  <span className="text-[7px] font-mono ml-1" style={{ color: S.text3 }}>{effect.sourceNodeId}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[8px]" style={{ color: S.text3 }}>&rarr;</span>
+                  <span className="text-[9px] font-bold" style={{ color: tgtColor }}>
+                    {getCharName(effect.targetCharacterId)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: etc.bg, color: etc.color }}>
+                    {etc.label}
+                  </span>
+                  {effect.delayed && (
+                    <Clock size={8} style={{ color: S.warning }} />
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[8px]" style={{ color: S.text3 }}>{effect.effectDescription}</span>
+                  {effect.delayed && effect.triggerChapter && (
+                    <span className="text-[7px] px-1 py-0.5 rounded shrink-0"
+                      style={{ background: `${S.warning}10`, color: S.warning }}>
+                      {chapterLabels[effect.triggerChapter] || effect.triggerChapter}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 变量系统编辑器 Tab ─────────────────────────────────────────────────────
 function VariablesContent() {
   const [selectedVar, setSelectedVar] = useState<string | null>(null);
+  const [stateCategoryFilter, setStateCategoryFilter] = useState<StateCategory | 'all'>('all');
 
   const getNodeLabel = (id: string) => STORY_NODES.find(n => n.id === id)?.label || id;
 
@@ -2047,6 +2293,25 @@ function VariablesContent() {
     return { label: '无变化', color: S.text3, icon: '⚠️' };
   };
 
+  // Narrative state category config
+  const categoryConfig: Record<StateCategory, { color: string; bg: string }> = {
+    character:    { color: '#3B82F6', bg: 'rgba(59,130,246,0.10)' },
+    relationship: { color: '#8B5CF6', bg: 'rgba(139,92,246,0.10)' },
+    world:        { color: '#F59E0B', bg: 'rgba(245,158,11,0.10)' },
+    plot:         { color: '#10B981', bg: 'rgba(16,185,129,0.10)' },
+  };
+
+  const valueTypeLabels: Record<string, string> = { enum: '枚举', numeric: '数值', boolean: '布尔' };
+
+  const filteredNarrativeStates = NARRATIVE_STATES.filter(ns =>
+    stateCategoryFilter === 'all' || ns.category === stateCategoryFilter
+  );
+
+  // Build dependency map for visualization
+  const statesWithDeps = NARRATIVE_STATES.filter(ns => ns.dependsOn && ns.dependsOn.length > 0);
+  const statesWithoutDeps = NARRATIVE_STATES.filter(ns => !ns.dependsOn || ns.dependsOn.length === 0);
+  const getStateName = (id: string) => NARRATIVE_STATES.find(ns => ns.id === id)?.name || id;
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* 顶部统计栏 */}
@@ -2071,86 +2336,319 @@ function VariablesContent() {
               {issues.length}
             </span>
           </div>
+          <div className="w-px h-3" style={{ background: S.border }} />
+          <div className="flex items-center gap-1">
+            <span className="text-[9px]" style={{ color: S.text3 }}>叙事状态</span>
+            <span className="text-[11px] font-bold font-mono" style={{ color: S.primary }}>{NARRATIVE_STATES.length}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px]" style={{ color: S.text3 }}>影响结局</span>
+            <span className="text-[11px] font-bold font-mono" style={{ color: S.accent }}>
+              {NARRATIVE_STATES.filter(ns => ns.affectsEndings && ns.affectsEndings.length > 0).length}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* 变量卡片列表 */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* ── 叙事状态机区域 ── */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* 状态分类筛选 */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-medium mr-1" style={{ color: S.text3 }}>状态分类:</span>
+          {([
+            { id: 'all' as StateCategory | 'all', label: '全部' },
+            { id: 'character' as StateCategory | 'all', label: '角色状态' },
+            { id: 'relationship' as StateCategory | 'all', label: '关系状态' },
+            { id: 'world' as StateCategory | 'all', label: '世界状态' },
+            { id: 'plot' as StateCategory | 'all', label: '剧情状态' },
+          ]).map(cat => (
+            <motion.button key={cat.id} whileTap={{ scale: 0.96 }}
+              onClick={() => setStateCategoryFilter(cat.id)}
+              className="px-2.5 py-1 rounded-full text-[9px] font-medium focus:outline-none"
+              style={{
+                background: stateCategoryFilter === cat.id ? S.primary : S.s2,
+                color: stateCategoryFilter === cat.id ? '#fff' : S.text3,
+                border: `1px solid ${stateCategoryFilter === cat.id ? S.primary : S.border}`,
+              }}>
+              {cat.label}
+              {cat.id !== 'all' && (
+                <span className="ml-1 text-[8px] opacity-70">
+                  ({NARRATIVE_STATES.filter(ns => ns.category === cat.id).length})
+                </span>
+              )}
+            </motion.button>
+          ))}
+        </div>
+
+        {/* 叙事状态卡片 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {GAME_VARIABLES.map(v => {
-            const status = getVarStatus(v);
-            const isSelected = selectedVar === v.id;
+          {filteredNarrativeStates.map(ns => {
+            const catConf = categoryConfig[ns.category];
             return (
-              <motion.div key={v.id} layout
-                className="rounded-xl overflow-hidden cursor-pointer"
-                style={{
-                  background: S.card,
-                  border: `1px solid ${isSelected ? S.primary : S.border}`,
-                  boxShadow: isSelected ? `0 0 0 1px ${S.primary}20` : 'none',
-                }}
-                onClick={() => setSelectedVar(isSelected ? null : v.id)}>
+              <motion.div key={ns.id} layout
+                className="rounded-xl overflow-hidden"
+                style={{ background: S.card, border: `1px solid ${S.border}`, borderLeft: `3px solid ${catConf.color}` }}>
                 <div className="p-3">
-                  {/* 标题行 */}
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold" style={{ color: S.text }}>{v.label}</span>
-                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded"
-                        style={{ background: `${S.primary}10`, color: S.primary }}>{v.name}</span>
-                    </div>
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                      style={{ background: `${status.color}15`, color: status.color }}>
-                      {status.icon} {status.label}
+                  {/* Header: name + category badge + value type */}
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-xs font-bold" style={{ color: S.text }}>{ns.name}</span>
+                    <span className="text-[7px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: catConf.bg, color: catConf.color }}>
+                      {ns.categoryLabel}
+                    </span>
+                    <span className="text-[7px] px-1 py-0.5 rounded ml-auto"
+                      style={{ background: S.s2, color: S.text3 }}>
+                      {valueTypeLabels[ns.valueType]}
                     </span>
                   </div>
 
-                  {/* 初始值 */}
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-[9px]" style={{ color: S.text3 }}>初始值:</span>
-                    <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
-                      style={{ background: S.s2, color: S.text }}>{v.initialValue}</span>
-                  </div>
-
-                  {/* 变化节点 + 读取节点 */}
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div>
-                      <span className="text-[8px] font-bold block mb-0.5" style={{ color: S.text3 }}>修改节点</span>
-                      <div className="flex flex-wrap gap-0.5">
-                        {v.modifiedBy.length > 0 ? v.modifiedBy.map(id => (
-                          <span key={id} className="text-[8px] font-mono px-1 py-0.5 rounded"
-                            style={{ background: `${S.accent}10`, color: S.accent }}>
-                            {getNodeLabel(id)}
+                  {/* Value display based on type */}
+                  {ns.valueType === 'enum' && ns.enumValues && ns.currentValue && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {ns.enumValues.map(val => {
+                        const isCurrent = val === ns.currentValue;
+                        return (
+                          <span key={val} className="text-[8px] px-1.5 py-0.5 rounded-full font-medium"
+                            style={{
+                              background: isCurrent ? catConf.color : S.s2,
+                              color: isCurrent ? '#fff' : S.text3,
+                              border: `1px solid ${isCurrent ? catConf.color : S.border}`,
+                            }}>
+                            {val}
                           </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {ns.valueType === 'numeric' && ns.minValue !== undefined && ns.maxValue !== undefined && ns.numericValue !== undefined && (
+                    <div className="mb-2">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{ns.minValue}</span>
+                        <span className="text-[10px] font-bold font-mono" style={{ color: catConf.color }}>{ns.numericValue}</span>
+                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{ns.maxValue}</span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: S.s2 }}>
+                        <motion.div initial={{ width: 0 }}
+                          animate={{ width: `${((ns.numericValue - ns.minValue) / (ns.maxValue - ns.minValue)) * 100}%` }}
+                          transition={{ duration: 0.6 }}
+                          className="h-full rounded-full" style={{ background: catConf.color }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {ns.valueType === 'boolean' && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-4 rounded-full relative"
+                        style={{ background: ns.boolValue ? catConf.color : S.s2 }}>
+                        <div className="w-3 h-3 rounded-full absolute top-0.5 transition-all"
+                          style={{ left: ns.boolValue ? 18 : 2, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' }} />
+                      </div>
+                      <span className="text-[9px] font-bold" style={{ color: ns.boolValue ? catConf.color : S.text3 }}>
+                        {ns.boolValue ? 'True' : 'False'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <p className="text-[9px] mb-2" style={{ color: S.text3 }}>{ns.description}</p>
+
+                  {/* Modified at / Read at */}
+                  <div className="grid grid-cols-2 gap-2 mb-1.5">
+                    <div>
+                      <span className="text-[7px] font-bold block mb-0.5" style={{ color: S.text3 }}>修改于</span>
+                      <div className="flex flex-wrap gap-0.5">
+                        {ns.modifiedAt.length > 0 ? ns.modifiedAt.map(id => (
+                          <span key={id} className="text-[7px] font-mono px-1 py-0.5 rounded"
+                            style={{ background: `${S.accent}10`, color: S.accent }}>{getNodeLabel(id)}</span>
                         )) : (
-                          <span className="text-[8px]" style={{ color: S.text3 }}>无</span>
+                          <span className="text-[7px]" style={{ color: S.text3 }}>无</span>
                         )}
                       </div>
                     </div>
                     <div>
-                      <span className="text-[8px] font-bold block mb-0.5" style={{ color: S.text3 }}>读取节点</span>
+                      <span className="text-[7px] font-bold block mb-0.5" style={{ color: S.text3 }}>读取于</span>
                       <div className="flex flex-wrap gap-0.5">
-                        {v.readBy.length > 0 ? v.readBy.map(id => (
-                          <span key={id} className="text-[8px] font-mono px-1 py-0.5 rounded"
-                            style={{ background: `${S.warning}10`, color: S.warning }}>
-                            {getNodeLabel(id)}
-                          </span>
+                        {ns.readAt.length > 0 ? ns.readAt.map(id => (
+                          <span key={id} className="text-[7px] font-mono px-1 py-0.5 rounded"
+                            style={{ background: `${S.warning}10`, color: S.warning }}>{getNodeLabel(id)}</span>
                         )) : (
-                          <span className="text-[8px]" style={{ color: S.text3 }}>无</span>
+                          <span className="text-[7px]" style={{ color: S.text3 }}>无</span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* 描述 */}
-                  <p className="text-[9px]" style={{ color: S.text3 }}>{v.description}</p>
+                  {/* Dependencies */}
+                  {ns.dependsOn && ns.dependsOn.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[7px]" style={{ color: S.text3 }}>依赖于:</span>
+                      {ns.dependsOn.map(depId => (
+                        <span key={depId} className="text-[7px] px-1 py-0.5 rounded"
+                          style={{ background: S.s2, color: S.text2, border: `1px dashed ${S.border}` }}>
+                          {getStateName(depId)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Ending influence */}
+                  {ns.affectsEndings && ns.affectsEndings.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[7px]" style={{ color: S.text3 }}>影响结局:</span>
+                      {ns.affectsEndings.map(ending => (
+                        <span key={ending} className="text-[7px] px-1 py-0.5 rounded font-bold"
+                          style={{
+                            background: ending === 'GOOD' ? `${S.success}10` : `${S.error}10`,
+                            color: ending === 'GOOD' ? S.success : S.error,
+                          }}>
+                          {ending === 'GOOD' ? '好结局' : ending === 'BAD' ? '坏结局' : ending}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
           })}
         </div>
 
+        {/* ── State dependency visualization ── */}
+        {statesWithDeps.length > 0 && (
+          <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <h4 className="text-[10px] font-bold mb-3 flex items-center gap-1.5" style={{ color: S.text }}>
+              <GitBranch size={12} style={{ color: S.primary }} />
+              状态依赖关系图
+            </h4>
+            {/* Independent states at top */}
+            <div className="mb-3">
+              <span className="text-[8px] font-bold block mb-1.5" style={{ color: S.text3 }}>
+                独立状态 (无依赖)
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {statesWithoutDeps.map(ns => {
+                  const catConf = categoryConfig[ns.category];
+                  return (
+                    <span key={ns.id} className="text-[8px] px-2 py-1 rounded-lg font-medium"
+                      style={{ background: catConf.bg, color: catConf.color, border: `1px solid ${catConf.color}25` }}>
+                      {ns.name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Dependent states with arrows */}
+            <div className="space-y-2">
+              {statesWithDeps.map(ns => {
+                const catConf = categoryConfig[ns.category];
+                return (
+                  <div key={ns.id} className="flex items-start gap-2">
+                    {/* Dependencies */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {ns.dependsOn?.map(depId => {
+                        const depState = NARRATIVE_STATES.find(s => s.id === depId);
+                        const depCatConf = depState ? categoryConfig[depState.category] : { color: S.text3, bg: S.s2 };
+                        return (
+                          <span key={depId} className="text-[8px] px-1.5 py-0.5 rounded"
+                            style={{ background: depCatConf.bg, color: depCatConf.color }}>
+                            {getStateName(depId)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {/* Arrow */}
+                    <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+                      <div className="w-4 h-px" style={{ background: S.text3 }} />
+                      <div className="w-0 h-0 border-t-[3px] border-b-[3px] border-l-[4px] border-transparent"
+                        style={{ borderLeftColor: S.text3 }} />
+                    </div>
+                    {/* Target state */}
+                    <span className="text-[8px] px-2 py-0.5 rounded font-bold"
+                      style={{ background: catConf.bg, color: catConf.color, border: `1px solid ${catConf.color}30` }}>
+                      {ns.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── 原有变量卡片 (Legacy Variables) ── */}
+        <div>
+          <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text3 }}>
+            <BarChart3 size={11} style={{ color: S.text3 }} />
+            游戏变量 (Legacy)
+          </h4>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {GAME_VARIABLES.map(v => {
+              const status = getVarStatus(v);
+              const isSelected = selectedVar === v.id;
+              return (
+                <motion.div key={v.id} layout
+                  className="rounded-xl overflow-hidden cursor-pointer"
+                  style={{
+                    background: S.card,
+                    border: `1px solid ${isSelected ? S.primary : S.border}`,
+                    boxShadow: isSelected ? `0 0 0 1px ${S.primary}20` : 'none',
+                  }}
+                  onClick={() => setSelectedVar(isSelected ? null : v.id)}>
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold" style={{ color: S.text }}>{v.label}</span>
+                        <span className="text-[8px] font-mono px-1.5 py-0.5 rounded"
+                          style={{ background: `${S.primary}10`, color: S.primary }}>{v.name}</span>
+                      </div>
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: `${status.color}15`, color: status.color }}>
+                        {status.icon} {status.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[9px]" style={{ color: S.text3 }}>初始值:</span>
+                      <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
+                        style={{ background: S.s2, color: S.text }}>{v.initialValue}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div>
+                        <span className="text-[8px] font-bold block mb-0.5" style={{ color: S.text3 }}>修改节点</span>
+                        <div className="flex flex-wrap gap-0.5">
+                          {v.modifiedBy.length > 0 ? v.modifiedBy.map(id => (
+                            <span key={id} className="text-[8px] font-mono px-1 py-0.5 rounded"
+                              style={{ background: `${S.accent}10`, color: S.accent }}>
+                              {getNodeLabel(id)}
+                            </span>
+                          )) : (
+                            <span className="text-[8px]" style={{ color: S.text3 }}>无</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold block mb-0.5" style={{ color: S.text3 }}>读取节点</span>
+                        <div className="flex flex-wrap gap-0.5">
+                          {v.readBy.length > 0 ? v.readBy.map(id => (
+                            <span key={id} className="text-[8px] font-mono px-1 py-0.5 rounded"
+                              style={{ background: `${S.warning}10`, color: S.warning }}>
+                              {getNodeLabel(id)}
+                            </span>
+                          )) : (
+                            <span className="text-[8px]" style={{ color: S.text3 }}>无</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[9px]" style={{ color: S.text3 }}>{v.description}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* 底部校验汇总面板 */}
         {issues.length > 0 && (
-          <div className="mt-4 p-3 rounded-xl"
+          <div className="p-3 rounded-xl"
             style={{ background: `${S.warning}04`, border: `1px solid ${S.warning}20` }}>
             <div className="flex items-center gap-1.5 mb-2">
               <AlertTriangle size={12} style={{ color: S.warning }} />
@@ -2565,6 +3063,7 @@ export default function NodesScreen() {
               {activeTab==="assets"    && <AssetsContent />}
               {activeTab==="ui"        && <UIContent />}
               {activeTab==="variables" && <VariablesContent />}
+              {activeTab==="timeline"  && <CharacterTimelineContent />}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -6,8 +6,11 @@ import {
   ChevronDown, ChevronRight, Camera, GitCompareArrows,
   Clock, User, Plus, Minus, Pencil, Trash2, Rocket,
   History, ArrowLeftRight, X, Layers, Download, UserPlus,
-  Shield, Upload, Eye,
+  Shield, Upload, Eye, Globe, MessageCircle, GitCompare, LayoutGrid,
 } from "lucide-react";
+import {
+  ENGINE_EXPORT_CONFIGS, COLLAB_TASKS, COLLAB_COMMENTS, REVIEW_ITEMS, VERSION_DIFFS,
+} from "../../lib/studio-data";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -192,6 +195,79 @@ function SectionHeader({ icon: Icon, title, subtitle, open, onToggle, action }: 
   );
 }
 
+// ── 行业发布格式（P8-14）────────────────────────────────────────────────
+const INDUSTRY_TABS = ['游戏', '文旅', '教育', '衍生'];
+const INDUSTRY_FORMATS: Record<string, { id: string; name: string; description: string; status: string; estimatedSize: string }[]> = {
+  '游戏': [
+    { id: 'game-webgal', name: 'WebGAL', description: '导出为 WebGAL 引擎脚本，支持 Web 平台运行', status: 'ready', estimatedSize: '2.4 MB' },
+    { id: 'game-h5', name: 'H5 包', description: '打包为独立 H5 应用，可通过链接直接访问', status: 'ready', estimatedSize: '12.6 MB' },
+    { id: 'game-json', name: 'JSON', description: '导出完整结构化 JSON 数据，便于二次开发', status: 'ready', estimatedSize: '856 KB' },
+    { id: 'game-engine', name: '引擎导出', description: '导出至 Unity/Godot 等游戏引擎', status: 'beta', estimatedSize: '18.5 MB' },
+  ],
+  '文旅': [
+    { id: 'tour-h5', name: 'H5 导览版', description: '适配移动端导览场景，支持 GPS 定位触发', status: 'ready', estimatedSize: '8.2 MB' },
+    { id: 'tour-wechat', name: '微信小程序包', description: '打包为微信小程序，支持馆内扫码体验', status: 'ready', estimatedSize: '6.5 MB' },
+    { id: 'tour-screen', name: '馆内屏幕版', description: '适配大屏触控交互，用于展厅固定设备', status: 'beta', estimatedSize: '15.3 MB' },
+    { id: 'tour-ar', name: 'AR 标记版', description: '基于 AR 标记触发的增强现实互动体验', status: 'alpha', estimatedSize: '22.1 MB' },
+    { id: 'tour-offline', name: '离线导览版', description: '支持离线运行的导览包，适用于无网络环境', status: 'ready', estimatedSize: '35.8 MB' },
+  ],
+  '教育': [
+    { id: 'edu-classroom', name: '课堂演示包', description: '适配课堂投屏场景，教师控制进度', status: 'ready', estimatedSize: '5.4 MB' },
+    { id: 'edu-scorm', name: 'SCORM 课件', description: '符合 SCORM 2004 标准，可导入主流 LMS', status: 'ready', estimatedSize: '7.8 MB' },
+    { id: 'edu-lti', name: 'LTI 集成', description: '支持 LTI 1.3 协议，无缝对接学习平台', status: 'beta', estimatedSize: '1.2 MB' },
+    { id: 'edu-report', name: '学习报告模板', description: '导出学习进度报告模板，支持数据分析', status: 'ready', estimatedSize: '320 KB' },
+    { id: 'edu-selfstudy', name: '自学链接', description: '生成独立学习链接，学生自主完成互动课程', status: 'ready', estimatedSize: '4.6 MB' },
+  ],
+  '衍生': [
+    { id: 'spin-player', name: '互动短剧播放器', description: '独立播放器应用，支持多平台分发', status: 'ready', estimatedSize: '9.8 MB' },
+    { id: 'spin-h5', name: 'H5 互动播放', description: '轻量级 H5 互动播放页面，适合社交传播', status: 'ready', estimatedSize: '6.2 MB' },
+    { id: 'spin-iframe', name: '平台嵌入 iframe', description: '生成可嵌入的 iframe 代码，适配第三方平台', status: 'ready', estimatedSize: '0.8 MB' },
+    { id: 'spin-social', name: '社交媒体短版', description: '精简为 60 秒互动短片，适配短视频平台', status: 'beta', estimatedSize: '3.5 MB' },
+    { id: 'spin-live', name: '互动直播版', description: '支持直播间互动投票和分支选择', status: 'alpha', estimatedSize: '11.2 MB' },
+  ],
+};
+
+// ── 审核阶段配置 ─────────────────────────────────────────────────────────
+const REVIEW_STAGES: { key: string; label: string }[] = [
+  { key: 'draft', label: '草稿' },
+  { key: 'submitted', label: '已提交' },
+  { key: 'editor_review', label: '编辑审核' },
+  { key: 'director_approved', label: '主管批准' },
+  { key: 'published', label: '已发布' },
+];
+
+// ── 优先级配置 ───────────────────────────────────────────────────────────
+const PRIORITY_CFG: Record<string, { label: string; bg: string; color: string }> = {
+  urgent: { label: '紧急', bg: `${S.error}12`, color: S.error },
+  high:   { label: '高', bg: `${S.warning}12`, color: S.warning },
+  normal: { label: '普通', bg: `${S.primary}12`, color: S.primary },
+  low:    { label: '低', bg: `${S.text3}12`, color: S.text3 },
+};
+
+// ── 审核类型图标 ─────────────────────────────────────────────────────────
+const REVIEW_TYPE_ICONS: Record<string, typeof Pencil> = {
+  script: Pencil, asset: Layers, node_graph: LayoutGrid, interaction: Rocket, full_build: Shield,
+};
+
+// ── 提及高亮辅助函数 ─────────────────────────────────────────────────────
+function renderWithMentions(text: string, mentions?: string[]) {
+  if (!mentions || mentions.length === 0) return text;
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let keyIdx = 0;
+  for (const mention of mentions) {
+    const pattern = `@${mention}`;
+    const idx = remaining.indexOf(pattern);
+    if (idx >= 0) {
+      if (idx > 0) parts.push(<span key={`t${keyIdx++}`}>{remaining.slice(0, idx)}</span>);
+      parts.push(<span key={`m${keyIdx++}`} style={{ color: S.primary, fontWeight: 600 }}>{pattern}</span>);
+      remaining = remaining.slice(idx + pattern.length);
+    }
+  }
+  if (remaining) parts.push(<span key={`t${keyIdx++}`}>{remaining}</span>);
+  return <>{parts}</>;
+}
+
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function PublishScreen() {
   const [copied, setCopied] = useState(false);
@@ -206,7 +282,17 @@ export default function PublishScreen() {
   const secSettings = useSectionToggle(true);
   const secExport = useSectionToggle(true);
   const secCollab = useSectionToggle(true);
+  const secEngineExport = useSectionToggle(true);
+  const secIndustry = useSectionToggle(true);
+  const secTaskBoard = useSectionToggle(true);
+  const secCommentsFeed = useSectionToggle(true);
+  const secReviewWorkflow = useSectionToggle(true);
+  const secVersionDiff = useSectionToggle(true);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [engineExportStates, setEngineExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
+  const [industryTab, setIndustryTab] = useState(0);
+  const [diffFromIdx, setDiffFromIdx] = useState(0);
+  const [diffToIdx, setDiffToIdx] = useState(1);
 
   // 导出状态
   const [exportStates, setExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
@@ -246,6 +332,13 @@ export default function PublishScreen() {
     setTimeout(() => {
       setExportStates((prev) => ({ ...prev, [formatId]: { status: 'done' } }));
     }, 2000);
+  };
+
+  const handleEngineExport = (engineId: string) => {
+    setEngineExportStates((prev) => ({ ...prev, [engineId]: { status: 'exporting' } }));
+    setTimeout(() => {
+      setEngineExportStates((prev) => ({ ...prev, [engineId]: { status: 'done' } }));
+    }, 2500);
   };
 
   // 快照对比数据
@@ -913,6 +1006,573 @@ export default function PublishScreen() {
                     )}
                   </AnimatePresence>
                 </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── P8-13: 引擎导出 (Beta) ── */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={Rocket}
+            title="引擎导出 (Beta)"
+            subtitle={`${ENGINE_EXPORT_CONFIGS.length} 个引擎目标`}
+            open={secEngineExport.open}
+            onToggle={secEngineExport.toggle}
+          />
+          <AnimatePresence>
+            {secEngineExport.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                  {ENGINE_EXPORT_CONFIGS.map((engine) => {
+                    const state = engineExportStates[engine.id]?.status ?? 'idle';
+                    const statusColor = engine.status === 'stable' ? S.success : engine.status === 'beta' ? S.warning : S.error;
+                    const statusLabel = engine.status === 'stable' ? 'Stable' : engine.status === 'beta' ? 'Beta' : 'Alpha';
+                    const visibleMappings = engine.fieldMappings.slice(0, 4);
+                    const remainingMappings = engine.fieldMappings.length - visibleMappings.length;
+                    return (
+                      <motion.div
+                        key={engine.id}
+                        whileHover={{ y: -2, boxShadow: `0 4px 12px ${S.primary}10` }}
+                        transition={{ duration: 0.15 }}
+                        className="p-3 rounded-xl"
+                        style={{ background: S.s2, border: `1px solid ${S.border}` }}
+                      >
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{engine.icon}</span>
+                            <div>
+                              <span className="text-[11px] font-bold" style={{ color: S.text }}>{engine.name}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                                  style={{ background: `${statusColor}12`, color: statusColor }}>
+                                  {statusLabel}
+                                </span>
+                                <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{engine.estimatedSize}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Description */}
+                        <p className="text-[9px] mb-2 leading-relaxed" style={{ color: S.text2 }}>{engine.description}</p>
+                        {/* Feature tags */}
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {engine.features.map((feat) => (
+                            <span key={feat} className="text-[8px] px-1.5 py-0.5 rounded"
+                              style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
+                              {feat}
+                            </span>
+                          ))}
+                        </div>
+                        {/* Field mapping preview */}
+                        <div className="mb-3">
+                          <div className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>字段映射预览</div>
+                          <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
+                            {visibleMappings.map((m, mi) => (
+                              <div key={mi} className="flex items-center text-[8px] px-2 py-1"
+                                style={{ background: mi % 2 === 0 ? S.card : S.s2, borderBottom: mi < visibleMappings.length - 1 ? `1px solid ${S.border}` : 'none' }}>
+                                <span className="font-mono flex-1 truncate" style={{ color: S.text2 }}>{m.sourceField}</span>
+                                <ChevronRight size={8} style={{ color: S.text3 }} className="mx-1 shrink-0" />
+                                <span className="font-mono flex-1 truncate" style={{ color: m.mapped ? S.accent : S.warning }}>{m.targetField}</span>
+                                {m.mapped && <CheckCircle2 size={8} style={{ color: S.success }} className="shrink-0 ml-1" />}
+                              </div>
+                            ))}
+                            {remainingMappings > 0 && (
+                              <div className="text-center py-1 text-[8px]" style={{ background: S.s2, color: S.text3, borderTop: `1px solid ${S.border}` }}>
+                                +{remainingMappings} 更多映射
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* Custom options */}
+                        {engine.customOptions.length > 0 && (
+                          <div className="mb-3 space-y-1.5">
+                            <div className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>导出选项</div>
+                            {engine.customOptions.map((opt) => (
+                              <div key={opt.key} className="flex items-center justify-between px-2 py-1 rounded-lg" style={{ background: S.card }}>
+                                <span className="text-[9px]" style={{ color: S.text2 }}>{opt.label}</span>
+                                {opt.type === 'boolean' ? (
+                                  <div className="w-7 h-4 rounded-full relative cursor-pointer" style={{ background: opt.defaultValue ? S.primary : S.s3 }}>
+                                    <div className="w-3 h-3 rounded-full absolute top-0.5 transition-all" style={{
+                                      background: '#fff', left: opt.defaultValue ? '14px' : '2px',
+                                    }} />
+                                  </div>
+                                ) : (
+                                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}>
+                                    {String(opt.defaultValue)}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Export button */}
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => state === 'idle' && handleEngineExport(engine.id)}
+                          disabled={state !== 'idle'}
+                          className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                          style={{
+                            background: state === 'done' ? `${S.success}12` : state === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
+                            color: state === 'done' ? S.success : state === 'exporting' ? S.text3 : S.primary,
+                            cursor: state === 'idle' ? 'pointer' : 'default',
+                          }}
+                        >
+                          {state === 'exporting' && (
+                            <>
+                              <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
+                              导出中...
+                            </>
+                          )}
+                          {state === 'done' && <>✅ 已导出 {engine.format}</>}
+                          {state === 'idle' && (
+                            <>
+                              <Download size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+                              导出 {engine.format}
+                            </>
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── P8-14: 行业发布格式 ── */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={Globe}
+            title="行业发布格式"
+            subtitle="按行业定制发布输出"
+            open={secIndustry.open}
+            onToggle={secIndustry.toggle}
+          />
+          <AnimatePresence>
+            {secIndustry.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                {/* Industry tabs */}
+                <div className="flex gap-1 mt-3 mb-3 p-1 rounded-lg" style={{ background: S.s2 }}>
+                  {INDUSTRY_TABS.map((tab, idx) => (
+                    <motion.button
+                      key={tab}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setIndustryTab(idx)}
+                      className="flex-1 py-1.5 rounded-md text-[10px] font-bold focus:outline-none"
+                      style={{
+                        background: industryTab === idx ? S.card : 'transparent',
+                        color: industryTab === idx ? S.primary : S.text3,
+                        boxShadow: industryTab === idx ? `0 1px 3px ${S.border}` : 'none',
+                      }}
+                    >
+                      {tab}
+                    </motion.button>
+                  ))}
+                </div>
+                {/* Format cards */}
+                <div className="space-y-2">
+                  {(INDUSTRY_FORMATS[INDUSTRY_TABS[industryTab]] ?? []).map((fmt) => {
+                    const fmtState = exportStates[fmt.id]?.status ?? 'idle';
+                    return (
+                      <div key={fmt.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
+                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
+                              background: fmt.status === 'ready' ? `${S.success}12` : fmt.status === 'beta' ? `${S.warning}12` : `${S.error}12`,
+                              color: fmt.status === 'ready' ? S.success : fmt.status === 'beta' ? S.warning : S.error,
+                            }}>
+                              {fmt.status === 'ready' ? '就绪' : fmt.status === 'beta' ? 'Beta' : 'Alpha'}
+                            </span>
+                          </div>
+                          <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                        </div>
+                        <p className="text-[9px] mb-2" style={{ color: S.text2 }}>{fmt.description}</p>
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => fmtState === 'idle' && handleExport(fmt.id)}
+                          disabled={fmtState !== 'idle'}
+                          className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                          style={{
+                            background: fmtState === 'done' ? `${S.success}12` : fmtState === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
+                            color: fmtState === 'done' ? S.success : fmtState === 'exporting' ? S.text3 : S.primary,
+                            cursor: fmtState === 'idle' ? 'pointer' : 'default',
+                          }}
+                        >
+                          {fmtState === 'exporting' && (
+                            <>
+                              <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
+                              发布中...
+                            </>
+                          )}
+                          {fmtState === 'done' && <>✅ 已发布</>}
+                          {fmtState === 'idle' && (
+                            <>
+                              <Upload size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+                              发布
+                            </>
+                          )}
+                        </motion.button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── P8-15: 协作系统深化 ── */}
+
+        {/* 任务看板 */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={LayoutGrid}
+            title="任务看板"
+            subtitle={`${COLLAB_TASKS.length} 个任务`}
+            open={secTaskBoard.open}
+            onToggle={secTaskBoard.toggle}
+          />
+          <AnimatePresence>
+            {secTaskBoard.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-4 gap-2 mt-3">
+                  {([
+                    { key: 'todo', label: '待办', color: S.text3 },
+                    { key: 'in_progress', label: '进行中', color: S.primary },
+                    { key: 'review', label: '审核中', color: S.warning },
+                    { key: 'done', label: '已完成', color: S.success },
+                  ] as const).map((col) => {
+                    const colTasks = COLLAB_TASKS.filter((t) => t.status === col.key);
+                    return (
+                      <div key={col.key} className="rounded-lg p-2" style={{ background: S.s2, minHeight: '80px' }}>
+                        <div className="flex items-center gap-1 mb-2">
+                          <span className="text-[9px] font-bold" style={{ color: col.color }}>{col.label}</span>
+                          <span className="text-[8px] font-mono px-1 py-0.5 rounded" style={{ background: `${col.color}12`, color: col.color }}>
+                            {colTasks.length}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {colTasks.map((task) => {
+                            const prioCfg = PRIORITY_CFG[task.priority];
+                            return (
+                              <motion.div
+                                key={task.id}
+                                whileHover={{ scale: 1.02 }}
+                                className="p-2 rounded-lg cursor-grab"
+                                style={{ background: S.card, border: `1px solid ${S.border}` }}
+                              >
+                                {/* Drag handle */}
+                                <div className="flex items-center gap-1 mb-1">
+                                  <div className="flex flex-col items-center opacity-30">
+                                    <div className="w-3 h-0.5 rounded-full" style={{ background: S.text3, marginBottom: '2px' }} />
+                                    <div className="w-3 h-0.5 rounded-full" style={{ background: S.text3, marginBottom: '2px' }} />
+                                    <div className="w-3 h-0.5 rounded-full" style={{ background: S.text3 }} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[9px] font-bold truncate" style={{ color: S.text }}>{task.title}</div>
+                                  </div>
+                                </div>
+                                {/* Badges row */}
+                                <div className="flex items-center gap-1 flex-wrap mb-1">
+                                  <span className="text-[7px] font-bold px-1 py-0.5 rounded" style={{ background: prioCfg.bg, color: prioCfg.color }}>
+                                    {prioCfg.label}
+                                  </span>
+                                  <span className="text-[7px] px-1 py-0.5 rounded" style={{ background: `${S.accent}10`, color: S.accent }}>
+                                    {task.category}
+                                  </span>
+                                </div>
+                                {/* Assignee */}
+                                <div className="flex items-center gap-1 mb-1">
+                                  <User size={7} style={{ color: S.text3 }} />
+                                  <span className="text-[8px]" style={{ color: S.text3 }}>{task.assignee}</span>
+                                  <span className="text-[7px]" style={{ color: S.text3 }}>({task.assigneeRole})</span>
+                                </div>
+                                {/* Bottom row */}
+                                <div className="flex items-center gap-1.5">
+                                  {task.dueDate && (
+                                    <span className="text-[7px] flex items-center gap-0.5" style={{ color: new Date(task.dueDate) < new Date('2026-06-02') ? S.error : S.text3 }}>
+                                      <Clock size={7} />
+                                      {task.dueDate}
+                                      {new Date(task.dueDate) < new Date('2026-06-02') && <span style={{ color: S.error }}> (逾期)</span>}
+                                    </span>
+                                  )}
+                                  {task.comments > 0 && (
+                                    <span className="text-[7px] flex items-center gap-0.5" style={{ color: S.text3 }}>
+                                      <MessageCircle size={7} />
+                                      {task.comments}
+                                    </span>
+                                  )}
+                                  {task.linkedNodeId && (
+                                    <span className="text-[7px] px-1 py-0.5 rounded font-mono" style={{ background: `${S.primary}08`, color: S.primary }}>
+                                      {task.linkedNodeId}
+                                    </span>
+                                  )}
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* 评论动态 */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={MessageCircle}
+            title="评论动态"
+            subtitle={`${COLLAB_COMMENTS.length} 条评论`}
+            open={secCommentsFeed.open}
+            onToggle={secCommentsFeed.toggle}
+          />
+          <AnimatePresence>
+            {secCommentsFeed.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-0 mt-3">
+                  {COLLAB_COMMENTS.map((comment, i) => (
+                    <div key={comment.id} className="p-3 rounded-xl"
+                      style={{ background: i % 2 === 0 ? S.s2 : S.card, border: `1px solid ${S.border}`, marginBottom: '4px' }}>
+                      {/* Header */}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[10px] font-bold" style={{ color: S.text }}>{comment.author}</span>
+                        <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
+                          {comment.authorRole}
+                        </span>
+                        <span className="text-[8px] ml-auto" style={{ color: S.text3 }}>{comment.timestamp}</span>
+                      </div>
+                      {/* Content with mentions */}
+                      <div className="text-[10px] leading-relaxed mb-1.5" style={{ color: S.text2 }}>
+                        {renderWithMentions(comment.content, comment.mentions)}
+                      </div>
+                      {/* Footer */}
+                      <div className="flex items-center gap-2">
+                        {comment.taskId && (
+                          <span className="text-[7px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}10`, color: S.accent }}>
+                            {comment.taskId}
+                          </span>
+                        )}
+                        {comment.nodeId && (
+                          <span className="text-[7px] px-1.5 py-0.5 rounded font-mono" style={{ background: `${S.primary}08`, color: S.primary }}>
+                            {comment.nodeId}
+                          </span>
+                        )}
+                        <span className="text-[7px] px-1.5 py-0.5 rounded ml-auto" style={{
+                          background: comment.isResolved ? `${S.success}12` : `${S.warning}12`,
+                          color: comment.isResolved ? S.success : S.warning,
+                        }}>
+                          {comment.isResolved ? '已解决' : '待处理'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* 审核流程 */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={Shield}
+            title="审核流程"
+            subtitle={`${REVIEW_ITEMS.length} 个审核项`}
+            open={secReviewWorkflow.open}
+            onToggle={secReviewWorkflow.toggle}
+          />
+          <AnimatePresence>
+            {secReviewWorkflow.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-3 mt-3">
+                  {REVIEW_ITEMS.map((item) => {
+                    const TypeIcon = REVIEW_TYPE_ICONS[item.type] ?? Pencil;
+                    const currentStageIdx = REVIEW_STAGES.findIndex((s) => s.key === item.stage);
+                    return (
+                      <div key={item.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        {/* Header */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: `${S.primary}12` }}>
+                            <TypeIcon size={10} style={{ color: S.primary }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] font-bold" style={{ color: S.text }}>{item.title}</div>
+                            <div className="text-[8px]" style={{ color: S.text3 }}>
+                              {item.submitter} → {item.reviewer}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Stage pipeline */}
+                        <div className="flex items-center justify-between mb-2 px-1">
+                          {REVIEW_STAGES.map((stage, si) => {
+                            const isActive = si <= currentStageIdx;
+                            const isCurrent = si === currentStageIdx;
+                            return (
+                              <div key={stage.key} className="flex items-center" style={{ flex: si < REVIEW_STAGES.length - 1 ? 1 : 'none' }}>
+                                <div className="flex flex-col items-center">
+                                  <div className="w-3 h-3 rounded-full flex items-center justify-center" style={{
+                                    background: isCurrent ? S.primary : isActive ? `${S.primary}30` : S.s3,
+                                    border: isCurrent ? `2px solid ${S.primary}` : `2px solid ${isActive ? S.primary : S.border}`,
+                                  }}>
+                                    {isCurrent && <CheckCircle2 size={7} color="#fff" />}
+                                  </div>
+                                  <span className="text-[7px] mt-0.5" style={{ color: isCurrent ? S.primary : isActive ? S.text2 : S.text3 }}>
+                                    {stage.label}
+                                  </span>
+                                </div>
+                                {si < REVIEW_STAGES.length - 1 && (
+                                  <div className="flex-1 h-px mx-1" style={{ background: isActive ? S.primary : S.border }} />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Details */}
+                        <div className="flex items-center gap-2 mb-1 text-[8px]" style={{ color: S.text3 }}>
+                          {item.submittedAt && <span>提交: {item.submittedAt}</span>}
+                          {item.reviewedAt && <span>· 审核: {item.reviewedAt}</span>}
+                        </div>
+                        <div className="text-[9px] mb-1" style={{ color: S.text2 }}>{item.changeSummary}</div>
+                        <div className="text-[9px]" style={{ color: S.text3 }}>{item.comments}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* 版本差异对比 */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={GitCompare}
+            title="版本差异对比"
+            subtitle={`${VERSION_DIFFS.length} 组对比数据`}
+            open={secVersionDiff.open}
+            onToggle={secVersionDiff.toggle}
+          />
+          <AnimatePresence>
+            {secVersionDiff.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                {/* Version selectors */}
+                <div className="flex items-center gap-2 mt-3 mb-3">
+                  <select
+                    value={diffFromIdx}
+                    onChange={(e) => setDiffFromIdx(Number(e.target.value))}
+                    className="flex-1 text-[10px] px-2 py-1.5 rounded-lg focus:outline-none"
+                    style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
+                  >
+                    {VERSION_DIFFS.map((d, i) => (
+                      <option key={i} value={i}>{d.fromVersion} → {d.toVersion}</option>
+                    ))}
+                  </select>
+                  <ArrowLeftRight size={12} style={{ color: S.text3 }} className="shrink-0" />
+                  <select
+                    value={diffToIdx}
+                    onChange={(e) => setDiffToIdx(Number(e.target.value))}
+                    className="flex-1 text-[10px] px-2 py-1.5 rounded-lg focus:outline-none"
+                    style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
+                  >
+                    {VERSION_DIFFS.map((d, i) => (
+                      <option key={i} value={i}>{d.fromVersion} → {d.toVersion}</option>
+                    ))}
+                  </select>
+                </div>
+                {/* Diff summary card */}
+                {(() => {
+                  const diff = VERSION_DIFFS[diffFromIdx] ?? VERSION_DIFFS[0];
+                  const metrics = [
+                    { label: '节点新增', value: diff.nodesAdded, color: S.success },
+                    { label: '节点修改', value: diff.nodesModified, color: S.primary },
+                    { label: '节点删除', value: diff.nodesRemoved, color: S.error },
+                    { label: '变量变更', value: diff.variablesChanged, color: S.warning },
+                    { label: '资产更新', value: diff.assetsUpdated, color: S.accent },
+                    { label: '脚本变更', value: diff.scriptChanges, color: '#8B5CF6' },
+                  ];
+                  const maxVal = Math.max(...metrics.map((m) => m.value), 1);
+                  return (
+                    <div className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
+                          {diff.fromVersion}
+                        </span>
+                        <ChevronRight size={10} style={{ color: S.text3 }} />
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.success}12`, color: S.success }}>
+                          {diff.toVersion}
+                        </span>
+                      </div>
+                      <div className="space-y-2 mb-2">
+                        {metrics.map((m) => (
+                          <div key={m.label} className="flex items-center gap-2">
+                            <span className="text-[8px] w-14 shrink-0" style={{ color: S.text3 }}>{m.label}</span>
+                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max((m.value / maxVal) * 100, m.value > 0 ? 8 : 0)}%` }}
+                                transition={{ duration: 0.4 }}
+                                className="h-full rounded-full flex items-center justify-end pr-1"
+                                style={{ background: m.color }}
+                              >
+                                {m.value > 0 && (
+                                  <span className="text-[7px] font-bold font-mono" style={{ color: '#fff' }}>{m.value}</span>
+                                )}
+                              </motion.div>
+                            </div>
+                            <span className="text-[9px] font-mono font-bold w-5 text-right" style={{ color: m.color }}>{m.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[9px] pt-2" style={{ color: S.text2, borderTop: `1px solid ${S.border}` }}>
+                        {diff.summary}
+                      </p>
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
           </AnimatePresence>

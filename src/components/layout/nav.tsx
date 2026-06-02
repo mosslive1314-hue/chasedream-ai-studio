@@ -1,30 +1,39 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Scissors, FileText, GitBranch, MousePointer,
-  Network, Package, Play, Activity, Rocket, Users,
+  Network, Package, Play, Activity, Rocket, Users, Film,
   Settings, ChevronLeft, ChevronRight
 } from "lucide-react";
+import { INDUSTRY_LABELS, type IndustryType } from "@/lib/studio-data";
 
 const W_OPEN = 200;
 const W_CLOSED = 56;
 
-type NavItem = { href: string; icon: typeof LayoutDashboard; label: string; disabled?: boolean };
+const INDUSTRY_ICONS: { type: IndustryType; icon: string }[] = [
+  { type: 'game', icon: '🎮' },
+  { type: 'tourism', icon: '🏛️' },
+  { type: 'education', icon: '🎓' },
+  { type: 'derivative', icon: '🎬' },
+];
+
+type NavItem = { href: string; icon: typeof LayoutDashboard; label: string; labelKey?: string; disabled?: boolean };
 
 const NAV: NavItem[] = [
   { href: "/",           icon: LayoutDashboard, label: "工作台"   },
-  { href: "/pipeline",   icon: GitBranch,       label: "制作管线" },
-  { href: "/parse",      icon: Scissors,        label: "剧本解构" },
-  { href: "/script",     icon: FileText,        label: "剧本编辑" },
-  { href: "/interaction",icon: MousePointer,    label: "互动设计" },
-  { href: "/nodes",      icon: Network,         label: "节点图谱" },
-  { href: "/assets",     icon: Package,         label: "资产库"   },
-  { href: "/simulator",  icon: Play,            label: "演出预览" },
-  { href: "/overview",   icon: Activity,        label: "质检总览" },
-  { href: "/publish",    icon: Rocket,          label: "发布"     },
+  { href: "/pipeline",   icon: GitBranch,       label: "制作管线", labelKey: "pipeline" },
+  { href: "/parse",      icon: Scissors,        label: "剧本解构", labelKey: "parse" },
+  { href: "/script",     icon: FileText,        label: "剧本编辑", labelKey: "script" },
+  { href: "/interaction",icon: MousePointer,    label: "互动设计", labelKey: "interaction" },
+  { href: "/nodes",      icon: Network,         label: "节点图谱", labelKey: "node" },
+  { href: "/assets",     icon: Package,         label: "资产库",   labelKey: "asset" },
+  { href: "/simulator",  icon: Play,            label: "演出预览", labelKey: "simulator" },
+  { href: "/cinematic",  icon: Film,            label: "演出设计", labelKey: "cinematic" },
+  { href: "/overview",   icon: Activity,        label: "质检总览", labelKey: "overview" },
+  { href: "/publish",    icon: Rocket,          label: "发布",     labelKey: "publish" },
   { href: "/collab",     icon: Users,           label: "协作", disabled: true },
 ];
 
@@ -33,9 +42,26 @@ function isActive(href: string, path: string) {
   return path.startsWith(href);
 }
 
+function getLabel(item: NavItem, industry: IndustryType): string {
+  if (!item.labelKey) return item.label;
+  const industryLabel = INDUSTRY_LABELS[item.labelKey]?.[industry];
+  if (!industryLabel) return item.label;
+  if (item.labelKey === 'asset') return industryLabel + '库';
+  return industryLabel;
+}
+
 /* ── 移动端底部导航 ─────────────────────────────────────────── */
 export function BottomNav() {
   const path = usePathname();
+  const [industry, setIndustry] = useState<IndustryType>('game');
+
+  useEffect(() => {
+    const stored = localStorage.getItem('cd-industry') as IndustryType | null;
+    if (stored && ['game', 'tourism', 'education', 'derivative'].includes(stored)) {
+      setIndustry(stored);
+    }
+  }, []);
+
   const visible = [NAV[0], NAV[1], NAV[4], NAV[5], NAV[7]];
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-20 flex md:hidden"
@@ -53,10 +79,18 @@ export function BottomNav() {
               )}
               <item.icon size={19} strokeWidth={active ? 2.5 : 1.8}
                 style={{ color: active ? "#5E50E8" : "#9198B5" }} />
-              <span className="text-[8px] font-medium"
-                style={{ color: active ? "#5E50E8" : "#9198B5" }}>
-                {item.label}
-              </span>
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={`${item.labelKey || item.label}-${industry}`}
+                  initial={{ opacity: 0, y: 2 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -2 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-[8px] font-medium"
+                  style={{ color: active ? "#5E50E8" : "#9198B5" }}>
+                  {getLabel(item, industry)}
+                </motion.span>
+              </AnimatePresence>
             </motion.div>
           </Link>
         );
@@ -70,7 +104,24 @@ export function SideNav() {
   const path = usePathname();
   const [open, setOpen] = useState(true);
   const [tooltip, setTooltip] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<IndustryType>('game');
+  const [showIndustryPicker, setShowIndustryPicker] = useState(false);
   const w = open ? W_OPEN : W_CLOSED;
+
+  useEffect(() => {
+    const stored = localStorage.getItem('cd-industry') as IndustryType | null;
+    if (stored && ['game', 'tourism', 'education', 'derivative'].includes(stored)) {
+      setIndustry(stored);
+    }
+  }, []);
+
+  const handleIndustryChange = (newIndustry: IndustryType) => {
+    setIndustry(newIndustry);
+    localStorage.setItem('cd-industry', newIndustry);
+    setShowIndustryPicker(false);
+  };
+
+  const currentIndustryIcon = INDUSTRY_ICONS.find(i => i.type === industry)?.icon || '🎮';
 
   return (
     <>
@@ -105,6 +156,7 @@ export function SideNav() {
         <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
           {NAV.map(item => {
             const active = isActive(item.href, path);
+            const displayLabel = getLabel(item, industry);
 
             /* disabled 占位项 —— 渲染为 div + tooltip 提示 */
             if (item.disabled) {
@@ -128,7 +180,7 @@ export function SideNav() {
                           transition={{ duration:0.16 }}
                           className="text-xs font-medium truncate overflow-hidden whitespace-nowrap"
                           style={{ color: "#9198B5" }}>
-                          {item.label}
+                          {displayLabel}
                         </motion.span>
                       )}
                     </AnimatePresence>
@@ -144,7 +196,7 @@ export function SideNav() {
             }
 
             return (
-              <Link key={item.href} href={item.href} title={item.label} className="block">
+              <Link key={item.href} href={item.href} title={displayLabel} className="block">
                 <motion.div whileTap={{ scale:0.97 }}
                   className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-colors"
                   style={{
@@ -155,14 +207,18 @@ export function SideNav() {
                     style={{ color: active ? "#5E50E8" : "#9198B5", flexShrink:0 }} />
                   <AnimatePresence>
                     {open && (
-                      <motion.span
-                        initial={{ opacity:0, width:0 }} animate={{ opacity:1, width:"auto" }}
-                        exit={{ opacity:0, width:0 }}
-                        transition={{ duration:0.16 }}
-                        className="text-xs font-medium truncate overflow-hidden whitespace-nowrap"
-                        style={{ color: active ? "#5E50E8" : "#1A1D2E" }}>
-                        {item.label}
-                      </motion.span>
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={`${item.labelKey || item.label}-${industry}`}
+                          initial={{ opacity:0, x: -4 }}
+                          animate={{ opacity:1, x: 0 }}
+                          exit={{ opacity:0, x: 4 }}
+                          transition={{ duration:0.16 }}
+                          className="text-xs font-medium truncate overflow-hidden whitespace-nowrap"
+                          style={{ color: active ? "#5E50E8" : "#1A1D2E" }}>
+                          {displayLabel}
+                        </motion.span>
+                      </AnimatePresence>
                     )}
                   </AnimatePresence>
                 </motion.div>
@@ -191,6 +247,89 @@ export function SideNav() {
               </AnimatePresence>
             </motion.div>
           </Link>
+
+          {/* 行业选择器 */}
+          <div className="relative mt-1">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => open && setShowIndustryPicker(!showIndustryPicker)}
+              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer w-full transition-colors"
+              style={{ background: showIndustryPicker ? "rgba(94,80,232,0.06)" : "transparent" }}
+            >
+              <span className="text-sm shrink-0">{currentIndustryIcon}</span>
+              <AnimatePresence>
+                {open && (
+                  <motion.span
+                    initial={{ opacity:0, width:0 }} animate={{ opacity:1, width:"auto" }}
+                    exit={{ opacity:0, width:0 }}
+                    transition={{ duration:0.16 }}
+                    className="text-[10px] font-medium truncate overflow-hidden whitespace-nowrap"
+                    style={{ color: "#9198B5" }}>
+                    {INDUSTRY_LABELS.pipeline[industry]}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
+            {/* 行业选择弹出框 */}
+            <AnimatePresence>
+              {showIndustryPicker && open && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 bottom-full mb-1 z-50 p-1 rounded-xl shadow-lg"
+                  style={{ background: "#fff", border: "1px solid #E2E5F0", minWidth: 140 }}
+                >
+                  {INDUSTRY_ICONS.map(item => {
+                    const active = industry === item.type;
+                    return (
+                      <motion.button
+                        key={item.type}
+                        whileHover={{ x: 2 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => handleIndustryChange(item.type)}
+                        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-left transition-colors"
+                        style={{
+                          background: active ? "rgba(94,80,232,0.1)" : "transparent",
+                        }}
+                      >
+                        <span className="text-sm">{item.icon}</span>
+                        <span className="text-[10px] font-medium"
+                          style={{ color: active ? "#5E50E8" : "#1A1D2E" }}>
+                          {INDUSTRY_LABELS.pipeline[item.type]}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* 收起状态下的迷你图标行 */}
+            {!open && (
+              <div className="flex flex-col items-center gap-0.5 mt-1">
+                {INDUSTRY_ICONS.map(item => {
+                  const active = industry === item.type;
+                  return (
+                    <motion.button
+                      key={item.type}
+                      whileTap={{ scale: 0.85 }}
+                      onClick={() => handleIndustryChange(item.type)}
+                      className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] transition-colors"
+                      style={{
+                        background: active ? "rgba(94,80,232,0.15)" : "transparent",
+                        border: active ? "1px solid rgba(94,80,232,0.3)" : "1px solid transparent",
+                      }}
+                    >
+                      {item.icon}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 收起/展开按钮 */}

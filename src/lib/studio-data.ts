@@ -1328,3 +1328,795 @@ export const PROJECT_SPEC_TEMPLATES: ProjectSpecTemplate[] = [
     suggestedEndings: [],
   },
 ];
+
+// ── 行业通用化数据（P6-1）─────────────────────────────────────────────
+
+export type IndustryType = 'game' | 'tourism' | 'education' | 'derivative';
+
+export interface IndustryLabelMap {
+  [key: string]: {
+    game: string;
+    tourism: string;
+    education: string;
+    derivative: string;
+  };
+}
+
+// Map of underlying object names to industry-specific display names
+export const INDUSTRY_LABELS: IndustryLabelMap = {
+  node: { game: '剧情节点', tourism: '体验点', education: '学习环节', derivative: '剧情片段' },
+  edge: { game: '路径连线', tourism: '游览路线', education: '学习路径', derivative: '剧情跳转' },
+  choice: { game: '玩家选择', tourism: '参观者选择', education: '学生决策', derivative: '观众选择' },
+  variable: { game: '状态变量', tourism: '探索进度', education: '掌握度', derivative: '剧情状态' },
+  ending: { game: '结局', tourism: '体验结果', education: '学习反馈', derivative: '分支结局' },
+  asset: { game: '游戏资产', tourism: '展品素材', education: '教学素材', derivative: '影视素材' },
+  worldRules: { game: '世界规则', tourism: '史实边界', education: '知识边界', derivative: '原作设定' },
+  qte: { game: 'QTE 交互', tourism: '点击互动', education: '实验操作', derivative: '互动镜头' },
+  hotspot: { game: '热区交互', tourism: '展品探索', education: '答题触发', derivative: '线索点击' },
+  chapter: { game: '章节', tourism: '展区', education: '课程单元', derivative: '剧集片段' },
+  character: { game: '角色', tourism: '人物', education: '知识角色', derivative: '剧中人物' },
+  scene: { game: '场景', tourism: '地点', education: '学习环境', derivative: '拍摄场景' },
+  prop: { game: '道具', tourism: '展品', education: '教学工具', derivative: '关键物件' },
+  pipeline: { game: '制作管线', tourism: '导览制作', education: '课程制作', derivative: '衍生制作' },
+  simulator: { game: '演出预览', tourism: '体验预览', education: '学习预览', derivative: '互动预览' },
+  publish: { game: '发布', tourism: '发布导览', education: '发布课程', derivative: '发布互动版' },
+  overview: { game: '质检总览', tourism: '质检总览', education: '质检总览', derivative: '质检总览' },
+  interaction: { game: '互动设计', tourism: '互动点设计', education: '学习互动', derivative: '分支设计' },
+  script: { game: '剧本编辑', tourism: '体验文案', education: '学习内容', derivative: '剧情编辑' },
+  parse: { game: '剧本解构', tourism: '资料解构', education: '课程解构', derivative: '素材解构' },
+};
+
+// ── 行业模板（P6-1）─────────────────────────────────────────────
+
+export interface IndustryTemplate {
+  industryType: IndustryType;
+  label: string;
+  icon: string;
+  description: string;
+  targetUsers: string;
+  defaultObjects: string[];       // What objects this industry works with
+  defaultInteractions: string[];  // What interaction types are common
+  defaultPublishFormats: string[]; // How projects are published
+  workflow: { step: string; description: string }[]; // Industry-specific workflow steps
+}
+
+export const INDUSTRY_TEMPLATES: IndustryTemplate[] = [
+  {
+    industryType: 'tourism',
+    label: '文旅互动体验',
+    icon: '🏛️',
+    description: '将景区、展馆、历史人物、展品变成可玩的参观体验。适用于博物馆、景区、城市文旅、展陈公司。',
+    targetUsers: '景区、博物馆、城市文旅、展陈公司',
+    defaultObjects: ['地点', '展品', '历史人物', '事件', '路线', '任务点', '线索'],
+    defaultInteractions: ['点击展品', '选择调查对象', '路线选择', '解谜', '打卡收集', '线索拼合'],
+    defaultPublishFormats: ['H5 互动页面', '微信小程序', '馆内屏幕', '导览模式', 'AR 标记版'],
+    workflow: [
+      { step: '导入资料', description: '导入景区/展馆资料、历史文献、展品说明' },
+      { step: '提取要素', description: 'AI 提取地点、人物、展品、历史事件' },
+      { step: '建立边界', description: '确定史实边界、文化约束、事实校验规则' },
+      { step: '规划路线', description: '设计参观动线、体验节奏、任务分布' },
+      { step: '设计体验', description: '设计互动点：展品探索、路线选择、解谜任务' },
+      { step: '绑定资产', description: '关联展品图片、历史照片、音频讲解、地图' },
+      { step: '测试路线', description: '模拟游客动线，检查路线断点和体验时长' },
+      { step: '发布导览', description: '发布 H5/小程序/馆内屏幕版本' },
+    ],
+  },
+  {
+    industryType: 'education',
+    label: '互动教育课程',
+    icon: '🎓',
+    description: '将课程、知识点、案例变成可交互学习内容。适用于学校、培训机构、科普机构、企业培训。',
+    targetUsers: '学校、培训机构、科普机构、企业培训',
+    defaultObjects: ['知识点', '案例', '问题', '答案', '学习目标', '评价标准'],
+    defaultInteractions: ['选择题', '情境决策', '实验模拟', '角色扮演', '分步推理'],
+    defaultPublishFormats: ['课堂演示', '自学链接', '训练任务', 'SCORM 课件', '学习报告'],
+    workflow: [
+      { step: '导入课程', description: '导入教材、教案、课程大纲、题库' },
+      { step: '提取知识点', description: 'AI 提取知识点、学习目标、能力维度' },
+      { step: '设计情境', description: '构建学习情境、案例场景、角色任务' },
+      { step: '生成互动', description: '生成选择题、情境决策、实验模拟' },
+      { step: '配置测评', description: '设置评估变量、掌握度追踪、反馈规则' },
+      { step: '生成报告', description: '配置学习报告模板和能力画像' },
+      { step: '测试验证', description: '验证知识点覆盖、难度均衡、反馈完整' },
+      { step: '发布课程', description: '发布课堂/自学/训练版本' },
+    ],
+  },
+  {
+    industryType: 'derivative',
+    label: '互动短剧 / 内容衍生',
+    icon: '🎬',
+    description: '将已有短剧、真人剧、AI 视频资产改造成互动版本。适用于短剧公司、影视团队、AIGC 内容团队。',
+    targetUsers: '短剧公司、影视团队、AIGC 内容团队',
+    defaultObjects: ['剧集', '角色', '场景', '视频片段', '剧情转折', '结局'],
+    defaultInteractions: ['观众选择', '分支插入', '隐藏剧情', '视角切换', '多结局'],
+    defaultPublishFormats: ['互动短剧', 'H5 互动播放', '平台嵌入', '社交媒体短版'],
+    workflow: [
+      { step: '导入素材', description: '导入已有剧本、视频、分镜、角色素材' },
+      { step: '识别结构', description: 'AI 识别剧情结构、关键转折、高潮点' },
+      { step: '找互动点', description: '标记可插入互动选择的关键节点' },
+      { step: '生成分支', description: '设计分支剧情和多结局' },
+      { step: '复用资产', description: '评估现有素材覆盖率和新增资产需求' },
+      { step: '补齐资产', description: '生成/拍摄新增分支所需素材' },
+      { step: '测试路径', description: '测试所有分支路径和结局可达性' },
+      { step: '发布互动版', description: '发布互动短剧/H5/平台嵌入版本' },
+    ],
+  },
+  {
+    industryType: 'game',
+    label: '互动叙事游戏',
+    icon: '🎮',
+    description: '设计复杂剧情、任务线、变量、结局，并接入游戏引擎。适用于独立游戏、游戏工作室、专业编剧。',
+    targetUsers: '独立游戏开发者、游戏工作室、专业编剧',
+    defaultObjects: ['角色', '任务', '道具', '变量', '条件', '节点', '结局', '关卡'],
+    defaultInteractions: ['选择', 'QTE', 'Hotspot', '解谜', '战斗剧情', '任务分支'],
+    defaultPublishFormats: ['WebGAL 脚本', 'JSON 数据', 'Ren\'Py 脚本', '引擎导出', 'H5 包'],
+    workflow: [
+      { step: '项目创建', description: '设定项目类型、题材、目标时长与互动规格' },
+      { step: '素材导入', description: '导入小说/故事，AI 提取角色、场景、道具' },
+      { step: '世界规则', description: '确定世界观、角色约束、叙事规则' },
+      { step: '章纲规划', description: '生成章节规划，定义主题、情绪弧、事件' },
+      { step: '剧本编写', description: '编写完整线性剧本：对白、场景、旁白' },
+      { step: '互动设计', description: '标记互动点：选择、分支、变量、结局' },
+      { step: '变量配置', description: '配置变量系统、QTE、Hotspot 机制' },
+      { step: '节点验证', description: '验证节点图连通性和路径完整性' },
+      { step: '资产管理', description: '生成/管理图片、BGM、音效、视频' },
+      { step: '演出预览', description: '以玩家视角试玩完整流程' },
+      { step: '质检修复', description: '运行质检，修复阻塞发布的问题' },
+      { step: '发布导出', description: '创建版本快照，发布/导出到目标平台' },
+    ],
+  },
+];
+
+// ── 行业质检规则（P6-1）─────────────────────────────────────────────
+
+export interface IndustryQCRule {
+  id: string;
+  industryType: IndustryType;
+  category: string;
+  label: string;
+  description: string;
+  severity: 'block' | 'warn' | 'info';
+}
+
+export const INDUSTRY_QC_RULES: IndustryQCRule[] = [
+  // 文旅质检
+  { id: 'tqc-01', industryType: 'tourism', category: '史实校验', label: '史实冲突检测', description: '检查体验文案是否与已知历史事实矛盾', severity: 'block' },
+  { id: 'tqc-02', industryType: 'tourism', category: '路线完整性', label: '路线断点检测', description: '检查参观路线是否存在无法到达的展区', severity: 'block' },
+  { id: 'tqc-03', industryType: 'tourism', category: '资产覆盖', label: '展品素材覆盖', description: '检查每个展品互动点是否都有关联素材', severity: 'warn' },
+  { id: 'tqc-04', industryType: 'tourism', category: '体验时长', label: '讲解时长超标', description: '单个体验点文字量是否超过游客耐心阈值', severity: 'warn' },
+  { id: 'tqc-05', industryType: 'tourism', category: '文化合规', label: '文化敏感词检测', description: '检查是否存在文化敏感或不当表达', severity: 'block' },
+  { id: 'tqc-06', industryType: 'tourism', category: '地理校验', label: '地理位置冲突', description: '检查路线中的地理位置是否与实际一致', severity: 'warn' },
+  // 教育质检
+  { id: 'eqc-01', industryType: 'education', category: '知识覆盖', label: '知识点遗漏检测', description: '检查是否所有学习目标都有对应的互动环节', severity: 'block' },
+  { id: 'eqc-02', industryType: 'education', category: '内容正确性', label: '答案正确性校验', description: '检查选择题答案是否准确无误', severity: 'block' },
+  { id: 'eqc-03', industryType: 'education', category: '反馈完整性', label: '错误反馈缺失', description: '检查每个错误选项是否有解释性反馈', severity: 'warn' },
+  { id: 'eqc-04', industryType: 'education', category: '难度均衡', label: '难度梯度检测', description: '检查知识点难度是否从低到高递进', severity: 'info' },
+  { id: 'eqc-05', industryType: 'education', category: '评估维度', label: '评估维度覆盖', description: '检查是否覆盖知识/技能/判断力等多维评估', severity: 'info' },
+  { id: 'eqc-06', industryType: 'education', category: '学习路径', label: '学习路径完整性', description: '检查所有学习路径是否都有明确的反馈结果', severity: 'warn' },
+  // 衍生质检
+  { id: 'dqc-01', industryType: 'derivative', category: '资产复用', label: '素材缺口率', description: '评估现有素材对新分支的覆盖率和新增成本', severity: 'warn' },
+  { id: 'dqc-02', industryType: 'derivative', category: '叙事连贯', label: '分支连贯性', description: '检查分支剧情是否与主线叙事连贯', severity: 'block' },
+  { id: 'dqc-03', industryType: 'derivative', category: '设定一致', label: '角色设定冲突', description: '检查分支中角色行为是否与原作设定矛盾', severity: 'block' },
+  { id: 'dqc-04', industryType: 'derivative', category: '风格一致', label: '原作风格偏离', description: '检查新增内容是否与原作风格基调一致', severity: 'warn' },
+  { id: 'dqc-05', industryType: 'derivative', category: '成本评估', label: '新增资产成本', description: '估算完成所有分支需要新增的素材数量和成本', severity: 'info' },
+  { id: 'dqc-06', industryType: 'derivative', category: '视频覆盖', label: '视频素材缺口', description: '检查哪些分支节点缺少对应的视频片段', severity: 'warn' },
+];
+
+// ── 行业资产类型（P6-1）─────────────────────────────────────────────
+
+export interface IndustryAssetType {
+  industryType: IndustryType;
+  assetTypes: { key: string; label: string; icon: string }[];
+}
+
+export const INDUSTRY_ASSET_TYPES: IndustryAssetType[] = [
+  {
+    industryType: 'game',
+    assetTypes: [
+      { key: 'image', label: '场景图片', icon: '🖼️' },
+      { key: 'character', label: '角色立绘', icon: '👤' },
+      { key: 'bgm', label: 'BGM', icon: '🎵' },
+      { key: 'sfx', label: '音效', icon: '🔊' },
+      { key: 'voice', label: '语音', icon: '🎙️' },
+      { key: 'video', label: '视频', icon: '🎬' },
+      { key: 'ui', label: 'UI 素材', icon: '🎨' },
+    ],
+  },
+  {
+    industryType: 'tourism',
+    assetTypes: [
+      { key: 'exhibit_photo', label: '展品照片', icon: '🏺' },
+      { key: 'history_photo', label: '历史照片', icon: '📜' },
+      { key: 'map', label: '地图', icon: '🗺️' },
+      { key: 'audio_guide', label: '音频讲解', icon: '🎧' },
+      { key: 'qr_code', label: '二维码', icon: '📱' },
+      { key: 'ar_marker', label: 'AR 标记', icon: '👓' },
+      { key: 'video', label: '介绍视频', icon: '🎬' },
+    ],
+  },
+  {
+    industryType: 'education',
+    assetTypes: [
+      { key: 'courseware', label: '课件', icon: '📊' },
+      { key: 'animation', label: '动画', icon: '🎞️' },
+      { key: 'quiz_image', label: '题目截图', icon: '📝' },
+      { key: 'experiment', label: '实验图', icon: '🔬' },
+      { key: 'mindmap', label: '思维导图', icon: '🧠' },
+      { key: 'knowledge_card', label: '知识卡片', icon: '🃏' },
+      { key: 'video', label: '教学视频', icon: '🎬' },
+    ],
+  },
+  {
+    industryType: 'derivative',
+    assetTypes: [
+      { key: 'video_clip', label: '视频片段', icon: '🎞️' },
+      { key: 'storyboard', label: '分镜图', icon: '🖼️' },
+      { key: 'film_still', label: '成片截图', icon: '📸' },
+      { key: 'character_poster', label: '角色海报', icon: '🎭' },
+      { key: 'promo', label: '宣传物料', icon: '📢' },
+      { key: 'bgm', label: '配乐', icon: '🎵' },
+      { key: 'subtitle', label: '字幕文件', icon: '💬' },
+    ],
+  },
+];
+
+// ── 多主角叙事时间线（P7-7）─────────────────────────────────────────────
+
+export type CharacterStatus = 'alive' | 'injured' | 'missing' | 'captured' | 'betrayed' | 'dead';
+
+export interface CharacterTimelineEvent {
+  id: string;
+  chapterId: string;
+  nodeIds: string[];
+  eventTitle: string;
+  description: string;
+  statusChange?: { from: CharacterStatus; to: CharacterStatus };
+  choiceMade?: string;
+  impactOnOthers?: { characterId: string; effect: string }[];
+}
+
+export interface CharacterTimeline {
+  characterId: string;
+  characterName: string;
+  color: string;
+  status: CharacterStatus;
+  storyArc: string;           // e.g., "从怀疑到信任的救赎之路"
+  chapters: string[];          // which chapters this character appears in
+  events: CharacterTimelineEvent[];
+  relationships: { targetId: string; type: string; strength: number }[]; // -100 to 100
+}
+
+export const CHARACTER_TIMELINES: CharacterTimeline[] = [
+  {
+    characterId: 'c1', characterName: '艾拉', color: '#5E50E8',
+    status: 'alive',
+    storyArc: '从疲惫的侦探到真相的守护者',
+    chapters: ['ch0', 'ch1', 'ch2'],
+    events: [
+      { id: 'ct-e1', chapterId: 'ch0', nodeIds: ['N01', 'N02'], eventTitle: '深夜接头', description: '追踪中断信号抵达接头地点，与线人会面', statusChange: undefined, choiceMade: '推门进入' },
+      { id: 'ct-e2', chapterId: 'ch1', nodeIds: ['N02', 'N03'], eventTitle: '信任抉择', description: '面对线人的警告，决定是否信任这个反复失约的人', choiceMade: '相信线人', impactOnOthers: [{ characterId: 'c2', effect: '线人获得信任，后续提供更多情报' }] },
+      { id: 'ct-e3', chapterId: 'ch2', nodeIds: ['N04', 'N06'], eventTitle: '潜入行动', description: '选择暗夜通道潜入企业大厦，遭遇警卫巡逻', statusChange: { from: 'alive', to: 'alive' } },
+      { id: 'ct-e4', chapterId: 'ch2', nodeIds: ['N07', 'N08'], eventTitle: '命运判定', description: '根据累积潜行值判定是否成功潜入数据中心', choiceMade: '由系统变量决定' },
+      { id: 'ct-e5', chapterId: 'ch2', nodeIds: ['N10'], eventTitle: '幽灵归来', description: '带着核心证据安全撤离，消失在霓虹夜幕中' },
+    ],
+    relationships: [
+      { targetId: 'c2', type: '信任/合作', strength: 65 },
+      { targetId: 'c3', type: '对抗/追踪', strength: -80 },
+    ],
+  },
+  {
+    characterId: 'c2', characterName: '线人', color: '#D97706',
+    status: 'alive',
+    storyArc: '在自保与良知之间摇摆的灰色角色',
+    chapters: ['ch0', 'ch1'],
+    events: [
+      { id: 'ct-f1', chapterId: 'ch0', nodeIds: ['N02'], eventTitle: '传递警告', description: '告知艾拉追踪芯片已被发现，催促她做出选择' },
+      { id: 'ct-f2', chapterId: 'ch1', nodeIds: ['N02', 'N03'], eventTitle: '接受或失去信任', description: '根据艾拉的选择，获得更多的信任或被疏远', choiceMade: '取决于玩家选择', impactOnOthers: [{ characterId: 'c1', effect: '影响艾拉后续可获得的情报量' }] },
+    ],
+    relationships: [
+      { targetId: 'c1', type: '被信任/被怀疑', strength: 40 },
+      { targetId: 'c3', type: '恐惧/隐藏', strength: -60 },
+    ],
+  },
+  {
+    characterId: 'c3', characterName: '反派主管', color: '#DC2626',
+    status: 'alive',
+    storyArc: '冷酷的企业权力代言人，真相的守门人',
+    chapters: ['ch2'],
+    events: [
+      { id: 'ct-g1', chapterId: 'ch2', nodeIds: ['N05', 'N06'], eventTitle: '安保部署', description: '发现异常后加强大厦安保巡逻，部署警卫力量', impactOnOthers: [{ characterId: 'c1', effect: '增加艾拉潜入难度' }] },
+      { id: 'ct-g2', chapterId: 'ch2', nodeIds: ['N09'], eventTitle: '全息现身', description: '在艾拉被捕后通过全息投影出现，宣告胜利' },
+    ],
+    relationships: [
+      { targetId: 'c1', type: '追捕/对抗', strength: -90 },
+      { targetId: 'c2', type: '搜寻/威胁', strength: -70 },
+    ],
+  },
+];
+
+// Cross-character impact matrix
+export interface CrossCharacterEffect {
+  id: string;
+  sourceCharacterId: string;
+  sourceEvent: string;       // event description
+  sourceNodeId: string;
+  targetCharacterId: string;
+  effectType: 'help' | 'harm' | 'info' | 'betrayal' | 'ignore';
+  effectDescription: string;
+  delayed: boolean;          // whether effect is immediate or delayed
+  triggerChapter?: string;   // if delayed, when does it trigger
+}
+
+export const CROSS_CHARACTER_EFFECTS: CrossCharacterEffect[] = [
+  { id: 'cce-01', sourceCharacterId: 'c1', sourceEvent: '选择信任线人', sourceNodeId: 'N02', targetCharacterId: 'c2', effectType: 'help', effectDescription: '线人获得信任，在 N08 主动提供关键情报', delayed: true, triggerChapter: 'ch2' },
+  { id: 'cce-02', sourceCharacterId: 'c1', sourceEvent: '怀疑线人', sourceNodeId: 'N02', targetCharacterId: 'c2', effectType: 'harm', effectDescription: '线人信任降低，在关键时刻可能不提供帮助', delayed: true, triggerChapter: 'ch2' },
+  { id: 'cce-03', sourceCharacterId: 'c3', sourceEvent: '加强安保部署', sourceNodeId: 'N05', targetCharacterId: 'c1', effectType: 'harm', effectDescription: '警卫密度增加，潜行判定难度提升', delayed: false },
+  { id: 'cce-04', sourceCharacterId: 'c2', sourceEvent: '提供EMP手雷情报', sourceNodeId: 'N02', targetCharacterId: 'c1', effectType: 'info', effectDescription: '获得EMP手雷使用方法，QTE成功率提升', delayed: true, triggerChapter: 'ch2' },
+  { id: 'cce-05', sourceCharacterId: 'c1', sourceEvent: '成功获取数据', sourceNodeId: 'N08', targetCharacterId: 'c3', effectType: 'harm', effectDescription: '反派主管的监控计划被揭露，权力基础动摇', delayed: true },
+];
+
+// ── 叙事状态机（P7-8）─────────────────────────────────────────────
+
+export type StateCategory = 'character' | 'relationship' | 'world' | 'plot';
+export type StateValueType = 'enum' | 'numeric' | 'boolean';
+
+export interface NarrativeState {
+  id: string;
+  category: StateCategory;
+  categoryLabel: string;
+  name: string;
+  valueType: StateValueType;
+  // For enum type
+  enumValues?: string[];
+  currentValue?: string;
+  // For numeric type
+  minValue?: number;
+  maxValue?: number;
+  numericValue?: number;
+  // For boolean type
+  boolValue?: boolean;
+  description: string;
+  modifiedAt: string[];     // nodeIds where this state changes
+  readAt: string[];         // nodeIds where this state is checked
+  dependsOn?: string[];     // other state IDs this state depends on
+  affectsEndings?: string[]; // which endings this state can influence
+}
+
+export const NARRATIVE_STATES: NarrativeState[] = [
+  // 角色状态
+  { id: 'ns-01', category: 'character', categoryLabel: '角色状态', name: '艾拉存活状态', valueType: 'enum', enumValues: ['存活', '受伤', '失踪', '被捕', '死亡'], currentValue: '存活', description: '艾拉当前的身体和自由状态', modifiedAt: ['N06', 'N07', 'N09'], readAt: ['N07', 'N10', 'N11'], affectsEndings: ['GOOD', 'BAD'] },
+  { id: 'ns-02', category: 'character', categoryLabel: '角色状态', name: '线人存活状态', valueType: 'enum', enumValues: ['活跃', '隐藏', '被捕', '死亡'], currentValue: '活跃', description: '线人当前的状态', modifiedAt: ['N03'], readAt: ['N08'], dependsOn: ['ns-04'] },
+  { id: 'ns-03', category: 'character', categoryLabel: '角色状态', name: '反派主管警觉度', valueType: 'numeric', minValue: 0, maxValue: 100, numericValue: 30, description: '反派主管对异常情况的警觉程度', modifiedAt: ['N05', 'N06'], readAt: ['N07', 'N09'] },
+  // 关系状态
+  { id: 'ns-04', category: 'relationship', categoryLabel: '关系状态', name: '艾拉-线人信任', valueType: 'enum', enumValues: ['完全信任', '基本信任', '怀疑', '敌对', '断绝'], currentValue: '基本信任', description: '艾拉对线人的信任程度', modifiedAt: ['N02', 'N03'], readAt: ['N07', 'N08'], affectsEndings: ['GOOD'] },
+  { id: 'ns-05', category: 'relationship', categoryLabel: '关系状态', name: '艾拉-反派对立', valueType: 'enum', enumValues: ['未知', '暗中对抗', '公开对抗', '追捕中'], currentValue: '暗中对抗', description: '艾拉与反派主管的关系状态', modifiedAt: ['N05', 'N09'], readAt: ['N09', 'N11'] },
+  // 世界状态
+  { id: 'ns-06', category: 'world', categoryLabel: '世界状态', name: '城市安保等级', valueType: 'enum', enumValues: ['正常', '加强', '戒严', '封锁'], currentValue: '加强', description: '企业控制下的城市安保状态', modifiedAt: ['N05', 'N06', 'N07'], readAt: ['N07', 'N09'] },
+  { id: 'ns-07', category: 'world', categoryLabel: '世界状态', name: '舆论态势', valueType: 'enum', enumValues: ['平静', '暗流涌动', '发酵', '爆发'], currentValue: '平静', description: '公众对企业监控的态度', modifiedAt: ['N08'], readAt: ['N10'], affectsEndings: ['GOOD'] },
+  { id: 'ns-08', category: 'world', categoryLabel: '世界状态', name: 'EMP 可用状态', valueType: 'boolean', boolValue: true, description: 'EMP手雷是否仍然可用（一次性道具）', modifiedAt: ['N06'], readAt: ['N06'] },
+  // 剧情状态
+  { id: 'ns-09', category: 'plot', categoryLabel: '剧情状态', name: '证据链完整度', valueType: 'numeric', minValue: 0, maxValue: 100, numericValue: 20, description: '已收集的企业非法证据完整程度', modifiedAt: ['N02', 'N08'], readAt: ['N10'], affectsEndings: ['GOOD'] },
+  { id: 'ns-10', category: 'plot', categoryLabel: '剧情状态', name: '身份暴露', valueType: 'boolean', boolValue: false, description: '艾拉的潜入身份是否已被识破', modifiedAt: ['N06', 'N07'], readAt: ['N07', 'N09'], dependsOn: ['ns-01', 'ns-06'], affectsEndings: ['BAD'] },
+  { id: 'ns-11', category: 'plot', categoryLabel: '剧情状态', name: '隐藏路线开启', valueType: 'boolean', boolValue: false, description: '是否存在隐藏的第三条路线（高难度解锁）', modifiedAt: [], readAt: [], dependsOn: ['ns-04', 'ns-09'] },
+];
+
+// ── 选择后果追踪链（P7-9）─────────────────────────────────────────────
+
+export type ConsequenceTiming = 'immediate' | 'delayed' | 'ending';
+
+export interface ConsequenceChain {
+  id: string;
+  sourceNodeId: string;
+  sourceChoiceLabel: string;
+  timing: ConsequenceTiming;
+  timingLabel: string;        // human-readable timing description
+  affectedNodeIds: string[];  // where the consequence manifests
+  affectedStates: string[];   // which narrative states are affected
+  affectedCharacters: string[]; // which characters are impacted
+  description: string;        // what happens as a result
+  visualColor: string;        // for UI: green=immediate, yellow=delayed, red=ending
+  resolved: boolean;          // whether this consequence has been "paid off" in the story
+  payoffNodeId?: string;      // where the consequence is finally resolved
+}
+
+export const CONSEQUENCE_CHAINS: ConsequenceChain[] = [
+  { id: 'cc-01', sourceNodeId: 'N01', sourceChoiceLabel: '推门进入', timing: 'immediate', timingLabel: '即时反馈', affectedNodeIds: ['N02'], affectedStates: [], affectedCharacters: ['c1'], description: '艾拉直接进入酒吧，节奏更快，错过额外情报', visualColor: '#22C55E', resolved: true, payoffNodeId: 'N02' },
+  { id: 'cc-02', sourceNodeId: 'N01', sourceChoiceLabel: '先观察环境', timing: 'immediate', timingLabel: '即时反馈', affectedNodeIds: ['N02'], affectedStates: ['ns-04'], affectedCharacters: ['c1', 'c2'], description: '获得线人位置信息，信任值 +5，后续对话多一条线索', visualColor: '#22C55E', resolved: true, payoffNodeId: 'N02' },
+  { id: 'cc-03', sourceNodeId: 'N02', sourceChoiceLabel: '相信线人', timing: 'delayed', timingLabel: '延迟影响（第二章回收）', affectedNodeIds: ['N08'], affectedStates: ['ns-04', 'ns-09'], affectedCharacters: ['c2'], description: '线人在 N08 主动提供核心情报，证据链完整度大幅提升', visualColor: '#EAB308', resolved: true, payoffNodeId: 'N08' },
+  { id: 'cc-04', sourceNodeId: 'N02', sourceChoiceLabel: '保持怀疑', timing: 'delayed', timingLabel: '延迟影响（第二章回收）', affectedNodeIds: ['N07', 'N08'], affectedStates: ['ns-04'], affectedCharacters: ['c2'], description: '线人信任降低，可能在关键时刻不提供帮助或消失', visualColor: '#EAB308', resolved: false },
+  { id: 'cc-05', sourceNodeId: 'N03', sourceChoiceLabel: '暗夜通道潜行', timing: 'delayed', timingLabel: '延迟影响（QTE 前回收）', affectedNodeIds: ['N06', 'N07'], affectedStates: ['ns-01', 'ns-06'], affectedCharacters: ['c1'], description: '低警戒路线，潜行值 +15，城市安保等级不变', visualColor: '#EAB308', resolved: true, payoffNodeId: 'N07' },
+  { id: 'cc-06', sourceNodeId: 'N03', sourceChoiceLabel: '换装渗透大厦', timing: 'delayed', timingLabel: '延迟影响（QTE 前回收）', affectedNodeIds: ['N05', 'N06', 'N07'], affectedStates: ['ns-03', 'ns-06'], affectedCharacters: ['c1', 'c3'], description: '高警戒路线，反派警觉度提升，安保等级加强', visualColor: '#EAB308', resolved: true, payoffNodeId: 'N07' },
+  { id: 'cc-07', sourceNodeId: 'N06', sourceChoiceLabel: '使用 EMP 手雷', timing: 'immediate', timingLabel: '即时反馈', affectedNodeIds: ['N07S'], affectedStates: ['ns-08', 'ns-01'], affectedCharacters: ['c1'], description: 'EMP 瘫痪警卫通讯，安全通过，但道具不可再用', visualColor: '#22C55E', resolved: true, payoffNodeId: 'N07S' },
+  { id: 'cc-08', sourceNodeId: 'N06', sourceChoiceLabel: '强行突破', timing: 'immediate', timingLabel: '即时反馈', affectedNodeIds: ['N07F', 'N09'], affectedStates: ['ns-01', 'ns-10'], affectedCharacters: ['c1'], description: '警报触发，进入暴露路线，身份暴露风险急剧上升', visualColor: '#22C55E', resolved: true, payoffNodeId: 'N07F' },
+  { id: 'cc-09', sourceNodeId: 'N07', sourceChoiceLabel: '潜行值 ≥ 60', timing: 'ending', timingLabel: '结局影响', affectedNodeIds: ['N08', 'N10'], affectedStates: ['ns-09', 'ns-07'], affectedCharacters: ['c1', 'c3'], description: '成功获取证据 → 证据链完整 → 舆论爆发 → 好结局：幽灵归来', visualColor: '#EF4444', resolved: true, payoffNodeId: 'N10' },
+  { id: 'cc-10', sourceNodeId: 'N07', sourceChoiceLabel: '潜行值 < 60', timing: 'ending', timingLabel: '结局影响', affectedNodeIds: ['N09', 'N11'], affectedStates: ['ns-10', 'ns-01'], affectedCharacters: ['c1', 'c3'], description: '身份暴露 → 被捕 → 证据湮没 → 坏结局：今夜失败', visualColor: '#EF4444', resolved: true, payoffNodeId: 'N11' },
+];
+
+// ── 玩家探索图数据（P7-11）─────────────────────────────────────────────
+
+export interface PlayerExplorationSession {
+  id: string;
+  sessionLabel: string;
+  playthroughNumber: number;   // 第几次游玩
+  visitedNodeIds: string[];    // 本次游玩访问的节点
+  discoveredBranchIds: string[]; // 本次发现的分支
+  reachedEndingIds: string[];   // 本次到达的结局
+  choicesMade: { nodeId: string; choiceLabel: string }[];
+  duration: number;            // seconds
+  timestamp: string;
+}
+
+export interface PlayerExplorationMap {
+  allNodeIds: string[];        // all nodes in the project
+  allEndingIds: string[];      // all possible endings
+  allBranchCount: number;      // total number of branches
+  sessions: PlayerExplorationSession[];
+  // Aggregated stats
+  totalPlaythroughs: number;
+  nodeCoverage: number;        // 0-100, % of all nodes visited across all sessions
+  endingCoverage: number;      // 0-100, % of all endings reached
+  branchCoverage: number;      // 0-100, % of all branches explored
+  undiscoveredNodes: string[]; // nodes never visited
+  undiscoveredEndings: string[]; // endings never reached
+}
+
+export const PLAYER_EXPLORATION: PlayerExplorationMap = {
+  allNodeIds: ['N01', 'N02', 'N03', 'N04', 'N05', 'N06', 'N07S', 'N07F', 'N08', 'N09', 'N10', 'N11'],
+  allEndingIds: ['N10', 'N11'],
+  allBranchCount: 4,
+  sessions: [
+    {
+      id: 'session-1', sessionLabel: '第 1 次游玩', playthroughNumber: 1,
+      visitedNodeIds: ['N01', 'N02', 'N03', 'N04', 'N06', 'N07S', 'N08', 'N10'],
+      discoveredBranchIds: ['path-a'],
+      reachedEndingIds: ['N10'],
+      choicesMade: [
+        { nodeId: 'N01', choiceLabel: '推门进入' },
+        { nodeId: 'N02', choiceLabel: '相信线人' },
+        { nodeId: 'N03', choiceLabel: '暗夜通道潜行' },
+        { nodeId: 'N06', choiceLabel: '使用 EMP 手雷' },
+      ],
+      duration: 480, timestamp: '2026-06-01 20:30:00',
+    },
+    {
+      id: 'session-2', sessionLabel: '第 2 次游玩', playthroughNumber: 2,
+      visitedNodeIds: ['N01', 'N02', 'N03', 'N05', 'N06', 'N07F', 'N09', 'N11'],
+      discoveredBranchIds: ['path-b'],
+      reachedEndingIds: ['N11'],
+      choicesMade: [
+        { nodeId: 'N01', choiceLabel: '先观察环境' },
+        { nodeId: 'N02', choiceLabel: '保持怀疑' },
+        { nodeId: 'N03', choiceLabel: '换装渗透大厦' },
+        { nodeId: 'N06', choiceLabel: '强行突破' },
+      ],
+      duration: 420, timestamp: '2026-06-01 21:15:00',
+    },
+    {
+      id: 'session-3', sessionLabel: '第 3 次游玩', playthroughNumber: 3,
+      visitedNodeIds: ['N01', 'N02', 'N03', 'N05', 'N06', 'N07S', 'N08', 'N10'],
+      discoveredBranchIds: ['path-d'],
+      reachedEndingIds: ['N10'],
+      choicesMade: [
+        { nodeId: 'N01', choiceLabel: '推门进入' },
+        { nodeId: 'N02', choiceLabel: '相信线人' },
+        { nodeId: 'N03', choiceLabel: '换装渗透大厦' },
+        { nodeId: 'N06', choiceLabel: '使用 EMP 手雷' },
+      ],
+      duration: 510, timestamp: '2026-06-02 10:00:00',
+    },
+  ],
+  totalPlaythroughs: 3,
+  nodeCoverage: 92,            // N07 (original condition node) treated as visited via N07S/N07F
+  endingCoverage: 100,         // Both endings reached
+  branchCoverage: 75,          // 3 out of 4 paths explored
+  undiscoveredNodes: [],       // All nodes visited across sessions
+  undiscoveredEndings: [],     // Both endings reached
+};
+
+// ── 电影化演出指导数据（P8-12）─────────────────────────────────────────────
+
+export type CameraShotType = 'wide' | 'medium' | 'close_up' | 'tracking' | 'push_in' | 'pull_out' | 'handheld' | 'static';
+export type CameraMovement = 'none' | 'pan_left' | 'pan_right' | 'tilt_up' | 'tilt_down' | 'dolly_in' | 'dolly_out' | 'crane_up' | 'crane_down' | 'orbit' | 'static' | 'push_in' | 'pull_out' | 'tracking';
+export type TransitionType = 'cut' | 'fade' | 'dissolve' | 'wipe' | 'flash' | 'slow_motion';
+export type EmotionIntensity = 'calm' | 'neutral' | 'tense' | 'intense' | 'climax';
+
+export interface CameraDirection {
+  shotType: CameraShotType;
+  shotLabel: string;
+  movement: CameraMovement;
+  movementLabel: string;
+  duration: number;        // seconds
+  focusTarget?: string;    // what the camera focuses on
+}
+
+export interface PerformanceDirection {
+  characterId: string;
+  characterName: string;
+  expression: string;       // e.g., "冷静", "愤怒", "恐惧"
+  action: string;           // e.g., "缓慢转身", "握紧拳头"
+  posture: string;          // e.g., "站姿笔直", "蜷缩"
+  emotionIntensity: EmotionIntensity;
+  emotionLabel: string;
+}
+
+export interface AudioDesign {
+  bgmTrack: string;         // BGM description
+  bgmMood: string;          // mood of the music
+  ambientSound: string;     // environment sounds
+  sfx?: string[];           // sound effects list
+  voiceDirection?: string;  // voice acting direction
+}
+
+export interface CinematicDirection {
+  nodeId: string;
+  camera: CameraDirection;
+  performances: PerformanceDirection[];
+  audio: AudioDesign;
+  transition: TransitionType;
+  transitionLabel: string;
+  pacing: string;           // e.g., "缓慢推进", "快速切换", "停顿3秒后转场"
+  staging?: string;         // character positioning notes
+}
+
+export const CINEMATIC_DIRECTIONS: CinematicDirection[] = [
+  {
+    nodeId: 'N01',
+    camera: { shotType: 'wide', shotLabel: '远景', movement: 'dolly_in', movementLabel: '缓慢推进', duration: 8, focusTarget: '霓虹街道全景' },
+    performances: [
+      { characterId: 'c1', characterName: '艾拉', expression: '警觉', action: '穿过人群，目光扫视四周', posture: '快步前行', emotionIntensity: 'neutral', emotionLabel: '冷静专注' },
+    ],
+    audio: { bgmTrack: 'Cyberpunk Ambient - 低沉合成器', bgmMood: '神秘紧张', ambientSound: '雨声、远处霓虹嗡嗡声、人群嘈杂', sfx: ['脚步声（湿地面）', '耳机静电声'] },
+    transition: 'fade', transitionLabel: '淡入',
+    pacing: '缓慢推进 8 秒，建立赛博朋克氛围后切入中景',
+    staging: '艾拉从画面右侧 1/3 处进入，向中心移动',
+  },
+  {
+    nodeId: 'N02',
+    camera: { shotType: 'medium', shotLabel: '中景', movement: 'static', movementLabel: '固定机位', duration: 12, focusTarget: '艾拉与线人对话' },
+    performances: [
+      { characterId: 'c1', characterName: '艾拉', expression: '犹豫', action: '双臂交叉，微微侧头', posture: '防御性站姿', emotionIntensity: 'tense', emotionLabel: '紧张犹豫' },
+      { characterId: 'c2', characterName: '线人', expression: '恐惧', action: '不自觉搓手，目光闪烁', posture: '身体前倾，压低声音', emotionIntensity: 'intense', emotionLabel: '恐惧急切' },
+    ],
+    audio: { bgmTrack: 'Tension Strings - 低沉弦乐', bgmMood: '不安', ambientSound: '酒吧低沉嘈杂、杯碟碰撞', sfx: ['椅子拖动声'] },
+    transition: 'cut', transitionLabel: '硬切',
+    pacing: '对话节奏中等，关键台词后停顿 1 秒',
+    staging: '艾拉站在左侧面向右，线人站在右侧面向左，保持对话轴线',
+  },
+  {
+    nodeId: 'N03',
+    camera: { shotType: 'close_up', shotLabel: '特写', movement: 'push_in', movementLabel: '推近至面部', duration: 5, focusTarget: '艾拉面部特写（选择时刻）' },
+    performances: [
+      { characterId: 'c1', characterName: '艾拉', expression: '决断', action: '深吸一口气，眼神坚定', posture: '挺直身体', emotionIntensity: 'intense', emotionLabel: '关键抉择' },
+    ],
+    audio: { bgmTrack: 'Decision Moment - 单音钢琴 + 心跳', bgmMood: '凝重', ambientSound: '环境音渐弱至静音', sfx: ['心跳声', '深呼吸'] },
+    transition: 'dissolve', transitionLabel: '溶解转场',
+    pacing: '选择出现前停顿 2 秒，增强抉择重量感',
+  },
+  {
+    nodeId: 'N06',
+    camera: { shotType: 'handheld', shotLabel: '手持跟拍', movement: 'tracking', movementLabel: '快速跟拍', duration: 3, focusTarget: 'QTE 动作场景' },
+    performances: [
+      { characterId: 'c1', characterName: '艾拉', expression: '紧迫', action: '急速转身，手伸向 EMP 手雷', posture: '半蹲战斗姿态', emotionIntensity: 'climax', emotionLabel: '生死瞬间' },
+    ],
+    audio: { bgmTrack: 'Action Percussion - 激烈打击乐', bgmMood: '极度紧张', ambientSound: '警报声、脚步奔跑、金属碰撞', sfx: ['EMP 充电声', '警卫喊叫声', '倒计时蜂鸣'] },
+    transition: 'flash', transitionLabel: '闪白转场',
+    pacing: '极快节奏，QTE 倒计时 1.5 秒，画面轻微抖动增加紧迫感',
+    staging: '艾拉在画面中心，警卫从两侧逼近',
+  },
+  {
+    nodeId: 'N08',
+    camera: { shotType: 'medium', shotLabel: '中景', movement: 'crane_up', movementLabel: '升降镜头上升', duration: 10, focusTarget: '数据中心全景 → 艾拉' },
+    performances: [
+      { characterId: 'c1', characterName: '艾拉', expression: '如释重负', action: '缓缓放下手，微微仰头', posture: '从紧张到放松', emotionIntensity: 'calm', emotionLabel: '紧张后的释然' },
+    ],
+    audio: { bgmTrack: 'Revelation Theme - 希望感合成器', bgmMood: '希望与沉重并存', ambientSound: '服务器低频嗡鸣、数据流声', sfx: ['数据下载完成提示音', 'U盘插入声'] },
+    transition: 'dissolve', transitionLabel: '溶解转场',
+    pacing: '先快后慢——数据获取的瞬间加速，随后放慢节奏让情感沉淀',
+    staging: '艾拉在服务器阵列中央，蓝色灯光映照面部',
+  },
+  {
+    nodeId: 'N10',
+    camera: { shotType: 'wide', shotLabel: '远景', movement: 'pull_out', movementLabel: '缓慢拉远', duration: 15, focusTarget: '艾拉消失在人群中' },
+    performances: [
+      { characterId: 'c1', characterName: '艾拉', expression: '平静', action: '转身走入霓虹人群，背影渐远', posture: '从容步伐', emotionIntensity: 'calm', emotionLabel: '任务完成的平静' },
+    ],
+    audio: { bgmTrack: 'Ghost Protocol Theme - 主题曲完整版', bgmMood: '希望中带着孤独', ambientSound: '霓虹嗡鸣渐弱、城市声渐远', sfx: ['脚步声渐远'] },
+    transition: 'fade', transitionLabel: '淡出至黑',
+    pacing: '缓慢拉远 15 秒，配乐渐强后随画面一起淡出',
+    staging: '艾拉从画面中心向远处走去，最终消失在霓虹灯光中',
+  },
+];
+
+// ── 引擎导出配置（P8-13）─────────────────────────────────────────────
+
+export interface EngineExportConfig {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  format: string;
+  status: 'stable' | 'beta' | 'alpha';
+  features: string[];
+  estimatedSize: string;
+  fieldMappings: { sourceField: string; targetField: string; mapped: boolean }[];
+  customOptions: { key: string; label: string; type: 'boolean' | 'select'; defaultValue: boolean | string; options?: string[] }[];
+}
+
+export const ENGINE_EXPORT_CONFIGS: EngineExportConfig[] = [
+  {
+    id: 'unity', name: 'Unity Package', icon: '🎮',
+    description: '导出为 Unity 可用的 C# 脚本 + JSON 数据 + 资产清单。支持 Timeline 集成和 Addressables 资产管理。',
+    format: '.unitypackage', status: 'beta',
+    features: ['C# 对话系统', 'JSON 节点数据', '资产清单 XML', 'Timeline 标记', 'Addressables 配置'],
+    estimatedSize: '~18.5 MB',
+    fieldMappings: [
+      { sourceField: 'story_nodes', targetField: 'DialogueNodes', mapped: true },
+      { sourceField: 'node_edges', targetField: 'DialogueEdges', mapped: true },
+      { sourceField: 'game_variables', targetField: 'GameStateVariables', mapped: true },
+      { sourceField: 'game_characters', targetField: 'CharacterProfiles', mapped: true },
+      { sourceField: 'qte_configs', targetField: 'QTESequences', mapped: true },
+      { sourceField: 'cinematic_directions', targetField: 'CinematicTimeline', mapped: true },
+    ],
+    customOptions: [
+      { key: 'include_assets', label: '包含资产引用', type: 'boolean', defaultValue: true },
+      { key: 'timeline_integration', label: 'Timeline 集成', type: 'boolean', defaultValue: true },
+      { key: 'script_backend', label: '脚本后端', type: 'select', defaultValue: 'Mono', options: ['Mono', 'IL2CPP'] },
+    ],
+  },
+  {
+    id: 'godot', name: 'Godot Project', icon: '🤖',
+    description: '导出为 Godot 4.x 项目结构：GDScript 脚本 + 场景树 + 资源导入配置。',
+    format: '.godot-project', status: 'beta',
+    features: ['GDScript 对话控制器', '场景树 JSON', '资源导入器', '信号系统配置', '自动翻译支持'],
+    estimatedSize: '~12.3 MB',
+    fieldMappings: [
+      { sourceField: 'story_nodes', targetField: 'dialogue_nodes', mapped: true },
+      { sourceField: 'node_edges', targetField: 'dialogue_edges', mapped: true },
+      { sourceField: 'game_variables', targetField: 'game_state', mapped: true },
+      { sourceField: 'game_characters', targetField: 'characters', mapped: true },
+      { sourceField: 'cinematic_directions', targetField: 'cinematic_data', mapped: true },
+    ],
+    customOptions: [
+      { key: 'godot_version', label: 'Godot 版本', type: 'select', defaultValue: '4.x', options: ['4.x', '3.x'] },
+      { key: 'i18n', label: '启用国际化', type: 'boolean', defaultValue: false },
+    ],
+  },
+  {
+    id: 'yarn', name: 'Yarn Spinner', icon: '🧶',
+    description: '导出为 Yarn Spinner .yarn 格式，适配 Unity 叙事插件。支持标记语言和命令。',
+    format: '.yarn', status: 'stable',
+    features: ['Yarn 标记语言', '变量声明', '命令标签', '条件跳转', '本地化支持'],
+    estimatedSize: '~680 KB',
+    fieldMappings: [
+      { sourceField: 'story_nodes', targetField: 'Nodes', mapped: true },
+      { sourceField: 'node_edges', targetField: 'Links', mapped: true },
+      { sourceField: 'game_variables', targetField: 'Variables', mapped: true },
+      { sourceField: 'script_blocks', targetField: 'Lines', mapped: true },
+    ],
+    customOptions: [
+      { key: 'include_commands', label: '包含自定义命令', type: 'boolean', defaultValue: true },
+    ],
+  },
+  {
+    id: 'lua', name: 'Lua Script', icon: '🌙',
+    description: '导出为结构化 Lua 脚本，适配自研引擎或 Love2D/Defold 等框架。',
+    format: '.lua', status: 'alpha',
+    features: ['Lua 表结构', '对话函数', '状态机', '事件系统', '资产加载表'],
+    estimatedSize: '~2.1 MB',
+    fieldMappings: [
+      { sourceField: 'story_nodes', targetField: 'nodes', mapped: true },
+      { sourceField: 'node_edges', targetField: 'edges', mapped: true },
+      { sourceField: 'game_variables', targetField: 'state', mapped: true },
+    ],
+    customOptions: [
+      { key: 'module_style', label: '模块风格', type: 'select', defaultValue: 'return_table', options: ['return_table', 'global', 'require'] },
+    ],
+  },
+  {
+    id: 'api', name: '结构化 API (OpenAPI)', icon: '🔌',
+    description: '生成 OpenAPI 3.0 规范文档，允许外部系统通过 REST API 拉取剧情数据。',
+    format: 'openapi.yaml', status: 'beta',
+    features: ['OpenAPI 3.0 规范', 'CRUD 端点定义', 'WebSocket 实时推送', '资产 CDN 配置', 'Webhook 通知'],
+    estimatedSize: '~156 KB',
+    fieldMappings: [
+      { sourceField: 'all', targetField: '/api/v1/project', mapped: true },
+      { sourceField: 'story_nodes', targetField: '/api/v1/nodes', mapped: true },
+      { sourceField: 'game_variables', targetField: '/api/v1/state', mapped: true },
+      { sourceField: 'assets', targetField: '/api/v1/assets', mapped: true },
+    ],
+    customOptions: [
+      { key: 'auth', label: '认证方式', type: 'select', defaultValue: 'bearer', options: ['bearer', 'api_key', 'oauth2'] },
+      { key: 'websocket', label: '包含 WebSocket', type: 'boolean', defaultValue: true },
+    ],
+  },
+];
+
+// ── 协作系统数据（P8-15）─────────────────────────────────────────────
+
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type TaskPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type ReviewStage = 'draft' | 'submitted' | 'editor_review' | 'director_approved' | 'published';
+
+export interface CollabTask {
+  id: string;
+  title: string;
+  assignee: string;         // member name
+  assigneeRole: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  category: string;         // '节点编辑' | '资产制作' | '剧本编写' | '质检修复' | 'UI设计'
+  description: string;
+  linkedNodeId?: string;
+  linkedAssetId?: string;
+  dueDate?: string;
+  completedAt?: string;
+  comments: number;
+}
+
+export interface CollabComment {
+  id: string;
+  taskId?: string;
+  nodeId?: string;
+  author: string;
+  authorRole: string;
+  content: string;
+  mentions?: string[];      // mentioned user names
+  timestamp: string;
+  isResolved: boolean;
+}
+
+export interface ReviewItem {
+  id: string;
+  type: 'script' | 'asset' | 'node_graph' | 'interaction' | 'full_build';
+  title: string;
+  submitter: string;
+  reviewer: string;
+  stage: ReviewStage;
+  submittedAt: string;
+  reviewedAt?: string;
+  comments: string;
+  changeSummary: string;
+}
+
+export interface VersionDiff {
+  fromVersion: string;
+  toVersion: string;
+  nodesAdded: number;
+  nodesModified: number;
+  nodesRemoved: number;
+  variablesChanged: number;
+  assetsUpdated: number;
+  scriptChanges: number;
+  summary: string;
+}
+
+export const COLLAB_TASKS: CollabTask[] = [
+  { id: 'task-01', title: '修复 N07 失败反馈文案', assignee: '编剧小王', assigneeRole: 'Script Editor', status: 'in_progress', priority: 'urgent', category: '质检修复', description: 'N07 潜行判定节点失败路径缺少文案，需补充 200 字以内失败叙事', linkedNodeId: 'N07', dueDate: '2026-06-03', comments: 3 },
+  { id: 'task-02', title: '制作 N06 警卫场景背景', assignee: '美术小李', assigneeRole: 'Asset Artist', status: 'todo', priority: 'high', category: '资产制作', description: 'N06 警卫逼近场景缺少背景图片，需要赛博朋克风格的安保走廊', linkedNodeId: 'N06', dueDate: '2026-06-04', comments: 1 },
+  { id: 'task-03', title: '设计 QTE 失败分支演出', assignee: '互动设计师', assigneeRole: 'Interaction Designer', status: 'review', priority: 'high', category: '互动设计', description: 'N06 QTE 失败后需要完整的演出设计：镜头、表演、音频、转场', linkedNodeId: 'N06', comments: 5 },
+  { id: 'task-04', title: '补齐全部 BGM', assignee: '美术小李', assigneeRole: 'Asset Artist', status: 'todo', priority: 'normal', category: '资产制作', description: '11 个节点均缺少 BGM，需要根据每个节点的情绪配置背景音乐', comments: 2 },
+  { id: 'task-05', title: '优化第一章对白节奏', assignee: '编剧小王', assigneeRole: 'Script Editor', status: 'done', priority: 'normal', category: '剧本编写', description: '第一章线人对话过长，需要精简并增加更多互动节奏', completedAt: '2026-06-01', comments: 4 },
+  { id: 'task-06', title: 'UI 模板应用到全部节点', assignee: '互动设计师', assigneeRole: 'Interaction Designer', status: 'in_progress', priority: 'normal', category: 'UI设计', description: '将赛博朋克 UI 模板应用到所有对话框和选项按钮', comments: 1 },
+  { id: 'task-07', title: '路径 C 分支过短问题', assignee: '编剧小王', assigneeRole: 'Script Editor', status: 'todo', priority: 'low', category: '节点编辑', description: '路径 C（QTE失败→暴露路线）只有 2 个节点，需要增加中间环节', linkedNodeId: 'N07F', comments: 0 },
+];
+
+export const COLLAB_COMMENTS: CollabComment[] = [
+  { id: 'comment-01', taskId: 'task-01', author: '项目负责人', authorRole: 'Project Lead', content: '这个是最紧急的，质检直接报错了。建议优先处理。', timestamp: '2026-06-02 09:30:00', isResolved: false },
+  { id: 'comment-02', taskId: 'task-01', author: '编剧小王', authorRole: 'Script Editor', content: '收到，我今天下午写完初稿后 @互动设计师 帮忙看一下叙事连贯性。', mentions: ['互动设计师'], timestamp: '2026-06-02 10:15:00', isResolved: false },
+  { id: 'comment-03', taskId: 'task-01', author: '互动设计师', authorRole: 'Interaction Designer', content: '好的，我这边同步更新失败路径的变量变化。', timestamp: '2026-06-02 10:45:00', isResolved: false },
+  { id: 'comment-04', taskId: 'task-03', author: '互动设计师', authorRole: 'Interaction Designer', content: 'QTE 失败演出方案已提交审核：手持镜头 + 警报闪红 + 角色跌倒动作。@项目负责人 请确认。', mentions: ['项目负责人'], timestamp: '2026-06-02 14:00:00', isResolved: false },
+  { id: 'comment-05', nodeId: 'N07', author: '项目负责人', authorRole: 'Project Lead', content: '这个节点的失败反馈是质检里反复报的问题，必须在下一个版本修复。', timestamp: '2026-06-01 16:00:00', isResolved: false },
+];
+
+export const REVIEW_ITEMS: ReviewItem[] = [
+  { id: 'review-01', type: 'script', title: '第一章对白修订 v3', submitter: '编剧小王', reviewer: '项目负责人', stage: 'editor_review', submittedAt: '2026-06-02 11:00:00', comments: '精简了线人对话，增加了 1 个互动选择点', changeSummary: '修改 7 行对白，新增 1 个选择节点' },
+  { id: 'review-02', type: 'asset', title: 'N01-N05 场景图片更新', submitter: '美术小李', reviewer: '项目负责人', stage: 'director_approved', submittedAt: '2026-06-01 15:00:00', reviewedAt: '2026-06-02 09:00:00', comments: '统一为赛博朋克风格，提高了一致性', changeSummary: '更新 5 张场景图，统一色调' },
+  { id: 'review-03', type: 'interaction', title: 'QTE 失败演出方案', submitter: '互动设计师', reviewer: '项目负责人', stage: 'submitted', submittedAt: '2026-06-02 14:00:00', comments: '完整演出设计：手持镜头 + 警报 + 跌倒', changeSummary: '新增 N07F 演出指导' },
+  { id: 'review-04', type: 'node_graph', title: '新增 N04→N06 中间节点', submitter: '互动设计师', reviewer: '编剧小王', stage: 'draft', submittedAt: '', comments: '草稿阶段，需要编剧确认叙事合理性', changeSummary: '新增 1 个场景节点，延长潜行路线' },
+];
+
+export const VERSION_DIFFS: VersionDiff[] = [
+  { fromVersion: 'v1.1.0', toVersion: 'v1.2.0', nodesAdded: 2, nodesModified: 5, nodesRemoved: 0, variablesChanged: 1, assetsUpdated: 8, scriptChanges: 15, summary: '新增 QTE 系统，优化第一章对白节奏' },
+  { fromVersion: 'v1.2.0', toVersion: 'v1.2.3', nodesAdded: 0, nodesModified: 3, nodesRemoved: 0, variablesChanged: 0, assetsUpdated: 3, scriptChanges: 7, summary: '修复 N03 选择分支不平衡，更新场景图片' },
+  { fromVersion: 'v1.0.0', toVersion: 'v1.2.3', nodesAdded: 4, nodesModified: 9, nodesRemoved: 1, variablesChanged: 2, assetsUpdated: 14, scriptChanges: 32, summary: '从初始版本到当前版本的累计变更' },
+];
