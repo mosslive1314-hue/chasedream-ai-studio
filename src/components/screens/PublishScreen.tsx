@@ -5,7 +5,8 @@ import {
   CheckCircle2, AlertTriangle, Copy, ExternalLink,
   ChevronDown, ChevronRight, Camera, GitCompareArrows,
   Clock, User, Plus, Minus, Pencil, Trash2, Rocket,
-  History, ArrowLeftRight, X, Layers,
+  History, ArrowLeftRight, X, Layers, Download, UserPlus,
+  Shield, Upload, Eye,
 } from "lucide-react";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
@@ -61,6 +62,97 @@ const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> =
   draft:     { label: "草稿", bg: `${S.warning}12`, color: S.warning },
 };
 
+// ── 多端导出格式 ─────────────────────────────────────────────────────────
+const EXPORT_FORMATS = [
+  {
+    id: 'webgal',
+    name: 'WebGAL 脚本',
+    icon: '\u{1F3AE}',
+    description: '导出为 WebGAL 引擎可执行的脚本格式，支持在 WebGAL 平台上运行。',
+    status: 'ready',
+    estimatedSize: '2.4 MB',
+    features: ['场景脚本', '对白系统', '选择分支', '变量条件', 'BGM/音效指令'],
+  },
+  {
+    id: 'renpy',
+    name: "Ren'Py 脚本",
+    icon: '\u{1F40D}',
+    description: "导出为 Ren'Py 引擎的 .rpy 格式，适用于 Python 生态的视觉小说开发。",
+    status: 'ready',
+    estimatedSize: '1.8 MB',
+    features: ['Label 结构', 'Menu 选择', '条件跳转', '变量系统', '资源引用'],
+  },
+  {
+    id: 'json',
+    name: '自定义 JSON',
+    icon: '\u{1F4CB}',
+    description: '导出为结构化 JSON，包含完整的节点图、变量、资产引用等所有数据。',
+    status: 'ready',
+    estimatedSize: '856 KB',
+    features: ['完整节点图', '变量定义', '资产清单', '叙事意图', '质检结果'],
+  },
+  {
+    id: 'h5-package',
+    name: '互动 H5 包',
+    icon: '\u{1F4E6}',
+    description: '打包为独立的 H5 应用，可直接部署到服务器或 CDN，玩家通过链接访问。',
+    status: 'ready',
+    estimatedSize: '12.6 MB',
+    features: ['运行时引擎', '场景渲染器', '选择系统', '存档/读档', '资产打包'],
+  },
+  {
+    id: 'ink',
+    name: 'Inkle Ink 格式',
+    icon: '\u{1F58A}\uFE0F',
+    description: '导出为 Ink 互动小说格式，适用于 Unity 集成和文本冒险游戏。',
+    status: 'beta',
+    estimatedSize: '420 KB',
+    features: ['Knot 结构', 'Stitch 子场景', '变量', '条件', 'Choice 选择'],
+  },
+  {
+    id: 'pdf-script',
+    name: 'PDF 剧本',
+    icon: '\u{1F4C4}',
+    description: '导出为格式化的 PDF 剧本文档，包含所有分支路径和注释，适合团队审阅。',
+    status: 'ready',
+    estimatedSize: '3.2 MB',
+    features: ['分幕排版', '对白格式', '分支标注', '变量说明', '导演注释'],
+  },
+];
+
+// ── 团队协作数据 ─────────────────────────────────────────────────────────
+const TEAM_MEMBERS = [
+  { name: '你', role: '项目负责人', avatar: '\u{1F464}', color: '#5E50E8', online: true, lastEdit: '刚刚' },
+  { name: '编剧小王', role: '剧本编辑', avatar: '\u270D\uFE0F', color: '#00A99D', online: true, lastEdit: '10 分钟前' },
+  { name: '美术小李', role: '资产制作', avatar: '\u{1F3A8}', color: '#D97706', online: false, lastEdit: '2 小时前' },
+  { name: '策划小张', role: '互动设计', avatar: '\u{1F9E9}', color: '#DC2626', online: false, lastEdit: '昨天' },
+];
+
+const COLLAB_ACTIVITIES = [
+  { user: '编剧小王', action: '编辑了 N05 对白文案', time: '10 分钟前', type: 'edit' },
+  { user: '美术小李', action: '上传了 N03 场景图片', time: '2 小时前', type: 'upload' },
+  { user: '你', action: '创建了版本快照 v1.2.3', time: '3 小时前', type: 'publish' },
+  { user: '策划小张', action: '添加了 N07 互动设计意图', time: '昨天', type: 'design' },
+  { user: '编剧小王', action: '审核通过了 AI 生成的角色设定', time: '昨天', type: 'review' },
+];
+
+const PERMISSION_LEVELS = [
+  { role: '项目负责人', permissions: ['全部权限', '发布管理', '成员管理', '版本回滚'] },
+  { role: '剧本编辑', permissions: ['编辑剧本', '编辑对白', '审核 AI 产出'] },
+  { role: '资产制作', permissions: ['上传资产', '编辑资产', '审核资产'] },
+  { role: '互动设计', permissions: ['编辑节点图', '配置变量', '设计 QTE'] },
+  { role: '审阅者', permissions: ['只读查看', '添加评论', '审核内容'] },
+];
+
+// ── 协作动态类型图标 ─────────────────────────────────────────────────────
+const COLLAB_TYPE_ICONS: Record<string, typeof Pencil> = {
+  edit: Pencil,
+  upload: Upload,
+  publish: Rocket,
+  design: Layers,
+  review: Eye,
+};
+
 // ── 操作类型图标 ─────────────────────────────────────────────────────────
 const ACTION_ICONS: Record<string, typeof Pencil> = {
   edit: Pencil,
@@ -112,6 +204,12 @@ export default function PublishScreen() {
   const secSnapshots = useSectionToggle(true);
   const secChangelog = useSectionToggle(true);
   const secSettings = useSectionToggle(true);
+  const secExport = useSectionToggle(true);
+  const secCollab = useSectionToggle(true);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+
+  // 导出状态
+  const [exportStates, setExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
 
   // 快照对比状态
   const [compareMode, setCompareMode] = useState(false);
@@ -141,6 +239,13 @@ export default function PublishScreen() {
   const handleCreateSnapshot = () => {
     setSnapshotToast(true);
     setTimeout(() => setSnapshotToast(false), 2500);
+  };
+
+  const handleExport = (formatId: string) => {
+    setExportStates((prev) => ({ ...prev, [formatId]: { status: 'exporting' } }));
+    setTimeout(() => {
+      setExportStates((prev) => ({ ...prev, [formatId]: { status: 'done' } }));
+    }, 2000);
   };
 
   // 快照对比数据
@@ -538,6 +643,275 @@ export default function PublishScreen() {
                       <span className="text-[10px] font-medium" style={{ color: S.text }}>{v}</span>
                     </div>
                   ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── 多端导出卡片 ── */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={Download}
+            title="多端导出"
+            subtitle={`${EXPORT_FORMATS.length} 种导出格式`}
+            open={secExport.open}
+            onToggle={secExport.toggle}
+          />
+          <AnimatePresence>
+            {secExport.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                  {EXPORT_FORMATS.map((fmt) => {
+                    const state = exportStates[fmt.id]?.status ?? 'idle';
+                    return (
+                      <div key={fmt.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        {/* Header: icon + name + status */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{fmt.icon}</span>
+                            <div>
+                              <span className="text-[11px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
+                                  background: fmt.status === 'ready' ? `${S.success}12` : `${S.warning}12`,
+                                  color: fmt.status === 'ready' ? S.success : S.warning,
+                                }}>
+                                  {fmt.status === 'ready' ? '就绪' : 'Beta'}
+                                </span>
+                                <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Description */}
+                        <p className="text-[9px] mb-2 leading-relaxed" style={{ color: S.text2 }}>{fmt.description}</p>
+                        {/* Feature tags */}
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {fmt.features.map((feat) => (
+                            <span key={feat} className="text-[8px] px-1.5 py-0.5 rounded"
+                              style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
+                              {feat}
+                            </span>
+                          ))}
+                        </div>
+                        {/* Export button & result */}
+                        <div>
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => state === 'idle' && handleExport(fmt.id)}
+                            disabled={state !== 'idle'}
+                            className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                            style={{
+                              background: state === 'done' ? `${S.success}12` : state === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
+                              color: state === 'done' ? S.success : state === 'exporting' ? S.text3 : S.primary,
+                              cursor: state === 'idle' ? 'pointer' : 'default',
+                            }}
+                          >
+                            {state === 'exporting' && (
+                              <>
+                                <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
+                                导出中...
+                              </>
+                            )}
+                            {state === 'done' && <>✅ 已导出</>}
+                            {state === 'idle' && (
+                              <>
+                                <Download size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+                                导出
+                              </>
+                            )}
+                          </motion.button>
+                          {state === 'done' && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-1.5 p-2 rounded-lg text-[8px]"
+                              style={{ background: `${S.success}06`, border: `1px solid ${S.success}15` }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span style={{ color: S.text3 }}>
+                                  <CheckCircle2 size={8} className="inline mr-1" style={{ color: S.success }} />
+                                  ghost-protocol_{fmt.id}.{
+                                    fmt.id === 'json' ? 'json' :
+                                    fmt.id === 'webgal' ? 'txt' :
+                                    fmt.id === 'renpy' ? 'rpy' :
+                                    fmt.id === 'ink' ? 'ink' :
+                                    fmt.id === 'h5-package' ? 'zip' : 'pdf'
+                                  }
+                                </span>
+                                <span className="font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                              </div>
+                              <button className="text-[8px] font-bold mt-1 focus:outline-none" style={{ color: S.primary }}>
+                                <Download size={7} className="inline mr-0.5" />
+                                下载文件
+                              </button>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── 团队协作卡片 ── */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader
+            icon={User}
+            title="团队协作"
+            subtitle={`${TEAM_MEMBERS.filter((m) => m.online).length}/${TEAM_MEMBERS.length} 人在线`}
+            open={secCollab.open}
+            onToggle={secCollab.toggle}
+            action={
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
+                style={{ background: `${S.accent}12`, color: S.accent }}
+              >
+                <UserPlus size={10} /> 邀请成员
+              </motion.button>
+            }
+          />
+          <AnimatePresence>
+            {secCollab.open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                {/* 团队成员面板 */}
+                <div className="mt-3">
+                  <div className="text-[9px] font-bold mb-2" style={{ color: S.text3 }}>团队成员</div>
+                  <div className="space-y-2">
+                    {TEAM_MEMBERS.map((member) => (
+                      <div key={member.name} className="flex items-center gap-2.5 p-2.5 rounded-xl"
+                        style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        {/* Avatar with online indicator */}
+                        <div className="relative shrink-0">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                            style={{ background: `${member.color}15`, border: `2px solid ${member.color}30` }}>
+                            {member.avatar}
+                          </div>
+                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+                            style={{
+                              background: member.online ? S.success : S.text3,
+                              borderColor: S.s2,
+                            }} />
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{member.name}</span>
+                            <span className="text-[8px] px-1.5 py-0.5 rounded"
+                              style={{ background: `${member.color}12`, color: member.color }}>
+                              {member.role}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Clock size={8} style={{ color: S.text3 }} />
+                            <span className="text-[8px]" style={{ color: S.text3 }}>
+                              {member.online ? '在线' : '离线'} · 最后编辑: {member.lastEdit}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 协作动态流 */}
+                <div className="mt-4">
+                  <div className="text-[9px] font-bold mb-2" style={{ color: S.text3 }}>协作动态</div>
+                  <div className="space-y-0">
+                    {COLLAB_ACTIVITIES.map((act, i) => {
+                      const ActIcon = COLLAB_TYPE_ICONS[act.type] ?? Pencil;
+                      const member = TEAM_MEMBERS.find((m) => m.name === act.user);
+                      const iconColor = member?.color ?? S.text3;
+                      return (
+                        <div key={i} className="flex items-start gap-2.5 py-2 border-b last:border-0"
+                          style={{ borderColor: S.border }}>
+                          {/* Timeline icon */}
+                          <div className="flex flex-col items-center shrink-0 pt-0.5">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center"
+                              style={{ background: `${iconColor}12` }}>
+                              <ActIcon size={10} style={{ color: iconColor }} />
+                            </div>
+                            {i < COLLAB_ACTIVITIES.length - 1 && (
+                              <div className="w-px flex-1 mt-1" style={{ background: S.border, minHeight: '12px' }} />
+                            )}
+                          </div>
+                          {/* Content */}
+                          <div className="flex-1 min-w-0 pb-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ background: `${iconColor}12`, color: iconColor }}>
+                                {act.user}
+                              </span>
+                              <span className="text-[10px]" style={{ color: S.text }}>{act.action}</span>
+                            </div>
+                            <span className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{act.time}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 权限管理（折叠面板） */}
+                <div className="mt-4">
+                  <button
+                    onClick={() => setPermissionsOpen((o) => !o)}
+                    className="flex items-center gap-2 w-full text-left focus:outline-none"
+                  >
+                    <div className="w-5 h-5 rounded-lg flex items-center justify-center"
+                      style={{ background: `${S.warning}12` }}>
+                      <Shield size={10} style={{ color: S.warning }} />
+                    </div>
+                    <span className="text-[10px] font-bold" style={{ color: S.text }}>权限管理</span>
+                    <motion.div animate={{ rotate: permissionsOpen ? 0 : -90 }} transition={{ duration: 0.15 }}>
+                      <ChevronDown size={10} style={{ color: S.text3 }} />
+                    </motion.div>
+                  </button>
+                  <AnimatePresence>
+                    {permissionsOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-2 mt-2">
+                          {PERMISSION_LEVELS.map((level) => (
+                            <div key={level.role} className="p-2.5 rounded-lg"
+                              style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                              <div className="text-[10px] font-bold mb-1.5" style={{ color: S.text }}>{level.role}</div>
+                              <div className="flex flex-wrap gap-1">
+                                {level.permissions.map((perm) => (
+                                  <span key={perm} className="text-[8px] px-1.5 py-0.5 rounded"
+                                    style={{ background: `${S.primary}08`, color: S.primary, border: `1px solid ${S.primary}15` }}>
+                                    {perm}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             )}

@@ -1,24 +1,678 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GitBranch, Send, Bot, ChevronRight, X, Check, Edit2 } from "lucide-react";
+import { GitBranch, Send, Bot, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { SCRIPT_BLOCKS as STUDIO_BLOCKS, AI_SUGGESTIONS as STUDIO_AI, PLAYABLE_GRAPH, INIT_VARIABLES, type ScriptBlock } from "@/lib/studio-data";
+import { SCRIPT_BLOCKS as STUDIO_BLOCKS, AI_SUGGESTIONS as STUDIO_AI, PLAYABLE_GRAPH, INIT_VARIABLES, CHAPTER_PLANS, type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
   border:"#E8EAF2", primary:"#7C6CF5", accent:"#00A99D",
   text:"#1A1D2E", text2:"#4A5068", text3:"#8892B0",
-  success:"#10B981", warning:"#F59E0B",
+  success:"#10B981", warning:"#F59E0B", error:"#EF4444",
 };
 
-type LayerId = "original" | "linear" | "interactive" | "playable";
+type LayerId = "chapter" | "original" | "linear" | "interactive" | "playable";
 const LAYERS: { id: LayerId; label: string; desc: string }[] = [
+  { id: "chapter", label: "章节规划", desc: "主题·情绪弧·分支点" },
   { id: "original", label: "原始文本", desc: "小说/原始剧本" },
   { id: "linear", label: "线性剧本", desc: "结构化分场剧本" },
   { id: "interactive", label: "互动剧本", desc: "含分支和变量的互动叙事" },
   { id: "playable", label: "可运行脚本", desc: "可在模拟器中游玩" },
 ];
+
+// ── 叙事模板数据 ──
+type NarrativeTemplateAct = {
+  act: string;
+  purpose: string;
+  suggestedChapters: number;
+  suggestedEvents: number;
+  tensionRange: string;
+};
+
+type NarrativeTemplate = {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  structure: NarrativeTemplateAct[];
+  bestFor: string[];
+  examples: string;
+};
+
+const NARRATIVE_TEMPLATES: NarrativeTemplate[] = [
+  {
+    id: 'three-act',
+    name: '三幕式结构',
+    icon: '🎭',
+    description: '经典的三幕叙事：建立→对抗→解决。适用于大多数故事类型。',
+    structure: [
+      { act: '第一幕：建立', purpose: '介绍世界观、角色、核心冲突', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '2-4' },
+      { act: '第二幕：对抗', purpose: '冲突升级、试炼、中点反转', suggestedChapters: 3, suggestedEvents: 8, tensionRange: '5-8' },
+      { act: '第三幕：解决', purpose: '高潮、解决、新常态', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '7-10' },
+    ],
+    bestFor: ['冒险', '悬疑', '爱情', '成长'],
+    examples: '《幽灵协议》当前结构接近三幕式',
+  },
+  {
+    id: 'hero-journey',
+    name: '英雄之旅',
+    icon: '⚔️',
+    description: 'Joseph Campbell 的单一神话模型，12 个阶段的英雄成长弧线。',
+    structure: [
+      { act: '普通世界', purpose: '英雄的日常状态', suggestedChapters: 1, suggestedEvents: 2, tensionRange: '1-3' },
+      { act: '冒险召唤', purpose: '打破日常的事件', suggestedChapters: 1, suggestedEvents: 2, tensionRange: '3-5' },
+      { act: '试炼之路', purpose: '盟友、敌人、考验', suggestedChapters: 2, suggestedEvents: 6, tensionRange: '4-7' },
+      { act: '深渊考验', purpose: '最大危机，面对死亡或最大恐惧', suggestedChapters: 1, suggestedEvents: 3, tensionRange: '8-10' },
+      { act: '归来转变', purpose: '带着获得的"宝物"回归', suggestedChapters: 1, suggestedEvents: 2, tensionRange: '5-7' },
+    ],
+    bestFor: ['奇幻', '冒险', '成长'],
+    examples: '《指环王》《星球大战》《黑客帝国》',
+  },
+  {
+    id: 'multi-thread',
+    name: '多线并进',
+    icon: '🕸️',
+    description: '多条叙事线交织，最终汇聚。适合群像剧和复杂悬疑。',
+    structure: [
+      { act: '线索铺设', purpose: '分别介绍多条叙事线和角色', suggestedChapters: 3, suggestedEvents: 6, tensionRange: '2-4' },
+      { act: '线索交织', purpose: '各线开始产生关联和冲突', suggestedChapters: 3, suggestedEvents: 8, tensionRange: '4-7' },
+      { act: '真相汇聚', purpose: '所有线索指向同一个核心', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '7-9' },
+      { act: '多线收束', purpose: '各线分别收束或产生最终交叉', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '8-10' },
+    ],
+    bestFor: ['悬疑', '群像', '政治', '谍战'],
+    examples: '《低俗小说》《通天塔》《权力的游戏》',
+  },
+  {
+    id: 'time-loop',
+    name: '时间循环',
+    icon: '🔄',
+    description: '主角陷入时间循环，每次循环获得新信息。适合解谜和探索。',
+    structure: [
+      { act: '首次循环', purpose: '建立日常和循环触发事件', suggestedChapters: 1, suggestedEvents: 3, tensionRange: '3-5' },
+      { act: '发现规律', purpose: '主角开始理解循环机制', suggestedChapters: 2, suggestedEvents: 5, tensionRange: '4-6' },
+      { act: '尝试突破', purpose: '利用已知信息尝试打破循环', suggestedChapters: 2, suggestedEvents: 6, tensionRange: '6-8' },
+      { act: '最终循环', purpose: '关键抉择决定是否打破循环', suggestedChapters: 1, suggestedEvents: 3, tensionRange: '8-10' },
+    ],
+    bestFor: ['科幻', '悬疑', '解谜'],
+    examples: '《土拨鼠日》《忌日快乐》《开端》',
+  },
+  {
+    id: 'rashomon',
+    name: '罗生门',
+    icon: '👁️',
+    description: '同一事件从不同角色视角叙述，揭示真相的多面性。',
+    structure: [
+      { act: '事件发生', purpose: '从全知视角展示核心事件', suggestedChapters: 1, suggestedEvents: 2, tensionRange: '5-7' },
+      { act: '视角 A', purpose: '第一个角色的叙述版本', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '4-6' },
+      { act: '视角 B', purpose: '第二个角色的矛盾叙述', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '5-7' },
+      { act: '视角 C', purpose: '第三个角色揭示隐藏真相', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '7-9' },
+      { act: '真相拼图', purpose: '综合所有视角，拼出完整真相', suggestedChapters: 1, suggestedEvents: 2, tensionRange: '8-10' },
+    ],
+    bestFor: ['悬疑', '心理', '法庭'],
+    examples: '《罗生门》《消失的爱人》《利刃出鞘》',
+  },
+];
+
+// ── 章节规划内容组件（P3-2）──
+function ChapterPlanContent() {
+  const [expandedChapter, setExpandedChapter] = useState<string | null>(CHAPTER_PLANS[0]?.id ?? null);
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [confirmingTemplate, setConfirmingTemplate] = useState<string | null>(null);
+  const [appliedTemplate, setAppliedTemplate] = useState<NarrativeTemplate | null>(null);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: S.bg }}>
+      {/* 顶部说明 */}
+      <div className="p-3 rounded-xl flex items-center gap-2" style={{ background: `${S.primary}08`, border: `1px solid ${S.primary}20` }}>
+        <BookOpen size={14} style={{ color: S.primary }} />
+        <p className="text-[10px]" style={{ color: S.text2 }}>
+          章节规划是线性剧本和互动设计之间的桥梁。每章定义主题、情绪弧、事件列表和分支点。
+        </p>
+      </div>
+
+      {/* ── 叙事模板入口 ── */}
+      <div>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            setShowTemplatePanel(v => !v);
+            if (showTemplatePanel) {
+              setSelectedTemplate(null);
+              setConfirmingTemplate(null);
+            }
+          }}
+          className="w-full flex items-center gap-2.5 p-3 rounded-xl focus:outline-none"
+          style={{
+            background: showTemplatePanel ? `${S.primary}12` : S.card,
+            border: `1px solid ${showTemplatePanel ? `${S.primary}30` : S.border}`,
+          }}
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: `${S.accent}12` }}
+          >
+            <Layout size={14} style={{ color: S.accent }} />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-xs font-bold" style={{ color: S.text }}>应用叙事模板</p>
+            <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>
+              选择经典叙事结构，快速生成章纲骨架
+            </p>
+          </div>
+          <motion.span animate={{ rotate: showTemplatePanel ? 180 : 0 }}>
+            <ChevronDown size={14} style={{ color: S.text3 }} />
+          </motion.span>
+        </motion.button>
+
+        <AnimatePresence>
+          {showTemplatePanel && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 space-y-3">
+                {/* ── 已应用模板结果展示 ── */}
+                {appliedTemplate && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl overflow-hidden"
+                    style={{ background: S.card, border: `1.5px solid ${S.accent}40` }}
+                  >
+                    <div
+                      className="px-4 py-3 flex items-center justify-between"
+                      style={{ background: `linear-gradient(135deg, ${S.accent}10, ${S.primary}08)` }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={14} style={{ color: S.accent }} />
+                        <span className="text-xs font-bold" style={{ color: S.text }}>
+                          已应用：{appliedTemplate.icon} {appliedTemplate.name}
+                        </span>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setAppliedTemplate(null)}
+                        className="p-1 rounded focus:outline-none"
+                      >
+                        <X size={12} style={{ color: S.text3 }} />
+                      </motion.button>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <p className="text-[10px]" style={{ color: S.text2 }}>
+                        基于「{appliedTemplate.name}」生成了章纲骨架：
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className="text-[9px] px-2 py-1 rounded-lg font-bold"
+                          style={{ background: `${S.primary}10`, color: S.primary }}
+                        >
+                          {appliedTemplate.structure.length} 幕
+                        </span>
+                        <span
+                          className="text-[9px] px-2 py-1 rounded-lg font-bold"
+                          style={{ background: `${S.accent}10`, color: S.accent }}
+                        >
+                          {appliedTemplate.structure.reduce((a, s) => a + s.suggestedChapters, 0)} 章节
+                        </span>
+                        <span
+                          className="text-[9px] px-2 py-1 rounded-lg font-bold"
+                          style={{ background: `${S.warning}10`, color: S.warning }}
+                        >
+                          {appliedTemplate.structure.reduce((a, s) => a + s.suggestedEvents, 0)} 事件
+                        </span>
+                      </div>
+                      {/* 预览生成的章节骨架 */}
+                      <div className="space-y-1.5">
+                        {appliedTemplate.structure.map((act, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 p-2.5 rounded-lg"
+                            style={{ background: S.s2 }}
+                          >
+                            <div
+                              className="w-6 h-6 rounded flex items-center justify-center shrink-0"
+                              style={{ background: `${S.primary}15` }}
+                            >
+                              <span className="text-[9px] font-black" style={{ color: S.primary }}>
+                                {idx + 1}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-bold truncate" style={{ color: S.text }}>
+                                {act.act}
+                              </p>
+                              <p className="text-[8px]" style={{ color: S.text3 }}>
+                                {act.suggestedChapters} 章 · {act.suggestedEvents} 事件 · 张力 {act.tensionRange}
+                              </p>
+                            </div>
+                            <div
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{
+                                background:
+                                  parseInt(act.tensionRange.split('-')[1]) >= 8
+                                    ? '#EF4444'
+                                    : parseInt(act.tensionRange.split('-')[1]) >= 5
+                                    ? '#F59E0B'
+                                    : '#10B981',
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[9px] italic" style={{ color: S.text3 }}>
+                        以上为模板生成的骨架结构，可在此基础上继续编辑和完善。
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ── 模板详情视图 ── */}
+                {selectedTemplate ? (
+                  (() => {
+                    const tpl = NARRATIVE_TEMPLATES.find(t => t.id === selectedTemplate)!;
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-xl overflow-hidden"
+                        style={{ background: S.card, border: `1px solid ${S.primary}30` }}
+                      >
+                        {/* 详情头部 */}
+                        <div
+                          className="px-4 py-3 flex items-center justify-between"
+                          style={{
+                            background: `linear-gradient(135deg, ${S.primary}08, ${S.accent}06)`,
+                            borderBottom: `1px solid ${S.border}`,
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-lg">{tpl.icon}</span>
+                            <div>
+                              <p className="text-xs font-bold" style={{ color: S.text }}>
+                                {tpl.name}
+                              </p>
+                              <p className="text-[9px]" style={{ color: S.text3 }}>
+                                {tpl.description}
+                              </p>
+                            </div>
+                          </div>
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setSelectedTemplate(null)}
+                            className="p-1.5 rounded-lg focus:outline-none"
+                            style={{ background: `${S.text3}15` }}
+                          >
+                            <X size={12} style={{ color: S.text3 }} />
+                          </motion.button>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                          {/* 结构图示 */}
+                          <div>
+                            <p
+                              className="text-[9px] font-bold uppercase tracking-wider mb-2"
+                              style={{ color: S.text3 }}
+                            >
+                              结构图示
+                            </p>
+                            <div className="flex rounded-lg overflow-hidden" style={{ gap: '2px' }}>
+                              {tpl.structure.map((act, idx) => {
+                                const maxTension = parseInt(act.tensionRange.split('-')[1]);
+                                const barColor =
+                                  maxTension >= 8
+                                    ? '#EF4444'
+                                    : maxTension >= 5
+                                    ? '#F59E0B'
+                                    : '#10B981';
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex-1 p-2 rounded-lg"
+                                    style={{
+                                      background: `${barColor}12`,
+                                      borderLeft:
+                                        idx === 0 ? 'none' : `1px solid ${S.border}`,
+                                    }}
+                                  >
+                                    <p
+                                      className="text-[8px] font-bold mb-0.5 truncate"
+                                      style={{ color: S.text }}
+                                    >
+                                      {act.act}
+                                    </p>
+                                    <p
+                                      className="text-[7px] leading-tight mb-1"
+                                      style={{ color: S.text3 }}
+                                    >
+                                      {act.purpose}
+                                    </p>
+                                    <div className="space-y-0.5">
+                                      <p className="text-[7px]" style={{ color: S.text2 }}>
+                                        {act.suggestedChapters} 章 · {act.suggestedEvents} 事件
+                                      </p>
+                                      <p className="text-[7px] font-mono" style={{ color: barColor }}>
+                                        张力 {act.tensionRange}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 张力曲线可视化 */}
+                          <div>
+                            <p
+                              className="text-[9px] font-bold uppercase tracking-wider mb-2"
+                              style={{ color: S.text3 }}
+                            >
+                              张力曲线
+                            </p>
+                            <div
+                              className="flex items-end gap-0.5 h-12 p-2 rounded-lg"
+                              style={{ background: S.s2 }}
+                            >
+                              {tpl.structure.flatMap((act, ai) => {
+                                const [low, high] = act.tensionRange.split('-').map(Number);
+                                const steps = Math.max(2, act.suggestedChapters);
+                                return Array.from({ length: steps }, (_, si) => {
+                                  const t = steps > 1 ? si / (steps - 1) : 0.5;
+                                  const tension = low + (high - low) * t;
+                                  const pct = (tension / 10) * 100;
+                                  const color =
+                                    tension >= 8
+                                      ? '#EF4444'
+                                      : tension >= 5
+                                      ? '#F59E0B'
+                                      : tension >= 3
+                                      ? '#10B981'
+                                      : '#6EE7B7';
+                                  return (
+                                    <div
+                                      key={`${ai}-${si}`}
+                                      className="flex-1 rounded-t transition-all"
+                                      style={{
+                                        height: `${pct}%`,
+                                        background: color,
+                                        minHeight: '4px',
+                                        opacity: 0.85,
+                                      }}
+                                    />
+                                  );
+                                });
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 经典案例 */}
+                          <div>
+                            <p
+                              className="text-[9px] font-bold uppercase tracking-wider mb-1"
+                              style={{ color: S.text3 }}
+                            >
+                              经典案例
+                            </p>
+                            <p className="text-[10px]" style={{ color: S.text2 }}>
+                              {tpl.examples}
+                            </p>
+                          </div>
+
+                          {/* 适用题材 */}
+                          <div>
+                            <p
+                              className="text-[9px] font-bold uppercase tracking-wider mb-1.5"
+                              style={{ color: S.text3 }}
+                            >
+                              适用题材
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {tpl.bestFor.map((genre, i) => (
+                                <span
+                                  key={i}
+                                  className="text-[9px] px-2 py-0.5 rounded-full font-medium"
+                                  style={{ background: `${S.primary}10`, color: S.primary }}
+                                >
+                                  {genre}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 应用按钮 / 确认状态 */}
+                          {confirmingTemplate === tpl.id ? (
+                            <motion.div
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="p-3 rounded-xl space-y-2.5"
+                              style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}25` }}
+                            >
+                              <p className="text-[10px]" style={{ color: S.text2 }}>
+                                将基于此模板生成章纲骨架，当前章节规划将被覆盖。
+                              </p>
+                              <div className="flex gap-2">
+                                <motion.button
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => {
+                                    setAppliedTemplate(tpl);
+                                    setConfirmingTemplate(null);
+                                    setSelectedTemplate(null);
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white focus:outline-none"
+                                  style={{ background: S.primary }}
+                                >
+                                  <Check size={10} /> 确认应用
+                                </motion.button>
+                                <motion.button
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => setConfirmingTemplate(null)}
+                                  className="px-3 py-1.5 rounded-lg text-[10px] font-medium focus:outline-none"
+                                  style={{ background: S.s2, color: S.text3 }}
+                                >
+                                  取消
+                                </motion.button>
+                              </div>
+                            </motion.div>
+                          ) : (
+                            <motion.button
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => setConfirmingTemplate(tpl.id)}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white focus:outline-none"
+                              style={{ background: S.primary }}
+                            >
+                              <Sparkles size={12} /> 应用此模板
+                            </motion.button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })()
+                ) : (
+                  /* ── 模板卡片网格 ── */
+                  <div className="grid grid-cols-2 gap-2">
+                    {NARRATIVE_TEMPLATES.map(tpl => (
+                      <motion.button
+                        key={tpl.id}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setSelectedTemplate(tpl.id)}
+                        className="p-3 rounded-xl text-left focus:outline-none"
+                        style={{ background: S.card, border: `1px solid ${S.border}` }}
+                      >
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-base">{tpl.icon}</span>
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>
+                            {tpl.name}
+                          </span>
+                        </div>
+                        <p
+                          className="text-[8px] leading-relaxed mb-2"
+                          style={{ color: S.text3 }}
+                        >
+                          {tpl.description}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {tpl.bestFor.slice(0, 3).map((genre, i) => (
+                            <span
+                              key={i}
+                              className="text-[7px] px-1.5 py-0.5 rounded"
+                              style={{ background: `${S.primary}08`, color: S.primary }}
+                            >
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 章节卡片列表 */}
+      {CHAPTER_PLANS.map(chapter => {
+        const isExpanded = expandedChapter === chapter.id;
+        return (
+          <motion.div key={chapter.id} layout
+            className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            {/* 章节头 */}
+            <motion.button whileTap={{ scale: 0.98 }}
+              onClick={() => setExpandedChapter(isExpanded ? null : chapter.id)}
+              className="w-full flex items-center gap-3 p-3 text-left focus:outline-none">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: `${S.primary}12` }}>
+                <span className="text-xs font-black" style={{ color: S.primary }}>Ch{chapter.chapterNumber}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold truncate" style={{ color: S.text }}>{chapter.title}</p>
+                <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>{chapter.themeQuestion}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
+                  {chapter.events.length} 事件
+                </span>
+                <span className="text-[8px] px-1.5 py-0.5 rounded" style={{
+                  background: chapter.events.some(e => e.isBranchPoint) ? `${S.warning}12` : S.s2,
+                  color: chapter.events.some(e => e.isBranchPoint) ? S.warning : S.text3
+                }}>
+                  {chapter.events.filter(e => e.isBranchPoint).length} 分支
+                </span>
+                <motion.span animate={{ rotate: isExpanded ? 180 : 0 }}>
+                  <ChevronDown size={12} style={{ color: S.text3 }} />
+                </motion.span>
+              </div>
+            </motion.button>
+
+            {/* 展开详情 */}
+            <AnimatePresence>
+              {isExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden">
+                  <div className="px-3 pb-3 space-y-3">
+                    {/* 情绪弧 + 时长 */}
+                    <div className="flex gap-2">
+                      <div className="flex-1 p-2 rounded-lg" style={{ background: S.s2 }}>
+                        <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>情绪弧</p>
+                        <p className="text-[10px]" style={{ color: S.text2 }}>{chapter.emotionArc}</p>
+                      </div>
+                      <div className="w-20 p-2 rounded-lg" style={{ background: S.s2 }}>
+                        <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>预估时长</p>
+                        <p className="text-[10px]" style={{ color: S.text2 }}>{chapter.estimatedDuration}</p>
+                      </div>
+                    </div>
+
+                    {/* 事件列表 */}
+                    <div>
+                      <p className="text-[9px] font-bold mb-1.5" style={{ color: S.text3 }}>事件列表</p>
+                      <div className="space-y-1.5">
+                        {chapter.events.map((event, idx) => (
+                          <div key={event.id} className="p-2 rounded-lg" style={{
+                            background: event.isBranchPoint ? `${S.warning}06` : S.s2,
+                            border: event.isBranchPoint ? `1px solid ${S.warning}20` : 'none'
+                          }}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[8px] font-mono w-4" style={{ color: S.text3 }}>{idx + 1}</span>
+                              <span className="text-[10px] font-bold" style={{ color: S.text }}>{event.title}</span>
+                              {event.isBranchPoint && (
+                                <span className="text-[8px] px-1 py-0.5 rounded font-bold" style={{ background: `${S.warning}15`, color: S.warning }}>分支点</span>
+                              )}
+                            </div>
+                            <p className="text-[9px] ml-6" style={{ color: S.text2 }}>{event.description}</p>
+                            {event.branchOptions && (
+                              <div className="ml-6 mt-1.5 space-y-1">
+                                {event.branchOptions.map((opt, oi) => (
+                                  <div key={oi} className="flex items-start gap-1.5">
+                                    <span className="text-[8px] shrink-0 mt-0.5 font-bold" style={{ color: S.accent }}>→</span>
+                                    <div>
+                                      <span className="text-[9px] font-medium" style={{ color: S.text }}>{opt.label}</span>
+                                      <span className="text-[8px] ml-1" style={{ color: S.text3 }}>· {opt.consequence}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {event.variableHints && event.variableHints.length > 0 && (
+                              <div className="ml-6 mt-1 flex items-center gap-1">
+                                <span className="text-[8px]" style={{ color: S.text3 }}>变量：</span>
+                                {event.variableHints.map((v, vi) => (
+                                  <span key={vi} className="text-[8px] px-1 py-0.5 rounded font-mono" style={{ background: `${S.primary}10`, color: S.primary }}>{v}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 补充信息 */}
+                    {(chapter.keyDialogue || chapter.characterStates || chapter.suspenseHook || chapter.chapterEndHook) && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {chapter.keyDialogue && (
+                          <div className="p-2 rounded-lg" style={{ background: S.s2 }}>
+                            <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>关键对白</p>
+                            <p className="text-[9px] italic" style={{ color: S.accent }}>{chapter.keyDialogue}</p>
+                          </div>
+                        )}
+                        {chapter.characterStates && (
+                          <div className="p-2 rounded-lg" style={{ background: S.s2 }}>
+                            <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>角色状态</p>
+                            <p className="text-[9px]" style={{ color: S.text2 }}>{chapter.characterStates}</p>
+                          </div>
+                        )}
+                        {chapter.suspenseHook && (
+                          <div className="p-2 rounded-lg" style={{ background: S.s2 }}>
+                            <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>悬念钩子</p>
+                            <p className="text-[9px]" style={{ color: S.warning }}>{chapter.suspenseHook}</p>
+                          </div>
+                        )}
+                        {chapter.chapterEndHook && (
+                          <div className="p-2 rounded-lg" style={{ background: S.s2 }}>
+                            <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>章末钩子</p>
+                            <p className="text-[9px]" style={{ color: S.error }}>{chapter.chapterEndHook}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ScriptScreen() {
   const [blocks, setBlocks] = useState<ScriptBlock[]>(STUDIO_BLOCKS);
@@ -433,6 +1087,8 @@ export default function ScriptScreen() {
         )}
 
         {activeLayer === "playable" && <PlayablePreview />}
+
+        {activeLayer === "chapter" && <ChapterPlanContent />}
       </div>
     </div>
   );

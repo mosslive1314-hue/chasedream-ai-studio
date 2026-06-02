@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, XCircle, Eye, Loader2, Send, ArrowRight, RotateCcw,
   User, MapPin, Package, GitBranch, Sliders, FileText,
-  Network, CheckSquare, List, Rocket
+  Network, CheckSquare, List, Rocket, Shield, AlertTriangle, Lightbulb
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { WORLD_RULES, WorldRule, WorldRuleType, GAME_CHARACTERS, GAME_SCENES } from "@/lib/studio-data";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -14,6 +15,37 @@ const S = {
   primary:"#5E50E8", accent:"#00A99D",
   text:"#1A1D2E", text2:"#4A5068", text3:"#8892B0",
   success:"#059669", warning:"#D97706", error:"#DC2626",
+};
+
+// -- 用户友好状态文本 ----------------------------------------------------------
+const STATUS_TEXT: Record<string, string> = {
+  done: '已完成',
+  running: 'AI 处理中...',
+  pending: '等待中',
+  failed: '处理失败',
+};
+
+// -- 步骤用户友好描述（弱化 agent 技术名） --------------------------------------
+const STEP_DESC: Record<number, string> = {
+  1: '故事大纲提取完成',
+  2: '角色设定提取完成',
+  3: '正在分析场景空间与氛围特征',
+  4: '等待场景设定完成',
+  5: '等待道具设定完成',
+  6: '等待节点图完成',
+  7: '等待选择项完成',
+  8: '等待结局系统完成',
+  9: '等待逻辑检查完成',
+  10: '等待所有步骤完成',
+};
+
+// -- 世界规则类型配色 ----------------------------------------------------------
+const RULE_TYPE_CFG: Record<WorldRuleType, { color: string; label: string }> = {
+  setting:              { color: S.primary, label: '背景设定' },
+  character_constraint: { color: S.accent,  label: '角色约束' },
+  permanent_rule:       { color: S.warning, label: '永久规则' },
+  narrative_taboo:      { color: S.error,   label: '叙事禁忌' },
+  tension_check:        { color: '#6366F1', label: '张力校验' },
 };
 
 // -- 10步定义 -----------------------------------------------------------------
@@ -106,7 +138,8 @@ function StepArtifact({ stepN, reviewItems, onApprove, onReject, reviewMode }: {
       </div>
       <div className="text-center">
         <p className="text-xs font-bold" style={{ color: S.text3 }}>{art.heading}</p>
-        <p className="text-[10px] mt-1 leading-relaxed max-w-[200px]" style={{ color: S.text3 }}>{art.summary}</p>
+        <p className="text-[10px] mt-1 leading-relaxed max-w-[200px]" style={{ color: S.text3 }}>等待前序步骤</p>
+        <p className="text-[9px] mt-1" style={{ color: S.text3 }}>⏳ {STATUS_TEXT.pending}</p>
       </div>
     </div>
   );
@@ -119,9 +152,9 @@ function StepArtifact({ stepN, reviewItems, onApprove, onReject, reviewMode }: {
         <Loader2 size={16} color={S.primary} className="animate-spin shrink-0" />
         <div>
           <p className="text-xs font-bold" style={{ color: S.primary }}>
-            {step.agent} 正在执行……
+            AI 处理中...
           </p>
-          <p className="text-[9px]" style={{ color: S.text3 }}>{art.summary}</p>
+          <p className="text-[9px]" style={{ color: S.text3 }}>{STEP_DESC[stepN]}</p>
         </div>
       </div>
       {/* Progress bar */}
@@ -169,10 +202,15 @@ function StepArtifact({ stepN, reviewItems, onApprove, onReject, reviewMode }: {
       <div className="p-3 rounded-xl flex items-center gap-2.5"
         style={{ background:`${S.success}08`, border:`1px solid ${S.success}25` }}>
         <CheckCircle2 size={15} color={S.success} className="shrink-0" />
-        <div>
+        <div className="flex-1">
           <p className="text-xs font-bold" style={{ color: S.success }}>已完成：{art.heading}</p>
           <p className="text-[9px]" style={{ color: S.text3 }}>{art.summary}</p>
         </div>
+        <motion.button whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[8px] font-bold shrink-0 focus:outline-none"
+          style={{ background: `${S.success}10`, color: S.success, border: `1px solid ${S.success}25` }}>
+          <Eye size={9} /> 查看产物
+        </motion.button>
       </div>
       {/* Review mode banner */}
       {reviewMode && art.items.length > 0 && (
@@ -254,6 +292,8 @@ export default function ParseScreen() {
   const [agentConfig, setAgentConfig] = useState(false);
   const [reviewItems, setReviewItems] = useState<Record<string, "approved" | "rejected" | "pending">>({});
   const [reviewMode, setReviewMode] = useState(false);
+  const [rightTab, setRightTab] = useState<"artifact"|"rules">("artifact");
+  const [rules, setRules] = useState<WorldRule[]>(WORLD_RULES);
   const endRef                  = useRef<HTMLDivElement>(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
@@ -406,12 +446,28 @@ export default function ParseScreen() {
               <span className="text-[9px] uppercase tracking-wider font-bold" style={{ color: S.text3 }}>
                 制作进度
               </span>
-              {activeStep && (
-                <span className="text-[9px] flex items-center gap-1" style={{ color: S.primary }}>
-                  <Loader2 size={9} className="animate-spin" />
-                  {activeStep.label}
-                </span>
-              )}
+              <div className="flex items-center gap-1">
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={() => setRightTab("artifact")}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold focus:outline-none"
+                  style={{
+                    background: rightTab === "artifact" ? `${S.primary}12` : "transparent",
+                    color: rightTab === "artifact" ? S.primary : S.text3,
+                    border: `1px solid ${rightTab === "artifact" ? `${S.primary}25` : "transparent"}`,
+                  }}>
+                  <FileText size={9} /> 步骤产物
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={() => setRightTab("rules")}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold focus:outline-none"
+                  style={{
+                    background: rightTab === "rules" ? `${S.primary}12` : "transparent",
+                    color: rightTab === "rules" ? S.primary : S.text3,
+                    border: `1px solid ${rightTab === "rules" ? `${S.primary}25` : "transparent"}`,
+                  }}>
+                  <Shield size={9} /> 世界规则
+                </motion.button>
+              </div>
             </div>
             <div className="flex items-center gap-0.5 overflow-x-auto">
               {STEPS.map((step, i) => {
@@ -423,8 +479,8 @@ export default function ParseScreen() {
                     <div className="relative">
                       <motion.button
                         whileTap={{ scale:0.9 }}
-                        onClick={() => setViewStep(step.n)}
-                        title={step.label}
+                        onClick={() => { setViewStep(step.n); setRightTab("artifact"); }}
+                        title={`${step.label} — ${STATUS_TEXT[step.status]}`}
                         className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold focus:outline-none ${isRun ? "animate-pulse":""}`}
                         style={{
                           background: isViewing ? S.primary : isDone ? `${S.success}15` : isRun ? `${S.primary}15` : S.s2,
@@ -433,10 +489,15 @@ export default function ParseScreen() {
                         }}>
                         {isDone ? "✓" : step.n}
                       </motion.button>
-                      {reviewMode && isDone && (
+                      {reviewMode && rightTab === "artifact" && isDone && (
                         <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full flex items-center justify-center"
                           style={{ background: S.accent }}>
                           <span className="text-[5px] text-white font-bold">!</span>
+                        </div>
+                      )}
+                      {isRun && (
+                        <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                          <span className="text-[6px] font-bold" style={{ color: S.primary }}>处理中</span>
                         </div>
                       )}
                     </div>
@@ -457,9 +518,10 @@ export default function ParseScreen() {
             </p>
           </div>
 
-          {/* 动态产物区 */}
+          {/* 动态产物区 / 世界规则面板 */}
           <AnimatePresence mode="wait">
-            <motion.div key={viewStep} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
+            {rightTab === "artifact" ? (
+            <motion.div key={`step-${viewStep}`} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
               exit={{ opacity:0 }} transition={{ duration:0.15 }}
               className="flex-1 overflow-hidden flex flex-col">
               <StepArtifact stepN={viewStep} 
@@ -469,6 +531,115 @@ export default function ParseScreen() {
                 reviewMode={reviewMode}
               />
             </motion.div>
+            ) : (
+            <motion.div key="world-rules" initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
+              exit={{ opacity:0 }} transition={{ duration:0.15 }}
+              className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Header */}
+              <div className="p-3 rounded-xl flex items-center justify-between"
+                style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
+                <div className="flex items-center gap-2.5">
+                  <Shield size={15} color={S.primary} className="shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold" style={{ color: S.text }}>世界观与叙事规则</p>
+                    <p className="text-[9px]" style={{ color: S.text3 }}>
+                      共 {rules.length} 条规则 · {rules.filter(r => r.validated).length} 条已校验
+                    </p>
+                  </div>
+                </div>
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={() => setRules(prev => prev.map(r => ({ ...r, validated: true })))}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
+                  style={{ background: `${S.primary}12`, color: S.primary, border: `1px solid ${S.primary}25` }}>
+                  <CheckCircle2 size={10} /> 校验全部
+                </motion.button>
+              </div>
+
+              {/* Rules grouped by type */}
+              {(() => {
+                const groups: WorldRuleType[] = ['setting', 'character_constraint', 'permanent_rule', 'narrative_taboo', 'tension_check'];
+                const grouped = groups.map(type => ({
+                  type,
+                  cfg: RULE_TYPE_CFG[type],
+                  rules: rules.filter(r => r.type === type),
+                })).filter(g => g.rules.length > 0);
+
+                return grouped.map(group => (
+                  <div key={group.type}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ background: group.cfg.color }} />
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{group.cfg.label}</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
+                        {group.rules.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {group.rules.map(rule => (
+                        <motion.div key={rule.id} layout
+                          className="p-3 rounded-xl"
+                          style={{
+                            background: S.card,
+                            border: `1px solid ${rule.validated ? S.border : `${S.warning}40`}`,
+                            opacity: rule.validated ? 1 : 0.85,
+                          }}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{rule.title}</span>
+                                <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                                  style={{
+                                    background: rule.severity === 'hard' ? `${S.error}12` : rule.severity === 'soft' ? `${S.warning}12` : `${S.primary}12`,
+                                    color: rule.severity === 'hard' ? S.error : rule.severity === 'soft' ? S.warning : S.primary,
+                                  }}>
+                                  {rule.severity === 'hard' ? '强制' : rule.severity === 'soft' ? '建议' : '可选'}
+                                </span>
+                              </div>
+                              <p className="text-[9px] mt-1 leading-relaxed" style={{ color: S.text2 }}>{rule.description}</p>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1">
+                              {rule.validated ? (
+                                <span className="flex items-center gap-0.5 text-[8px] font-bold" style={{ color: S.success }}>
+                                  <CheckCircle2 size={9} /> 已校验
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5 text-[8px] font-bold" style={{ color: S.warning }}>
+                                  <AlertTriangle size={9} /> 未校验
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Relations */}
+                          {(rule.relatedCharacters?.length || rule.relatedScenes?.length) && (
+                            <div className="flex gap-1.5 mt-2 flex-wrap">
+                              {rule.relatedCharacters?.map(cId => {
+                                const ch = GAME_CHARACTERS.find(c => c.id === cId);
+                                return ch ? (
+                                  <span key={cId} className="text-[8px] px-1.5 py-0.5 rounded"
+                                    style={{ background: `${ch.color}10`, color: ch.color, border: `1px solid ${ch.color}25` }}>
+                                    {ch.name}
+                                  </span>
+                                ) : null;
+                              })}
+                              {rule.relatedScenes?.map(sId => {
+                                const sc = GAME_SCENES.find(s => s.id === sId);
+                                return sc ? (
+                                  <span key={sId} className="text-[8px] px-1.5 py-0.5 rounded"
+                                    style={{ background: `${S.accent}10`, color: S.accent, border: `1px solid ${S.accent}25` }}>
+                                    {sc.name}
+                                  </span>
+                                ) : null;
+                              })}
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </motion.div>
+            )}
           </AnimatePresence>
 
           {/* 底部操作栏 */}

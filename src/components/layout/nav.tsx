@@ -4,26 +4,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Home, Scissors, FileText, GitBranch,
-  Package, Play, Rocket, Settings, Users,
-  ChevronLeft, ChevronRight
+  LayoutDashboard, Scissors, FileText, GitBranch, MousePointer,
+  Network, Package, Play, Activity, Rocket, Users,
+  Settings, ChevronLeft, ChevronRight
 } from "lucide-react";
 
 const W_OPEN = 200;
 const W_CLOSED = 56;
 
-type NavItem = { href: string; icon: typeof Home; label: string; disabled?: boolean };
+type NavItem = { href: string; icon: typeof LayoutDashboard; label: string; disabled?: boolean };
 
 const NAV: NavItem[] = [
-  { href: "/",         icon: Home,     label: "创作台" },
-  { href: "/overview", icon: Home,     label: "总览"   },
-  { href: "/parse",    icon: Scissors, label: "剧本解构"},
-  { href: "/script",   icon: FileText, label: "剧本编辑"},
-  { href: "/nodes",    icon: GitBranch,label: "节点图"  },
-  { href: "/assets",   icon: Package,  label: "资产库"  },
-  { href: "/simulator",icon: Play,     label: "试玩"    },
-  { href: "/collab",   icon: Users,    label: "协作", disabled: true },
-  { href: "/publish",  icon: Rocket,   label: "发布"    },
+  { href: "/",           icon: LayoutDashboard, label: "工作台"   },
+  { href: "/pipeline",   icon: GitBranch,       label: "制作管线" },
+  { href: "/parse",      icon: Scissors,        label: "剧本解构" },
+  { href: "/script",     icon: FileText,        label: "剧本编辑" },
+  { href: "/interaction",icon: MousePointer,    label: "互动设计" },
+  { href: "/nodes",      icon: Network,         label: "节点图谱" },
+  { href: "/assets",     icon: Package,         label: "资产库"   },
+  { href: "/simulator",  icon: Play,            label: "演出预览" },
+  { href: "/overview",   icon: Activity,        label: "质检总览" },
+  { href: "/publish",    icon: Rocket,          label: "发布"     },
+  { href: "/collab",     icon: Users,           label: "协作", disabled: true },
 ];
 
 function isActive(href: string, path: string) {
@@ -34,7 +36,7 @@ function isActive(href: string, path: string) {
 /* ── 移动端底部导航 ─────────────────────────────────────────── */
 export function BottomNav() {
   const path = usePathname();
-  const visible = [NAV[0], NAV[2], NAV[4], NAV[5], NAV[6]];
+  const visible = [NAV[0], NAV[1], NAV[4], NAV[5], NAV[7]];
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-20 flex md:hidden"
       style={{ background:"#fff", borderTop:"1px solid #E2E5F0", paddingBottom:"env(safe-area-inset-bottom)" }}>

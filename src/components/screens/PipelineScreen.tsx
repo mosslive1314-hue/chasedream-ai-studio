@@ -1,0 +1,533 @@
+"use client";
+import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
+  ArrowRight, AlertCircle, ExternalLink, Clock, Zap,
+  Shield, Eye, ChevronLeft, Sparkles, CircleDot,
+} from "lucide-react";
+import Link from "next/link";
+import { PIPELINE_STAGES, type PipelineStage } from "@/lib/studio-data";
+
+const S = {
+  bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
+  border: "#E2E5F0", border2: "#CBD0E5",
+  primary: "#5E50E8", primary10: "rgba(94,80,232,0.10)", primary20: "rgba(94,80,232,0.20)",
+  accent: "#00A99D", accent10: "rgba(0,169,157,0.10)",
+  text: "#1A1D2E", text2: "#4A5068", text3: "#8892B0",
+  success: "#059669", success10: "rgba(5,150,105,0.10)",
+  warning: "#D97706", warning10: "rgba(217,119,6,0.10)",
+  error: "#DC2626", error10: "rgba(220,38,38,0.10)",
+};
+
+const STATUS_CFG: Record<PipelineStage['status'], { color: string; bg: string; label: string }> = {
+  completed: { color: S.success, bg: `${S.success}10`, label: '已完成' },
+  active:    { color: S.primary, bg: `${S.primary}10`, label: '进行中' },
+  upcoming:  { color: S.text3, bg: S.s2, label: '待开始' },
+  blocked:   { color: S.error, bg: `${S.error}10`, label: '阻塞' },
+};
+
+const LINK_LABELS: Record<string, string> = {
+  '/settings': '项目设置',
+  '/parse': '素材解构',
+  '/script': '剧本编辑',
+  '/nodes': '节点图谱',
+  '/assets': '资产管理',
+  '/simulator': '试玩预览',
+  '/overview': '项目概览',
+  '/publish': '发布管理',
+};
+
+// ── 阶段卡片组件 ────────────────────────────────────────────────────────
+function StageCard({ stage, isSelected, onClick }: {
+  stage: PipelineStage;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const cfg = STATUS_CFG[stage.status];
+  const isDone = stage.status === 'completed';
+  const isActive = stage.status === 'active';
+
+  return (
+    <motion.button
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.97 }}
+      onClick={onClick}
+      className="shrink-0 w-[160px] rounded-xl p-3 text-left focus:outline-none transition-shadow"
+      style={{
+        background: S.card,
+        border: `1.5px solid ${isSelected ? S.primary : S.border}`,
+        boxShadow: isSelected ? `0 0 0 3px ${S.primary10}` : '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
+      {/* Header: order + icon + status */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded"
+            style={{ background: S.s2, color: S.text3 }}>
+            {String(stage.order).padStart(2, '0')}
+          </span>
+          <span className="text-base">{stage.icon}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {stage.requiresHumanConfirm && (
+            <span className="text-[7px] font-bold px-1 py-0.5 rounded"
+              style={{ background: S.warning10, color: S.warning }}>
+              需确认
+            </span>
+          )}
+          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: cfg.bg, color: cfg.color }}>
+            {cfg.label}
+          </span>
+        </div>
+      </div>
+
+      {/* Name */}
+      <h4 className="text-[11px] font-bold mb-1.5 leading-tight" style={{ color: S.text }}>
+        {stage.name}
+      </h4>
+
+      {/* Progress bar */}
+      <div className="flex items-center gap-1.5">
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${stage.progress}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className="h-full rounded-full"
+            style={{
+              background: isDone ? S.success : isActive ? S.primary : stage.status === 'blocked' ? S.error : S.border2,
+            }}
+          />
+        </div>
+        <span className="text-[9px] font-mono font-bold" style={{ color: cfg.color }}>
+          {stage.progress}%
+        </span>
+      </div>
+
+      {/* Active pulse indicator */}
+      {isActive && (
+        <div className="flex items-center gap-1 mt-1.5">
+          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: S.primary }} />
+          <span className="text-[8px]" style={{ color: S.text3 }}>进行中</span>
+        </div>
+      )}
+    </motion.button>
+  );
+}
+
+// ── 详情面板组件 ────────────────────────────────────────────────────────
+function StageDetail({ stage }: { stage: PipelineStage }) {
+  const cfg = STATUS_CFG[stage.status];
+
+  return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.25, ease: 'easeInOut' }}
+      className="overflow-hidden"
+    >
+      <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+            style={{ background: cfg.bg }}>
+            {stage.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded"
+                style={{ background: S.s2, color: S.text3 }}>
+                阶段 {String(stage.order).padStart(2, '0')}
+              </span>
+              <h3 className="text-sm font-bold" style={{ color: S.text }}>{stage.name}</h3>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded"
+                style={{ background: cfg.bg, color: cfg.color }}>
+                {cfg.label}
+              </span>
+              {stage.requiresHumanConfirm && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-0.5"
+                  style={{ background: S.warning10, color: S.warning }}>
+                  <Shield size={9} /> 需人工确认
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] mt-0.5" style={{ color: S.text2 }}>{stage.description}</p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-lg font-mono font-black" style={{ color: cfg.color }}>{stage.progress}%</span>
+            <div className="h-1.5 w-20 rounded-full overflow-hidden mt-1" style={{ background: S.s3 }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${stage.progress}%` }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="h-full rounded-full"
+                style={{ background: cfg.color }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {/* Artifacts */}
+          <div className="p-3 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <CheckCircle2 size={11} style={{ color: S.success }} />
+              <span className="text-[10px] font-bold" style={{ color: S.text }}>已产出物</span>
+              <span className="text-[8px] font-mono px-1 py-0.5 rounded"
+                style={{ background: S.success10, color: S.success }}>
+                {stage.artifacts.length}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {stage.artifacts.map((a, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-[9px]" style={{ color: S.text2 }}>
+                  <div className="w-1 h-1 rounded-full shrink-0" style={{ background: S.success }} />
+                  {a}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Issues */}
+          <div className="p-3 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <AlertTriangle size={11} style={{ color: stage.issues.length > 0 ? S.warning : S.success }} />
+              <span className="text-[10px] font-bold" style={{ color: S.text }}>当前问题</span>
+              <span className="text-[8px] font-mono px-1 py-0.5 rounded"
+                style={{
+                  background: stage.issues.length > 0 ? S.warning10 : S.success10,
+                  color: stage.issues.length > 0 ? S.warning : S.success,
+                }}>
+                {stage.issues.length}
+              </span>
+            </div>
+            {stage.issues.length === 0 ? (
+              <div className="flex items-center gap-1.5 text-[9px]" style={{ color: S.success }}>
+                <CheckCircle2 size={9} />
+                无阻塞问题
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {stage.issues.map((issue, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-[9px]" style={{ color: S.warning }}>
+                    <AlertCircle size={9} className="shrink-0 mt-0.5" />
+                    <span style={{ color: S.text2 }}>{issue}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Next action + link */}
+        <div className="flex items-center justify-between mt-3 p-3 rounded-lg"
+          style={{ background: `linear-gradient(135deg,${S.primary}06,${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
+          <div className="flex items-center gap-2">
+            <Sparkles size={12} style={{ color: S.primary }} />
+            <div>
+              <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: S.text3 }}>下一步操作</span>
+              <p className="text-[10px] font-bold" style={{ color: S.text }}>{stage.nextAction}</p>
+            </div>
+          </div>
+          {stage.linkedPage && stage.status !== 'completed' && (
+            <Link href={stage.linkedPage}>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shrink-0 focus:outline-none"
+                style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}
+              >
+                前往{LINK_LABELS[stage.linkedPage] || stage.linkedPage} <ArrowRight size={11} />
+              </motion.button>
+            </Link>
+          )}
+          {stage.linkedPage && stage.status === 'completed' && (
+            <Link href={stage.linkedPage}>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold shrink-0 focus:outline-none"
+                style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}
+              >
+                查看{LINK_LABELS[stage.linkedPage] || stage.linkedPage} <ExternalLink size={10} />
+              </motion.button>
+            </Link>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── 阻塞问题汇总组件 ──────────────────────────────────────────────────
+function BlockingIssuesSummary() {
+  const stagesWithIssues = PIPELINE_STAGES.filter(s => s.issues.length > 0);
+  if (stagesWithIssues.length === 0) return null;
+
+  // Flatten and sort: blocked stages first, then active, then upcoming
+  const severityOrder: Record<PipelineStage['status'], number> = {
+    blocked: 0, active: 1, upcoming: 2, completed: 3,
+  };
+
+  const allIssues: { issue: string; stage: PipelineStage; severity: number }[] = [];
+  stagesWithIssues.forEach(stage => {
+    stage.issues.forEach(issue => {
+      allIssues.push({ issue, stage, severity: severityOrder[stage.status] });
+    });
+  });
+  allIssues.sort((a, b) => a.severity - b.severity);
+
+  return (
+    <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+          style={{ background: S.warning10 }}>
+          <AlertTriangle size={13} style={{ color: S.warning }} />
+        </div>
+        <div>
+          <h3 className="text-xs font-bold" style={{ color: S.text }}>阻塞与建议</h3>
+          <p className="text-[9px]" style={{ color: S.text3 }}>
+            {allIssues.length} 项待处理问题，按严重程度排序
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {allIssues.map((item, i) => {
+          const cfg = STATUS_CFG[item.stage.status];
+          return (
+            <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg"
+              style={{
+                background: item.severity === 0 ? S.error10 : item.severity === 1 ? S.warning10 : S.s2,
+                border: `1px solid ${item.severity === 0 ? `${S.error}20` : item.severity === 1 ? `${S.warning}20` : S.border}`,
+              }}>
+              {item.severity === 0
+                ? <AlertCircle size={11} style={{ color: S.error, marginTop: 1, flexShrink: 0 }} />
+                : <AlertTriangle size={11} style={{ color: S.warning, marginTop: 1, flexShrink: 0 }} />}
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-bold" style={{ color: S.text }}>{item.issue}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[8px] px-1 py-0.5 rounded"
+                    style={{ background: cfg.bg, color: cfg.color }}>
+                    {item.stage.icon} {item.stage.name}
+                  </span>
+                  {item.stage.linkedPage && (
+                    <Link href={item.stage.linkedPage} className="text-[8px] flex items-center gap-0.5"
+                      style={{ color: S.primary }}>
+                      前往处理 <ExternalLink size={7} />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── 主页面 ──────────────────────────────────────────────────────────────
+export default function PipelineScreen() {
+  const [selectedId, setSelectedId] = useState<string | null>('stage-06');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const selected = PIPELINE_STAGES.find(s => s.id === selectedId) ?? null;
+
+  const completedCount = PIPELINE_STAGES.filter(s => s.status === 'completed').length;
+  const activeCount = PIPELINE_STAGES.filter(s => s.status === 'active').length;
+  const upcomingCount = PIPELINE_STAGES.filter(s => s.status === 'upcoming').length;
+  const blockedCount = PIPELINE_STAGES.filter(s => s.status === 'blocked').length;
+
+  const totalProgress = Math.round(
+    PIPELINE_STAGES.reduce((sum, s) => sum + s.progress, 0) / PIPELINE_STAGES.length
+  );
+
+  const handleScroll = (dir: 'left' | 'right') => {
+    if (!scrollRef.current) return;
+    const amount = dir === 'left' ? -200 : 200;
+    scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
+
+      {/* ── 顶部概览条 ── */}
+      <div className="sticky top-0 z-20 px-5 py-3"
+        style={{ background: 'rgba(250,251,255,0.92)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${S.border}` }}>
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: `linear-gradient(135deg,${S.primary},${S.accent})` }}>
+                <Zap size={15} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold" style={{ color: S.text }}>制作管线</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[9px] flex items-center gap-0.5" style={{ color: S.success }}>
+                    <CheckCircle2 size={9} /> {completedCount} 已完成
+                  </span>
+                  <span className="text-[9px] flex items-center gap-0.5" style={{ color: S.primary }}>
+                    <CircleDot size={9} /> {activeCount} 进行中
+                  </span>
+                  <span className="text-[9px] flex items-center gap-0.5" style={{ color: S.text3 }}>
+                    <Clock size={9} /> {upcomingCount} 待开始
+                  </span>
+                  {blockedCount > 0 && (
+                    <span className="text-[9px] flex items-center gap-0.5" style={{ color: S.error }}>
+                      <AlertCircle size={9} /> {blockedCount} 阻塞
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px]" style={{ color: S.text3 }}>总进度</span>
+                  <div className="h-2 w-32 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${totalProgress}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      className="h-full rounded-full"
+                      style={{ background: `linear-gradient(to right,${S.primary},${S.accent})` }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono font-black" style={{ color: S.primary }}>{totalProgress}%</span>
+                </div>
+                <span className="text-[8px]" style={{ color: S.text3 }}>
+                  12 阶段 / {completedCount} 完成 / {activeCount} 活跃
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-5 py-5 space-y-5">
+
+        {/* ── 管线流程图 ── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Eye size={14} style={{ color: S.primary }} />
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>12 阶段生产管线</h3>
+              <span className="text-[9px]" style={{ color: S.text3 }}>点击阶段查看详情</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <motion.button whileTap={{ scale: 0.9 }}
+                onClick={() => handleScroll('left')}
+                className="w-7 h-7 rounded-lg flex items-center justify-center focus:outline-none"
+                style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                <ChevronLeft size={14} style={{ color: S.text3 }} />
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.9 }}
+                onClick={() => handleScroll('right')}
+                className="w-7 h-7 rounded-lg flex items-center justify-center focus:outline-none"
+                style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                <ChevronRight size={14} style={{ color: S.text3 }} />
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Scrollable card row */}
+          <div className="relative">
+            {/* Connection line */}
+            <div className="absolute top-1/2 left-0 right-0 h-px -translate-y-1/2 pointer-events-none z-0"
+              style={{ background: `linear-gradient(to right,${S.success},${S.primary},${S.text3}40)` }} />
+
+            <div
+              ref={scrollRef}
+              className="flex gap-3 overflow-x-auto pb-3 pt-1 px-1 relative z-10"
+              style={{ scrollbarWidth: 'thin', scrollbarColor: `${S.border2} transparent` }}
+            >
+              {PIPELINE_STAGES.map((stage, i) => (
+                <div key={stage.id} className="flex items-center gap-1.5">
+                  <StageCard
+                    stage={stage}
+                    isSelected={selectedId === stage.id}
+                    onClick={() => setSelectedId(selectedId === stage.id ? null : stage.id)}
+                  />
+                  {i < PIPELINE_STAGES.length - 1 && (
+                    <ArrowRight size={12} className="shrink-0" style={{ color: S.border2 }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Status legend */}
+          <div className="flex items-center gap-4 mt-2 justify-center">
+            {Object.entries(STATUS_CFG).map(([key, cfg]) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.color }} />
+                <span className="text-[9px]" style={{ color: S.text3 }}>{cfg.label}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: S.warning10, color: S.warning }}>需确认</span>
+              <span className="text-[9px]" style={{ color: S.text3 }}>需人工审核</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 展开的详情面板 ── */}
+        <AnimatePresence mode="wait">
+          {selected && (
+            <div key={selected.id}>
+              <StageDetail stage={selected} />
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* ── 底部阻塞问题汇总 ── */}
+        <BlockingIssuesSummary />
+
+        {/* ── 管线快速导航 ── */}
+        <div className="rounded-xl p-4"
+          style={{ background: `linear-gradient(135deg,${S.primary}08,${S.accent}08)`, border: `1px solid ${S.primary}20` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={14} style={{ color: S.primary }} />
+            <h3 className="text-xs font-bold" style={{ color: S.text }}>快速导航</h3>
+            <span className="text-[9px]" style={{ color: S.text3 }}>各阶段关联页面</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {PIPELINE_STAGES.filter(s => s.linkedPage).map(stage => {
+              const cfg = STATUS_CFG[stage.status];
+              return (
+                <Link key={stage.id} href={stage.linkedPage!}>
+                  <motion.div
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer"
+                    style={{ background: S.card, border: `1px solid ${S.border}` }}
+                  >
+                    <span className="text-sm">{stage.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-bold truncate" style={{ color: S.text }}>
+                          {LINK_LABELS[stage.linkedPage!] || stage.linkedPage}
+                        </span>
+                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
+                      </div>
+                      <span className="text-[8px]" style={{ color: S.text3 }}>{stage.name}</span>
+                    </div>
+                    <ExternalLink size={9} style={{ color: S.text3 }} />
+                  </motion.div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="h-6" />
+      </div>
+    </div>
+  );
+}

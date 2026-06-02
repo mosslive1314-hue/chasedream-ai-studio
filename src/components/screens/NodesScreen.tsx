@@ -10,10 +10,10 @@ import {
   Monitor, Star, Download, Wand2,
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings,
-  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy
+  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3, Scale
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, STAGE_CHECKS, NARRATIVE_INTENTS, GAME_VARIABLES, HEATMAP_DATA, type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent } from "@/lib/studio-data";
+import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, STAGE_CHECKS, NARRATIVE_INTENTS, GAME_VARIABLES, GAME_CHARACTERS, HEATMAP_DATA, BRANCH_PATHS, type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent } from "@/lib/studio-data";
 
 const S = {
   bg:      "#F5F6FA",
@@ -33,7 +33,7 @@ const S = {
 };
 
 // ── 顶部 Tab 定义（完全对齐截图：剧本/画布/热力图/故事/角色/资产）──────────
-type TabId = "script"|"canvas"|"heatmap"|"story"|"character"|"assets"|"ui";
+type TabId = "script"|"canvas"|"heatmap"|"story"|"character"|"assets"|"ui"|"variables";
 const TABS: { id:TabId; label:string; icon:any }[] = [
   { id:"script",    label:"剧本",   icon:FileText  },
   { id:"canvas",    label:"画布",   icon:AlignLeft },
@@ -42,6 +42,7 @@ const TABS: { id:TabId; label:string; icon:any }[] = [
   { id:"character", label:"角色",   icon:User      },
   { id:"assets",    label:"资产",   icon:Package   },
   { id:"ui",        label:"用户界面", icon:Monitor },
+  { id:"variables", label:"变量",   icon:BarChart3 },
 ];
 
 // ── 节点类型配色（对齐原站颜色风格）────────────────────────────────────────
@@ -267,8 +268,399 @@ function HeatmapContent() {
   );
 }
 
+// ── 路径对比组件 ────────────────────────────────────────────────────────────
+function PathComparison({ pathA, pathB }: { pathA: typeof BRANCH_PATHS[0]; pathB: typeof BRANCH_PATHS[0] }) {
+  const sharedNodes = pathA.nodes.filter((n: string) => pathB.nodes.includes(n));
+  const uniqueToA = pathA.nodes.filter((n: string) => !pathB.nodes.includes(n));
+  const uniqueToB = pathB.nodes.filter((n: string) => !pathA.nodes.includes(n));
+  const divergePoint = sharedNodes[sharedNodes.length - 1];
+
+  const getNodeInfo = (id: string) => STORY_NODES.find(n => n.id === id);
+
+  return (
+    <div className="space-y-3">
+      {/* 路径概览对比 */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="p-3 rounded-xl" style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="w-2 h-2 rounded-full" style={{ background: S.primary }} />
+            <span className="text-[10px] font-bold" style={{ color: S.primary }}>{pathA.label}</span>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-[9px]" style={{ color: S.text3 }}>节点数</span>
+              <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>{pathA.nodes.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[9px]" style={{ color: S.text3 }}>结局</span>
+              <span className="text-[10px] font-bold" style={{ color: pathA.type === "good" ? S.success : S.error }}>{pathA.ending}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[9px]" style={{ color: S.text3 }}>类型</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: pathA.type === "good" ? `${S.success}15` : `${S.error}15`, color: pathA.type === "good" ? S.success : S.error }}>
+                {pathA.type === "good" ? "好结局" : "坏结局"}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="p-3 rounded-xl" style={{ background: `${S.accent}06`, border: `1px solid ${S.accent}20` }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="w-2 h-2 rounded-full" style={{ background: S.accent }} />
+            <span className="text-[10px] font-bold" style={{ color: S.accent }}>{pathB.label}</span>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-[9px]" style={{ color: S.text3 }}>节点数</span>
+              <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>{pathB.nodes.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[9px]" style={{ color: S.text3 }}>结局</span>
+              <span className="text-[10px] font-bold" style={{ color: pathB.type === "good" ? S.success : S.error }}>{pathB.ending}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[9px]" style={{ color: S.text3 }}>类型</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: pathB.type === "good" ? `${S.success}15` : `${S.error}15`, color: pathB.type === "good" ? S.success : S.error }}>
+                {pathB.type === "good" ? "好结局" : "坏结局"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 并排路径节点流 */}
+      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        <h4 className="text-[10px] font-bold mb-3" style={{ color: S.text }}>路径节点对比</h4>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Path A */}
+          <div className="space-y-1">
+            {pathA.nodes.map((nodeId: string, i: number) => {
+              const node = getNodeInfo(nodeId);
+              const isShared = sharedNodes.includes(nodeId);
+              const isDiverge = nodeId === divergePoint;
+              return (
+                <div key={nodeId} className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-mono w-3" style={{ color: S.text3 }}>{i + 1}</span>
+                  <div className="flex-1 flex items-center gap-1 px-2 py-1 rounded-lg"
+                    style={{
+                      background: isDiverge ? `${S.warning}12` : isShared ? S.s2 : `${S.primary}08`,
+                      border: isDiverge ? `1px solid ${S.warning}40` : `1px solid ${isShared ? S.border : `${S.primary}25`}`,
+                    }}>
+                    {isDiverge && <GitBranch size={8} style={{ color: S.warning }} />}
+                    <span className="text-[9px] font-mono" style={{ color: isDiverge ? S.warning : isShared ? S.text3 : S.primary }}>{nodeId}</span>
+                    <span className="text-[9px] truncate" style={{ color: isDiverge ? S.warning : isShared ? S.text2 : S.text }}>
+                      {node?.label || nodeId}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Path B */}
+          <div className="space-y-1">
+            {pathB.nodes.map((nodeId: string, i: number) => {
+              const node = getNodeInfo(nodeId);
+              const isShared = sharedNodes.includes(nodeId);
+              const isDiverge = nodeId === divergePoint;
+              return (
+                <div key={nodeId} className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-mono w-3" style={{ color: S.text3 }}>{i + 1}</span>
+                  <div className="flex-1 flex items-center gap-1 px-2 py-1 rounded-lg"
+                    style={{
+                      background: isDiverge ? `${S.warning}12` : isShared ? S.s2 : `${S.accent}08`,
+                      border: isDiverge ? `1px solid ${S.warning}40` : `1px solid ${isShared ? S.border : `${S.accent}25`}`,
+                    }}>
+                    {isDiverge && <GitBranch size={8} style={{ color: S.warning }} />}
+                    <span className="text-[9px] font-mono" style={{ color: isDiverge ? S.warning : isShared ? S.text3 : S.accent }}>{nodeId}</span>
+                    <span className="text-[9px] truncate" style={{ color: isDiverge ? S.warning : isShared ? S.text2 : S.text }}>
+                      {node?.label || nodeId}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 分叉点与统计 */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="p-3 rounded-xl" style={{ background: `${S.warning}06`, border: `1px solid ${S.warning}20` }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <GitBranch size={12} style={{ color: S.warning }} />
+            <span className="text-[10px] font-bold" style={{ color: S.warning }}>分叉点</span>
+          </div>
+          <p className="text-[10px] font-bold" style={{ color: S.text }}>
+            {divergePoint} - {getNodeInfo(divergePoint)?.label}
+          </p>
+          <p className="text-[9px] mt-1" style={{ color: S.text3 }}>
+            两条路径在此节点后开始分歧
+          </p>
+        </div>
+        <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <span className="text-[10px] font-bold block mb-2" style={{ color: S.text }}>路径长度对比</span>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <div className="h-6 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono"
+                style={{ background: `${S.primary}15`, color: S.primary }}>
+                {pathA.nodes.length} 节点
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="h-6 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono"
+                style={{ background: `${S.accent}15`, color: S.accent }}>
+                {pathB.nodes.length} 节点
+              </div>
+            </div>
+          </div>
+          <p className="text-[9px] mt-1.5 text-center" style={{ color: S.text3 }}>
+            差异: {Math.abs(pathA.nodes.length - pathB.nodes.length)} 节点
+          </p>
+        </div>
+      </div>
+
+      {/* 共享与独有节点列表 */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <span className="text-[9px] font-bold block mb-2" style={{ color: S.text3 }}>共享节点 ({sharedNodes.length})</span>
+          <div className="flex flex-wrap gap-1">
+            {sharedNodes.map(id => (
+              <span key={id} className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text2 }}>
+                {id}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="p-3 rounded-xl" style={{ background: `${S.primary}04`, border: `1px solid ${S.primary}15` }}>
+          <span className="text-[9px] font-bold block mb-2" style={{ color: S.primary }}>路径 A 独有 ({uniqueToA.length})</span>
+          <div className="flex flex-wrap gap-1">
+            {uniqueToA.map(id => (
+              <span key={id} className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
+                {id} {getNodeInfo(id)?.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="p-3 rounded-xl" style={{ background: `${S.accent}04`, border: `1px solid ${S.accent}15` }}>
+          <span className="text-[9px] font-bold block mb-2" style={{ color: S.accent }}>路径 B 独有 ({uniqueToB.length})</span>
+          <div className="flex flex-wrap gap-1">
+            {uniqueToB.map(id => (
+              <span key={id} className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>
+                {id} {getNodeInfo(id)?.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 分支平衡分析组件 ──────────────────────────────────────────────────────
+function BranchBalanceAnalysis() {
+  const branchMetrics = BRANCH_PATHS.map(path => ({
+    label: path.label,
+    nodeCount: path.nodes.length,
+    ending: path.ending,
+    endingType: path.type,
+    nodes: path.nodes,
+  }));
+
+  const totalNodes = STORY_NODES.length;
+  const choiceNodes = STORY_NODES.filter(n => n.type === "choice");
+  const conditionNodes = STORY_NODES.filter(n => n.type === "condition");
+  const endingNodes = STORY_NODES.filter(n => n.type === "ending_good" || n.type === "ending_bad");
+
+  // Balance score calculation
+  const lengthDiff = Math.abs(branchMetrics[0].nodeCount - branchMetrics[1].nodeCount);
+  const maxLen = Math.max(...branchMetrics.map(m => m.nodeCount));
+  const lengthBalance = Math.round((1 - lengthDiff / maxLen) * 100);
+  const endingDiversity = endingNodes.length >= 3 ? 100 : endingNodes.length >= 2 ? 70 : 40;
+  const choiceRichness = choiceNodes.length >= 3 ? 100 : choiceNodes.length >= 2 ? 75 : 50;
+  const balanceScore = Math.round((lengthBalance * 0.4 + endingDiversity * 0.3 + choiceRichness * 0.3));
+
+  // Ending probability estimation
+  const totalEndingPaths = BRANCH_PATHS.length;
+  const endingProbabilities = BRANCH_PATHS.map(path => ({
+    ending: path.ending,
+    type: path.type,
+    probability: Math.round(100 / totalEndingPaths),
+  }));
+
+  // Suggestions
+  const suggestions: { text: string; type: "warn" | "info" }[] = [];
+  if (lengthDiff > 3) {
+    const shorter = branchMetrics[0].nodeCount < branchMetrics[1].nodeCount ? branchMetrics[0] : branchMetrics[1];
+    suggestions.push({ text: `${shorter.label} 较短，建议增加 1-2 个独有节点`, type: "warn" });
+  }
+  if (endingNodes.length <= 2) {
+    suggestions.push({ text: "考虑增加隐藏结局提升重玩价值", type: "info" });
+  }
+  if (choiceNodes.length <= 1) {
+    suggestions.push({ text: "选择点过少，建议在中间章节增加互动点", type: "warn" });
+  }
+  if (conditionNodes.length === 0) {
+    suggestions.push({ text: "缺少条件判定节点，建议增加变量驱动的分支判定", type: "info" });
+  }
+
+  const scoreColor = balanceScore >= 80 ? S.success : balanceScore >= 60 ? S.warning : S.error;
+
+  return (
+    <div className="space-y-3">
+      {/* 平衡度评分 */}
+      <div className="p-3 rounded-xl flex items-center gap-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        <div className="relative w-16 h-16 shrink-0">
+          <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="28" fill="none" stroke={S.s2} strokeWidth="5" />
+            <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5"
+              strokeDasharray={`${(balanceScore / 100) * 175.9} 175.9`} strokeLinecap="round" />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm font-black font-mono" style={{ color: scoreColor }}>{balanceScore}</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <span className="text-[10px] font-bold block mb-1" style={{ color: S.text }}>分支平衡度评分</span>
+          <div className="space-y-1">
+            <div className="flex justify-between text-[9px]">
+              <span style={{ color: S.text3 }}>路径长度均衡</span>
+              <span style={{ color: lengthBalance >= 80 ? S.success : S.warning }}>{lengthBalance}%</span>
+            </div>
+            <div className="flex justify-between text-[9px]">
+              <span style={{ color: S.text3 }}>结局多样性</span>
+              <span style={{ color: endingDiversity >= 80 ? S.success : S.warning }}>{endingDiversity}%</span>
+            </div>
+            <div className="flex justify-between text-[9px]">
+              <span style={{ color: S.text3 }}>选择丰富度</span>
+              <span style={{ color: choiceRichness >= 80 ? S.success : S.warning }}>{choiceRichness}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 分支长度对比条形图 */}
+      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        <h4 className="text-[10px] font-bold mb-3 flex items-center gap-1.5" style={{ color: S.text }}>
+          <BarChart3 size={12} style={{ color: S.primary }} />
+          分支长度对比
+        </h4>
+        <div className="space-y-2">
+          {branchMetrics.map((m, i) => {
+            const barColor = i === 0 ? S.primary : S.accent;
+            const widthPct = (m.nodeCount / totalNodes) * 100;
+            return (
+              <div key={i} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-medium" style={{ color: S.text2 }}>{m.label}</span>
+                  <span className="text-[9px] font-mono font-bold" style={{ color: barColor }}>{m.nodeCount} 节点</span>
+                </div>
+                <div className="h-4 rounded-full overflow-hidden" style={{ background: S.s2 }}>
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${widthPct}%` }}
+                    transition={{ duration: 0.6, delay: i * 0.1 }}
+                    className="h-full rounded-full flex items-center justify-end pr-1.5"
+                    style={{ background: barColor, opacity: 0.75 }}>
+                    <span className="text-[8px] font-bold text-white">{m.ending}</span>
+                  </motion.div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 选择分布分析 */}
+      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text }}>
+          <GitBranch size={12} style={{ color: S.warning }} />
+          选择分布分析
+        </h4>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="p-2 rounded-lg text-center" style={{ background: S.s2 }}>
+            <div className="text-sm font-black font-mono" style={{ color: S.warning }}>{choiceNodes.length}</div>
+            <div className="text-[8px]" style={{ color: S.text3 }}>选择节点</div>
+          </div>
+          <div className="p-2 rounded-lg text-center" style={{ background: S.s2 }}>
+            <div className="text-sm font-black font-mono" style={{ color: S.accent }}>{conditionNodes.length}</div>
+            <div className="text-[8px]" style={{ color: S.text3 }}>条件节点</div>
+          </div>
+          <div className="p-2 rounded-lg text-center" style={{ background: S.s2 }}>
+            <div className="text-sm font-black font-mono" style={{ color: S.primary }}>{endingNodes.length}</div>
+            <div className="text-[8px]" style={{ color: S.text3 }}>结局节点</div>
+          </div>
+        </div>
+        <div className="mt-2 space-y-1">
+          {choiceNodes.map(cn => {
+            const edges = NODE_EDGES.filter(e => e.from === cn.id);
+            return (
+              <div key={cn.id} className="flex items-center gap-2 p-1.5 rounded-lg" style={{ background: S.s2 }}>
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
+                  {cn.id}
+                </span>
+                <span className="text-[9px]" style={{ color: S.text2 }}>{cn.label}</span>
+                <span className="text-[8px] ml-auto" style={{ color: S.text3 }}>{edges.length} 个选项</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 结局概率估算 */}
+      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text }}>
+          <Target size={12} style={{ color: S.accent }} />
+          结局概率估算
+        </h4>
+        <p className="text-[8px] mb-2" style={{ color: S.text3 }}>基于路径结构等概率估算（非实际游玩数据）</p>
+        <div className="space-y-1.5">
+          {endingProbabilities.map((ep, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[9px] w-20 truncate shrink-0" style={{ color: S.text2 }}>{ep.ending}</span>
+              <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: S.s2 }}>
+                <motion.div initial={{ width: 0 }} animate={{ width: `${ep.probability}%` }}
+                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                  className="h-full rounded-full"
+                  style={{ background: ep.type === "good" ? S.success : S.error, opacity: 0.7 }} />
+              </div>
+              <span className="text-[9px] font-bold font-mono w-8 text-right shrink-0" style={{ color: ep.type === "good" ? S.success : S.error }}>
+                {ep.probability}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 改进建议 */}
+      {suggestions.length > 0 && (
+        <div className="p-3 rounded-xl" style={{ background: `${S.warning}04`, border: `1px solid ${S.warning}20` }}>
+          <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.warning }}>
+            <Sparkles size={12} />
+            改进建议
+          </h4>
+          <div className="space-y-1.5">
+            {suggestions.map((s, i) => (
+              <div key={i} className="flex items-start gap-1.5 p-2 rounded-lg"
+                style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <span className="text-[9px] mt-0.5 shrink-0" style={{ color: s.type === "warn" ? S.warning : S.primary }}>
+                  {s.type === "warn" ? "!" : "i"}
+                </span>
+                <span className="text-[9px]" style={{ color: S.text2 }}>{s.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 故事 Tab ──────────────────────────────────────────────────────────────
 function StoryContent() {
+  const [comparePathA, setComparePathA] = useState<string>(BRANCH_PATHS[0]?.id || "");
+  const [comparePathB, setComparePathB] = useState<string>(BRANCH_PATHS[1]?.id || "");
+  const [showComparison, setShowComparison] = useState(false);
+
+  const pathA = BRANCH_PATHS.find(p => p.id === comparePathA);
+  const pathB = BRANCH_PATHS.find(p => p.id === comparePathB);
+
   return (
     <div className="p-4 space-y-3 overflow-y-auto h-full">
       <h3 className="text-sm font-bold" style={{ color:S.text }}>故事设定</h3>
@@ -282,6 +674,64 @@ function StoryContent() {
           <p className="text-xs leading-relaxed" style={{ color:S.text2 }}>{item.value}</p>
         </div>
       ))}
+
+      {/* 路径对比工具 */}
+      <div className="pt-2">
+        <div className="flex items-center gap-2 mb-3">
+          <Scale size={14} style={{ color: S.primary }} />
+          <h3 className="text-sm font-bold" style={{ color: S.text }}>路径对比工具</h3>
+        </div>
+        <div className="p-3 rounded-xl space-y-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] font-bold block mb-1" style={{ color: S.text3 }}>路径 A</label>
+              <select value={comparePathA} onChange={e => { setComparePathA(e.target.value); setShowComparison(false); }}
+                className="w-full px-2 py-1.5 rounded-lg text-[10px] focus:outline-none"
+                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                {BRANCH_PATHS.map(p => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-bold block mb-1" style={{ color: S.text3 }}>路径 B</label>
+              <select value={comparePathB} onChange={e => { setComparePathB(e.target.value); setShowComparison(false); }}
+                className="w-full px-2 py-1.5 rounded-lg text-[10px] focus:outline-none"
+                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                {BRANCH_PATHS.map(p => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <motion.button whileTap={{ scale: 0.97 }}
+            onClick={() => setShowComparison(true)}
+            className="w-full py-2 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1.5 focus:outline-none"
+            style={{ background: S.primary }}>
+            <GitBranch size={12} /> 开始对比
+          </motion.button>
+        </div>
+
+        {showComparison && pathA && pathB && pathA.id !== pathB.id && (
+          <div className="mt-3">
+            <PathComparison pathA={pathA} pathB={pathB} />
+          </div>
+        )}
+        {showComparison && pathA && pathB && pathA.id === pathB.id && (
+          <div className="mt-3 p-3 rounded-xl text-center" style={{ background: `${S.warning}06`, border: `1px solid ${S.warning}20` }}>
+            <p className="text-[10px]" style={{ color: S.warning }}>请选择两条不同的路径进行对比</p>
+          </div>
+        )}
+      </div>
+
+      {/* 分支平衡分析 */}
+      <div className="pt-2">
+        <div className="flex items-center gap-2 mb-3">
+          <BarChart3 size={14} style={{ color: S.accent }} />
+          <h3 className="text-sm font-bold" style={{ color: S.text }}>分支平衡分析</h3>
+        </div>
+        <BranchBalanceAnalysis />
+      </div>
     </div>
   );
 }
@@ -362,14 +812,52 @@ function AssetsContent() {
   );
 }
 
+// ── 诊断视图类型 ──────────────────────────────────────────────────────────────
+type DiagView = 'all' | 'mainline' | 'branch' | 'ending' | 'problem' | 'variable' | 'character';
+
 // ── 主节点画布（对齐原站 React Flow 风格）──────────────────────────────────
-function CanvasContent({ sel, setSel, nodeFilter }: { sel:string|null; setSel:(id:string|null)=>void; nodeFilter:string }) {
+function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null; setSel:(id:string|null)=>void; nodeFilter:string; diagView:DiagView }) {
   const filteredNodes = STORY_NODES.filter(node => {
     if (nodeFilter === "all") return true;
     if (nodeFilter === "error") return (node as any).hasError;
     if (nodeFilter === "ending") return node.type === "ending_good" || node.type === "ending_bad";
     return node.type === nodeFilter;
   });
+
+  // 诊断视图高亮节点计算
+  const highlightedNodeIds = ((): Set<string> => {
+    if (diagView === 'all') return new Set(STORY_NODES.map(n => n.id));
+    switch (diagView) {
+      case 'mainline':
+        return new Set(['N01','N02','N03','N04','N06','N07','N08','N10']);
+      case 'branch': {
+        const ids = new Set(['N03','N07']);
+        NODE_EDGES.filter(e => e.from === 'N03' || e.from === 'N07').forEach(e => ids.add(e.to));
+        return ids;
+      }
+      case 'ending': {
+        const ids = new Set(['N08','N09','N10','N11']);
+        NODE_EDGES.filter(e => e.to === 'N10' || e.to === 'N11').forEach(e => ids.add(e.from));
+        return ids;
+      }
+      case 'problem':
+        return new Set(STORY_NODES.filter(n => (n as any).hasError).map(n => n.id));
+      case 'variable': {
+        const ids = new Set<string>();
+        GAME_VARIABLES.forEach(v => { v.modifiedBy.forEach(id => ids.add(id)); v.readBy.forEach(id => ids.add(id)); });
+        return ids;
+      }
+      case 'character': {
+        const ids = new Set<string>();
+        GAME_CHARACTERS.forEach(c => c.appearNodes.forEach(id => ids.add(id)));
+        return ids;
+      }
+      default:
+        return new Set(STORY_NODES.map(n => n.id));
+    }
+  })();
+
+  const getNodeLabel = (id: string) => STORY_NODES.find(n => n.id === id)?.label || id;
 
   return (
     <div className="relative w-full h-full overflow-auto"
@@ -387,6 +875,116 @@ function CanvasContent({ sel, setSel, nodeFilter }: { sel:string|null; setSel:(i
           ≡ 整理布局
         </motion.button>
       </div>
+
+      {/* 诊断信息面板 */}
+      {diagView !== 'all' && (
+        <div className="absolute top-3 left-3 z-20 w-[260px] p-3 rounded-xl"
+          style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 2px 12px rgba(0,0,0,0.08)", maxHeight: 220, overflowY: 'auto' }}>
+          <p className="text-[10px] font-bold mb-2" style={{ color: S.primary }}>
+            {diagView === 'mainline' && '📍 主线路径'}
+            {diagView === 'branch' && '🔀 分支视图'}
+            {diagView === 'ending' && '🏁 结局视图'}
+            {diagView === 'problem' && '⚠️ 问题视图'}
+            {diagView === 'variable' && '📊 变量视图'}
+            {diagView === 'character' && '👤 角色视图'}
+          </p>
+          {diagView === 'mainline' && (
+            <div className="space-y-1">
+              {['N01','N02','N03','N04','N06','N07','N08','N10'].map((id, i) => (
+                <div key={id} className="flex items-center gap-1.5">
+                  <span className="text-[8px] font-mono w-4 text-right" style={{ color: S.text3 }}>{i+1}</span>
+                  <span className="text-[9px] font-mono px-1 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>{id}</span>
+                  <span className="text-[9px]" style={{ color: S.text2 }}>{getNodeLabel(id)}</span>
+                </div>
+              ))}
+              <div className="mt-1 pt-1" style={{ borderTop: `1px solid ${S.border}` }}>
+                <span className="text-[8px]" style={{ color: S.success }}>✓ 主线 8 节点连通正常</span>
+              </div>
+            </div>
+          )}
+          {diagView === 'branch' && (
+            <div className="space-y-1.5">
+              {[{ id: 'N03', options: ['N04 暗夜通道', 'N05 换装渗透'] }, { id: 'N07', options: ['N08 数据到手 (成功)', 'N09 身份暴露 (失败)'] }].map(bp => (
+                <div key={bp.id} className="p-1.5 rounded-lg" style={{ background: S.s2 }}>
+                  <span className="text-[9px] font-bold" style={{ color: S.text }}>
+                    {bp.id} {getNodeLabel(bp.id)}
+                  </span>
+                  <div className="mt-0.5 space-y-0.5">
+                    {bp.options.map((opt, i) => (
+                      <div key={i} className="text-[8px] flex items-center gap-1" style={{ color: S.text3 }}>
+                        <span style={{ color: S.warning }}>→</span> {opt}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {diagView === 'ending' && (
+            <div className="space-y-1.5">
+              <div className="p-1.5 rounded-lg" style={{ background: `${S.success}08`, border: `1px solid ${S.success}20` }}>
+                <span className="text-[9px] font-bold" style={{ color: S.success }}>N10 结局A 幽灵归来 (好)</span>
+                <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>路径: N08 数据到手 → N10</p>
+                <p className="text-[8px]" style={{ color: S.text3 }}>条件: 潜行判定成功</p>
+              </div>
+              <div className="p-1.5 rounded-lg" style={{ background: `${S.error}08`, border: `1px solid ${S.error}20` }}>
+                <span className="text-[9px] font-bold" style={{ color: S.error }}>N11 今夜失败 (坏)</span>
+                <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>路径: N09 身份暴露 → N11</p>
+                <p className="text-[8px]" style={{ color: S.text3 }}>条件: 潜行判定失败</p>
+              </div>
+            </div>
+          )}
+          {diagView === 'problem' && (
+            <div className="space-y-1.5">
+              {STORY_NODES.filter(n => (n as any).hasError).map(node => (
+                <div key={node.id} className="p-1.5 rounded-lg" style={{ background: `${S.error}08`, border: `1px solid ${S.error}20` }}>
+                  <div className="flex items-center gap-1">
+                    <AlertTriangle size={9} style={{ color: S.error }} />
+                    <span className="text-[9px] font-bold" style={{ color: S.error }}>{node.id} {node.label}</span>
+                  </div>
+                  <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{(node as any).errorMsg || '未知错误'}</p>
+                </div>
+              ))}
+              {STORY_NODES.filter(n => (n as any).hasError).length === 0 && (
+                <span className="text-[9px]" style={{ color: S.success }}>✓ 暂无问题节点</span>
+              )}
+            </div>
+          )}
+          {diagView === 'variable' && (
+            <div className="space-y-1.5">
+              {GAME_VARIABLES.map(v => (
+                <div key={v.id} className="p-1.5 rounded-lg" style={{ background: S.s2 }}>
+                  <span className="text-[9px] font-bold" style={{ color: S.text }}>{v.label}</span>
+                  <div className="text-[8px] mt-0.5" style={{ color: S.text3 }}>
+                    修改: {v.modifiedBy.map(id => getNodeLabel(id)).join(', ')}
+                  </div>
+                  <div className="text-[8px]" style={{ color: S.text3 }}>
+                    读取: {v.readBy.map(id => getNodeLabel(id)).join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {diagView === 'character' && (
+            <div className="space-y-1.5">
+              {GAME_CHARACTERS.map(c => (
+                <div key={c.id} className="p-1.5 rounded-lg" style={{ background: S.s2 }}>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px]">{c.emoji}</span>
+                    <span className="text-[9px] font-bold" style={{ color: S.text }}>{c.name}</span>
+                    <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: `${c.color}15`, color: c.color }}>{c.role}</span>
+                  </div>
+                  <div className="text-[8px] mt-0.5 flex flex-wrap gap-0.5">
+                    {c.appearNodes.map(id => (
+                      <span key={id} className="font-mono px-1 py-0.5 rounded" style={{ background: `${c.color}10`, color: c.color }}>{id}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 缩放控件 */}
       <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1">
@@ -416,7 +1014,8 @@ function CanvasContent({ sel, setSel, nodeFilter }: { sel:string|null; setSel:(i
             return (
               <path key={i}
                 d={`M ${x1},${y1} C ${x1},${cy} ${x2},${cy} ${x2},${y2}`}
-                fill="none" stroke={S.primary} strokeWidth={1.5} opacity={0.35}
+                fill="none" stroke={S.primary} strokeWidth={1.5}
+                opacity={diagView !== 'all' && (!highlightedNodeIds.has(edge.from) || !highlightedNodeIds.has(edge.to)) ? 0.08 : 0.35}
                 markerEnd="url(#arr)"
               />
             );
@@ -426,6 +1025,8 @@ function CanvasContent({ sel, setSel, nodeFilter }: { sel:string|null; setSel:(i
         {filteredNodes.map(node => {
           const cfg = NODE_TYPE[node.type] ?? NODE_TYPE.scene;
           const isSelected = sel===node.id;
+          const isHighlighted = highlightedNodeIds.has(node.id);
+          const nodeOpacity = (diagView !== 'all' && !isHighlighted) ? 0.3 : 1;
           return (
             <motion.button key={node.id} whileTap={{ scale:0.96 }}
               onClick={() => setSel(node.id===sel?null:node.id)}
@@ -439,6 +1040,7 @@ function CanvasContent({ sel, setSel, nodeFilter }: { sel:string|null; setSel:(i
                   ? `0 0 0 2px ${S.primary}30, 0 2px 12px rgba(124,108,245,0.15)`
                   : "0 1px 4px rgba(0,0,0,0.06)",
                 zIndex: isSelected ? 20 : 10,
+                opacity: nodeOpacity,
               }}>
               {/* 顶部类型标签（对齐原站节点样式）*/}
               <div className="flex items-center gap-1 mb-1">
@@ -477,6 +1079,18 @@ const UI_COVERAGE = [
   { nodeType: "QTE 节点 (qte)", needed: ["qte_prompt"], has: false, icon: "⚡" },
   { nodeType: "结局节点 (ending)", needed: ["menu_panel"], has: false, icon: "🏆" },
   { nodeType: "系统 UI", needed: ["menu_panel", "save_slot", "settings_panel"], has: false, icon: "⚙️" },
+];
+
+// ── UI 资产清单（P4-10 主流程化）─────────────────────────────────────────────
+const UI_ASSET_CHECKLIST = [
+  { type: '对话框', status: 'configured', template: '赛博对话框' },
+  { type: '选择按钮', status: 'configured', template: '赛博选项按钮' },
+  { type: 'QTE 控件', status: 'available', template: '赛博 QTE 面板（未应用）' },
+  { type: 'HUD 状态栏', status: 'configured', template: '赛博 HUD' },
+  { type: '系统菜单', status: 'available', template: '赛博系统菜单（未应用）' },
+  { type: '存档槽位', status: 'missing', template: '未配置' },
+  { type: '结局页', status: 'missing', template: '未配置' },
+  { type: '标题页', status: 'missing', template: '未配置' },
 ];
 
 function UIContent() {
@@ -654,6 +1268,23 @@ function UIContent() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {/* UI 生产状态横幅 (P4-10) */}
+      <div className="mx-4 mt-3 mb-0">
+        <div className="p-3 rounded-xl flex items-center gap-2"
+          style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}20` }}>
+          <span className="text-sm">🎨</span>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold" style={{ color: S.text }}>游戏 UI 配置 — 主生产步骤</p>
+            <p className="text-[9px]" style={{ color: S.text3 }}>
+              对白框、选择框、QTE 控件、HUD、菜单、存档、结局页必须作为正式生产资产纳入管线
+            </p>
+          </div>
+          <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.warning}15`, color: S.warning }}>
+            进行中
+          </span>
+        </div>
+      </div>
+
       {/* Toast 通知 */}
       <AnimatePresence>
         {toast && (
@@ -1035,6 +1666,33 @@ function UIContent() {
         </div>
       </div>
 
+      {/* ── UI 资产清单面板 (P4-10) ── */}
+      <div className="px-4 py-3 shrink-0 overflow-y-auto" style={{ borderTop: `1px solid ${S.border}` }}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold" style={{ color: S.text }}>UI 资产清单</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
+            {UI_ASSET_CHECKLIST.filter(a => a.status === 'configured').length}/{UI_ASSET_CHECKLIST.length} 已配置
+          </span>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {UI_ASSET_CHECKLIST.map(item => {
+            const statusColor = item.status === 'configured' ? S.success : item.status === 'available' ? S.warning : S.error;
+            const statusLabel = item.status === 'configured' ? '已配置' : item.status === 'available' ? '可用' : '缺失';
+            return (
+              <div key={item.type} className="p-2 rounded-lg"
+                style={{ background: S.card, border: `1px solid ${statusColor}25` }}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[9px] font-bold" style={{ color: S.text }}>{item.type}</span>
+                  <span className="text-[7px] px-1 py-0.5 rounded font-bold"
+                    style={{ background: `${statusColor}15`, color: statusColor }}>{statusLabel}</span>
+                </div>
+                <p className="text-[8px] truncate" style={{ color: S.text3 }}>{item.template}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── 模板详情弹窗 ── */}
       <AnimatePresence>
         {selectedTpl && (
@@ -1359,6 +2017,164 @@ function UIContent() {
   );
 }
 
+// ── 变量系统编辑器 Tab ─────────────────────────────────────────────────────
+function VariablesContent() {
+  const [selectedVar, setSelectedVar] = useState<string | null>(null);
+
+  const getNodeLabel = (id: string) => STORY_NODES.find(n => n.id === id)?.label || id;
+
+  const totalVars = GAME_VARIABLES.length;
+  const usedVars = GAME_VARIABLES.filter(v => v.modifiedBy.length > 0 || v.readBy.length > 0).length;
+
+  type VarIssue = { type: string; message: string; varLabel: string; varId: string };
+  const issues: VarIssue[] = [];
+  GAME_VARIABLES.forEach(v => {
+    if (v.readBy.length === 0 && v.modifiedBy.length > 0) {
+      issues.push({ type: '死变量', message: '被修改但从未被读取', varLabel: v.label, varId: v.id });
+    }
+    if (v.modifiedBy.length === 0 && v.readBy.length > 0) {
+      issues.push({ type: '只读变量', message: '被读取但从未被修改', varLabel: v.label, varId: v.id });
+    }
+    if (v.modifiedBy.length === 0 && v.readBy.length === 0) {
+      issues.push({ type: '无变化', message: '变量在所有节点中值不变', varLabel: v.label, varId: v.id });
+    }
+  });
+
+  const getVarStatus = (v: typeof GAME_VARIABLES[0]) => {
+    if (v.modifiedBy.length > 0 && v.readBy.length > 0) return { label: '正常', color: S.success, icon: '✅' };
+    if (v.readBy.length === 0 && v.modifiedBy.length > 0) return { label: '死变量', color: S.warning, icon: '⚠️' };
+    if (v.modifiedBy.length === 0 && v.readBy.length > 0) return { label: '只读', color: S.warning, icon: '⚠️' };
+    return { label: '无变化', color: S.text3, icon: '⚠️' };
+  };
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* 顶部统计栏 */}
+      <div className="flex items-center gap-3 px-4 py-3 shrink-0"
+        style={{ background: S.card, borderBottom: `1px solid ${S.border}` }}>
+        <div className="flex items-center gap-1.5">
+          <BarChart3 size={13} style={{ color: S.primary }} />
+          <span className="text-xs font-bold" style={{ color: S.text }}>变量系统</span>
+        </div>
+        <div className="flex items-center gap-3 ml-4">
+          <div className="flex items-center gap-1">
+            <span className="text-[9px]" style={{ color: S.text3 }}>总数</span>
+            <span className="text-[11px] font-bold font-mono" style={{ color: S.text }}>{totalVars}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px]" style={{ color: S.text3 }}>已使用</span>
+            <span className="text-[11px] font-bold font-mono" style={{ color: S.success }}>{usedVars}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px]" style={{ color: S.text3 }}>告警</span>
+            <span className="text-[11px] font-bold font-mono" style={{ color: issues.length > 0 ? S.warning : S.success }}>
+              {issues.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 变量卡片列表 */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {GAME_VARIABLES.map(v => {
+            const status = getVarStatus(v);
+            const isSelected = selectedVar === v.id;
+            return (
+              <motion.div key={v.id} layout
+                className="rounded-xl overflow-hidden cursor-pointer"
+                style={{
+                  background: S.card,
+                  border: `1px solid ${isSelected ? S.primary : S.border}`,
+                  boxShadow: isSelected ? `0 0 0 1px ${S.primary}20` : 'none',
+                }}
+                onClick={() => setSelectedVar(isSelected ? null : v.id)}>
+                <div className="p-3">
+                  {/* 标题行 */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold" style={{ color: S.text }}>{v.label}</span>
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded"
+                        style={{ background: `${S.primary}10`, color: S.primary }}>{v.name}</span>
+                    </div>
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: `${status.color}15`, color: status.color }}>
+                      {status.icon} {status.label}
+                    </span>
+                  </div>
+
+                  {/* 初始值 */}
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-[9px]" style={{ color: S.text3 }}>初始值:</span>
+                    <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
+                      style={{ background: S.s2, color: S.text }}>{v.initialValue}</span>
+                  </div>
+
+                  {/* 变化节点 + 读取节点 */}
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <span className="text-[8px] font-bold block mb-0.5" style={{ color: S.text3 }}>修改节点</span>
+                      <div className="flex flex-wrap gap-0.5">
+                        {v.modifiedBy.length > 0 ? v.modifiedBy.map(id => (
+                          <span key={id} className="text-[8px] font-mono px-1 py-0.5 rounded"
+                            style={{ background: `${S.accent}10`, color: S.accent }}>
+                            {getNodeLabel(id)}
+                          </span>
+                        )) : (
+                          <span className="text-[8px]" style={{ color: S.text3 }}>无</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[8px] font-bold block mb-0.5" style={{ color: S.text3 }}>读取节点</span>
+                      <div className="flex flex-wrap gap-0.5">
+                        {v.readBy.length > 0 ? v.readBy.map(id => (
+                          <span key={id} className="text-[8px] font-mono px-1 py-0.5 rounded"
+                            style={{ background: `${S.warning}10`, color: S.warning }}>
+                            {getNodeLabel(id)}
+                          </span>
+                        )) : (
+                          <span className="text-[8px]" style={{ color: S.text3 }}>无</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 描述 */}
+                  <p className="text-[9px]" style={{ color: S.text3 }}>{v.description}</p>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* 底部校验汇总面板 */}
+        {issues.length > 0 && (
+          <div className="mt-4 p-3 rounded-xl"
+            style={{ background: `${S.warning}04`, border: `1px solid ${S.warning}20` }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <AlertTriangle size={12} style={{ color: S.warning }} />
+              <span className="text-[10px] font-bold" style={{ color: S.warning }}>校验问题 ({issues.length})</span>
+            </div>
+            <div className="space-y-1.5">
+              {issues.map((issue, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 rounded-lg"
+                  style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: `${S.warning}15`, color: S.warning }}>{issue.type}</span>
+                  <span className="text-[9px]" style={{ color: S.text2 }}>
+                    {issue.varLabel} — {issue.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── 主编辑器页面 ──────────────────────────────────────────────────────────
 export default function NodesScreen() {
   const [activeTab, setActiveTab] = useState<TabId>("canvas");
@@ -1368,6 +2184,7 @@ export default function NodesScreen() {
   const [aiInput, setAiInput] = useState("");
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [nodeFilter, setNodeFilter] = useState<string>("all");
+  const [diagView, setDiagView] = useState<DiagView>('all');
 
   const NODE_FILTERS = [
     { id: "all", label: "全部", icon: Layers },
@@ -1522,6 +2339,34 @@ export default function NodesScreen() {
               : STORY_NODES.filter(n => n.type === nodeFilter || (nodeFilter === "ending" && (n.type === "ending_good" || n.type === "ending_bad"))).length
             } 个节点
           </span>
+        </div>
+      )}
+
+      {/* ── 诊断视图选择器（仅画布 Tab 显示）── */}
+      {activeTab === "canvas" && (
+        <div className="flex items-center gap-1 px-4 py-1 border-b"
+          style={{ background: `${S.primary}03`, borderColor: S.border }}>
+          <span className="text-[9px] font-medium mr-1" style={{ color: S.text3 }}>诊断视图:</span>
+          {([
+            { id: 'all' as DiagView, label: '全部' },
+            { id: 'mainline' as DiagView, label: '主线' },
+            { id: 'branch' as DiagView, label: '分支' },
+            { id: 'ending' as DiagView, label: '结局' },
+            { id: 'problem' as DiagView, label: '问题' },
+            { id: 'variable' as DiagView, label: '变量' },
+            { id: 'character' as DiagView, label: '角色' },
+          ]).map(v => (
+            <motion.button key={v.id} whileTap={{ scale: 0.96 }}
+              onClick={() => setDiagView(v.id)}
+              className="px-2 py-0.5 rounded text-[9px] font-medium focus:outline-none"
+              style={{
+                background: diagView === v.id ? S.accent : "transparent",
+                color: diagView === v.id ? "#fff" : S.text3,
+                border: `1px solid ${diagView === v.id ? S.accent : S.border}`,
+              }}>
+              {v.label}
+            </motion.button>
+          ))}
         </div>
       )}
 
@@ -1712,13 +2557,14 @@ export default function NodesScreen() {
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity:0 }} animate={{ opacity:1 }}
               exit={{ opacity:0 }} transition={{ duration:0.1 }} className="h-full">
-              {activeTab==="canvas"    && <CanvasContent sel={sel} setSel={setSel} nodeFilter={nodeFilter} />}
+              {activeTab==="canvas"    && <CanvasContent sel={sel} setSel={setSel} nodeFilter={nodeFilter} diagView={diagView} />}
               {activeTab==="script"    && <ScriptContent />}
               {activeTab==="heatmap"   && <HeatmapContent />}
               {activeTab==="story"     && <StoryContent />}
               {activeTab==="character" && <CharacterContent />}
               {activeTab==="assets"    && <AssetsContent />}
               {activeTab==="ui"        && <UIContent />}
+              {activeTab==="variables" && <VariablesContent />}
             </motion.div>
           </AnimatePresence>
         </div>

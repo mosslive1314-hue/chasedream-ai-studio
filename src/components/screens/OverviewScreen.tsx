@@ -7,7 +7,7 @@ import {
   Film, HelpCircle, Trophy, Activity,
   ArrowRight, Layers, Target, Play,
   ExternalLink, BarChart3, Sparkles, X,
-  Package, Rocket
+  Package, Rocket, Palette, Shield
 } from "lucide-react";
 import Link from "next/link";
 import { STORY_NODES, NODE_EDGES, GAME_CHARACTERS, WORLD_BUILDING as WB_DATA, BRANCH_PATHS, QUALITY_CHECKS, type StoryNode } from "@/lib/studio-data";
@@ -64,6 +64,82 @@ const QC_CATEGORIES = [
   { key: "assets", label: "资产完整性", icon: Package },
   { key: "publish", label: "发布风险", icon: Rocket },
 ];
+
+// ── 叙事质量评分数据 ──────────────────────────────────────────────────────
+const NARRATIVE_SCORES = [
+  {
+    dimension: '选择意义度',
+    score: 85,
+    maxScore: 100,
+    detail: '2 个选择节点，每个选择导致不同的路径和结局，选择具有实质性影响',
+    strengths: ['N03 路线选择直接决定后续路径', 'N07 判定结果影响结局走向'],
+    improvements: ['建议在中间章节增加更多有意义的选择点'],
+  },
+  {
+    dimension: '分支平衡性',
+    score: 72,
+    maxScore: 100,
+    detail: '路线 A（8 节点）vs 路线 B（8 节点），长度均衡，但结局概率不均',
+    strengths: ['两条主线路径长度一致', '均有独特体验'],
+    improvements: ['好结局概率偏高（约 68%），建议调整潜行值阈值平衡概率'],
+  },
+  {
+    dimension: '变量使用率',
+    score: 100,
+    maxScore: 100,
+    detail: '4 个变量全部在条件判定中使用，无死变量',
+    strengths: ['每个变量至少被 2 个节点引用', '潜行值为核心判定变量'],
+    improvements: [],
+  },
+  {
+    dimension: '失败反馈完整度',
+    score: 60,
+    maxScore: 100,
+    detail: '2 个条件/QTE 节点中，1 个缺少失败反馈文案',
+    strengths: ['N06 QTE 有成功反馈'],
+    improvements: ['N07 潜行判定节点缺少失败反馈文案', '建议为所有失败路径补充叙事反馈'],
+  },
+  {
+    dimension: '情绪节奏',
+    score: 78,
+    maxScore: 100,
+    detail: '情绪曲线整体合理，N06 达到峰值 9，但连续高张力后缺少缓冲',
+    strengths: ['序章低张力建立世界观', 'N06 QTE 高潮点设计合理'],
+    improvements: ['N06(9)→N07(8)→N08(7) 连续三个高张力节点，建议在中间插入缓冲'],
+  },
+  {
+    dimension: '伏笔回收率',
+    score: 80,
+    maxScore: 100,
+    detail: '5 条伏笔中回收 4 条，1 条未在结局中明确收束',
+    strengths: ['追踪芯片伏笔在 N01 植入，N08 回收', '线人身份悬念贯穿全剧'],
+    improvements: ['反派主管动机在坏结局中未充分解释'],
+  },
+];
+
+const totalScore = Math.round(NARRATIVE_SCORES.reduce((s, n) => s + n.score, 0) / NARRATIVE_SCORES.length);
+
+// ── 素材风格一致性数据 ────────────────────────────────────────────────────
+const STYLE_CONSISTENCY = [
+  { nodeId: 'N01', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N02', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N03', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N04', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N05', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N07', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N08', assetType: '场景图片', style: '赛博朋克', consistent: true },
+  { nodeId: 'N01', assetType: '角色立绘', style: '赛博朋克', consistent: true },
+  { nodeId: 'N02', assetType: '角色立绘', style: '现代写实', consistent: false, warning: '线人立绘风格偏写实，与赛博朋克主题不完全匹配' },
+  { nodeId: 'N05', assetType: '角色立绘', style: '赛博朋克', consistent: true },
+];
+
+const styleSummary = {
+  dominant: '赛博朋克',
+  totalAssets: STYLE_CONSISTENCY.length,
+  consistentCount: STYLE_CONSISTENCY.filter(s => s.consistent).length,
+  inconsistentCount: STYLE_CONSISTENCY.filter(s => !s.consistent).length,
+  consistencyRate: Math.round(STYLE_CONSISTENCY.filter(s => s.consistent).length / STYLE_CONSISTENCY.length * 100),
+};
 
 // ── 展开/收起区块 Hook ────────────────────────────────────────────────────
 function useSectionToggle(init = true) {
@@ -159,6 +235,8 @@ export default function OverviewScreen() {
   const secBranch  = useSectionToggle(true);
   const secWorld   = useSectionToggle(true);
   const secHealth  = useSectionToggle(true);
+  const secNarrative = useSectionToggle(true);
+  const secStyle = useSectionToggle(true);
 
   const [hoveredPath, setHoveredPath] = useState<string[] | undefined>(undefined);
   const [selectedNode, setSelectedNode] = useState<StoryNode | null>(null);
@@ -577,6 +655,234 @@ export default function OverviewScreen() {
                       </div>
                     );
                   })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── 叙事质量评分 ── */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader icon={Shield} title="叙事质量评分" subtitle={`${NARRATIVE_SCORES.length} 个维度综合评估`}
+            open={secNarrative.open} onToggle={secNarrative.toggle}
+            action={
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-mono font-black" style={{
+                  color: totalScore >= 80 ? S.success : totalScore >= 60 ? S.warning : S.error
+                }}>{totalScore}</span>
+                <span className="text-[9px]" style={{ color: S.text3 }}>/100</span>
+              </div>
+            } />
+          <AnimatePresence>
+            {secNarrative.open && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                {/* 综合评分圆 */}
+                <div className="flex items-center justify-center mt-4 mb-4">
+                  <div className="relative flex items-center justify-center" style={{ width: 100, height: 100 }}>
+                    <svg width="100" height="100" viewBox="0 0 100 100" className="absolute">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke={S.s3} strokeWidth="8" />
+                      <circle cx="50" cy="50" r="42" fill="none"
+                        stroke={totalScore >= 80 ? S.success : totalScore >= 60 ? S.warning : S.error}
+                        strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray={`${totalScore * 2.64} 264`}
+                        transform="rotate(-90 50 50)"
+                        style={{ transition: 'stroke-dasharray 0.6s ease' }}
+                      />
+                    </svg>
+                    <div className="text-center z-10">
+                      <span className="text-2xl font-black font-mono" style={{
+                        color: totalScore >= 80 ? S.success : totalScore >= 60 ? S.warning : S.error
+                      }}>{totalScore}</span>
+                      <span className="text-[10px] font-bold" style={{ color: S.text3 }}>/100</span>
+                      <p className="text-[8px]" style={{ color: S.text3 }}>
+                        {totalScore >= 80 ? '优秀' : totalScore >= 60 ? '良好' : '需改进'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 维度评分列表 */}
+                <div className="space-y-2.5">
+                  {NARRATIVE_SCORES.map((ns, i) => {
+                    const pct = Math.round((ns.score / ns.maxScore) * 100);
+                    const barColor = pct >= 80 ? S.success : pct >= 60 ? S.warning : S.error;
+                    return (
+                      <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{ns.dimension}</span>
+                          <span className="text-[10px] font-mono font-bold" style={{ color: barColor }}>
+                            {ns.score}/{ns.maxScore}
+                          </span>
+                        </div>
+                        {/* 进度条 */}
+                        <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: S.s3 }}>
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor, transition: 'width 0.4s ease' }} />
+                        </div>
+                        <p className="text-[9px] mb-2" style={{ color: S.text3 }}>{ns.detail}</p>
+                        {/* 优势 */}
+                        {ns.strengths.length > 0 && (
+                          <div className="mb-1.5">
+                            {ns.strengths.map((s, j) => (
+                              <div key={j} className="flex items-start gap-1 mb-0.5">
+                                <CheckCircle2 size={9} style={{ color: S.success, marginTop: 2, flexShrink: 0 }} />
+                                <span className="text-[8px]" style={{ color: S.success }}>{s}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* 改进建议 */}
+                        {ns.improvements.length > 0 && (
+                          <div>
+                            {ns.improvements.map((imp, j) => (
+                              <div key={j} className="flex items-start gap-1 mb-0.5">
+                                <AlertTriangle size={9} style={{ color: S.warning, marginTop: 2, flexShrink: 0 }} />
+                                <span className="text-[8px]" style={{ color: S.warning }}>{imp}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 改进优先级建议 */}
+                <div className="mt-3 p-3 rounded-xl" style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}20` }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Target size={11} style={{ color: S.warning }} />
+                    <span className="text-[10px] font-bold" style={{ color: S.warning }}>改进优先级</span>
+                  </div>
+                  <div className="space-y-1">
+                    {[...NARRATIVE_SCORES]
+                      .sort((a, b) => a.score - b.score)
+                      .slice(0, 3)
+                      .map((ns, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className="text-[8px] font-mono font-bold shrink-0 mt-0.5" style={{ color: S.warning }}>
+                            P{i + 1}
+                          </span>
+                          <div>
+                            <span className="text-[9px] font-bold" style={{ color: S.text }}>{ns.dimension}</span>
+                            <span className="text-[8px] ml-1" style={{ color: S.text3 }}>
+                              ({ns.score}分) — {ns.improvements[0]}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── 素材风格一致性 ── */}
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <SectionHeader icon={Palette} title="素材风格一致性" subtitle={`${styleSummary.consistentCount}/${styleSummary.totalAssets} 项资产风格统一`}
+            open={secStyle.open} onToggle={secStyle.toggle}
+            action={
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                  <div className="h-full rounded-full" style={{
+                    width: `${styleSummary.consistencyRate}%`,
+                    background: styleSummary.consistencyRate >= 80 ? S.success : styleSummary.consistencyRate >= 60 ? S.warning : S.error,
+                  }} />
+                </div>
+                <span className="text-[9px] font-mono font-bold" style={{
+                  color: styleSummary.consistencyRate >= 80 ? S.success : styleSummary.consistencyRate >= 60 ? S.warning : S.error,
+                }}>{styleSummary.consistencyRate}%</span>
+              </div>
+            } />
+          <AnimatePresence>
+            {secStyle.open && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                {/* 摘要统计 */}
+                <div className="grid grid-cols-4 gap-2 mt-3 mb-3">
+                  {[
+                    { label: '主风格', value: styleSummary.dominant, color: S.primary },
+                    { label: '总资产', value: styleSummary.totalAssets, color: S.text2 },
+                    { label: '一致', value: styleSummary.consistentCount, color: S.success },
+                    { label: '不一致', value: styleSummary.inconsistentCount, color: styleSummary.inconsistentCount > 0 ? S.error : S.success },
+                  ].map((item, i) => (
+                    <div key={i} className="p-2 rounded-lg text-center" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                      <p className="text-sm font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
+                      <p className="text-[8px]" style={{ color: S.text3 }}>{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 主风格标签 */}
+                <div className="flex items-center gap-1.5 mb-3">
+                  <span className="text-[9px]" style={{ color: S.text3 }}>主导风格:</span>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{
+                    background: S.primary10, color: S.primary, border: `1px solid ${S.primary}20`,
+                  }}>{styleSummary.dominant}</span>
+                </div>
+
+                {/* 资产风格表格 */}
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
+                  {/* 表头 */}
+                  <div className="grid grid-cols-4 gap-1 px-3 py-2" style={{ background: S.s3 }}>
+                    <span className="text-[8px] font-bold" style={{ color: S.text3 }}>节点</span>
+                    <span className="text-[8px] font-bold" style={{ color: S.text3 }}>资产类型</span>
+                    <span className="text-[8px] font-bold" style={{ color: S.text3 }}>风格</span>
+                    <span className="text-[8px] font-bold text-right" style={{ color: S.text3 }}>状态</span>
+                  </div>
+                  {/* 行 */}
+                  {STYLE_CONSISTENCY.map((item, i) => (
+                    <div key={i} className="grid grid-cols-4 gap-1 px-3 py-2 items-center" style={{
+                      background: item.consistent ? 'transparent' : `${S.error}06`,
+                      borderTop: `1px solid ${S.border}`,
+                    }}>
+                      <span className="text-[9px] font-mono font-bold" style={{ color: S.text }}>{item.nodeId}</span>
+                      <span className="text-[9px]" style={{ color: S.text2 }}>{item.assetType}</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-full w-fit" style={{
+                        background: item.consistent ? S.primary10 : `${S.error}12`,
+                        color: item.consistent ? S.primary : S.error,
+                        border: `1px solid ${item.consistent ? `${S.primary}20` : `${S.error}20`}`,
+                      }}>{item.style}</span>
+                      <div className="flex items-center justify-end gap-1">
+                        {item.consistent
+                          ? <CheckCircle2 size={10} style={{ color: S.success }} />
+                          : <AlertTriangle size={10} style={{ color: S.error }} />}
+                        <span className="text-[8px]" style={{ color: item.consistent ? S.success : S.error }}>
+                          {item.consistent ? '一致' : '不一致'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 不一致项警告详情 */}
+                {styleSummary.inconsistentCount > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {STYLE_CONSISTENCY.filter(s => !s.consistent && s.warning).map((item, i) => (
+                      <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{
+                        background: `${S.warning}08`, border: `1px solid ${S.warning}20`,
+                      }}>
+                        <AlertTriangle size={12} style={{ color: S.warning, marginTop: 1, flexShrink: 0 }} />
+                        <div>
+                          <p className="text-[9px] font-bold" style={{ color: S.warning }}>
+                            {item.nodeId} · {item.assetType}
+                          </p>
+                          <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{item.warning}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 改进建议 */}
+                <div className="mt-3 p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Sparkles size={11} style={{ color: S.primary }} />
+                    <span className="text-[10px] font-bold" style={{ color: S.text }}>风格统一建议</span>
+                  </div>
+                  <p className="text-[9px] leading-relaxed" style={{ color: S.text2 }}>
+                    建议将线人立绘统一为赛博朋克风格，或调整角色设定以兼容写实风格。保持视觉风格一致性有助于提升玩家的沉浸感和整体体验品质。
+                  </p>
                 </div>
               </motion.div>
             )}
