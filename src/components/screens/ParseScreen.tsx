@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CheckCircle2, Loader2, Send, ArrowRight, RotateCcw,
+  CheckCircle2, XCircle, Eye, Loader2, Send, ArrowRight, RotateCcw,
   User, MapPin, Package, GitBranch, Sliders, FileText,
   Network, CheckSquare, List, Rocket
 } from "lucide-react";
@@ -88,7 +88,13 @@ const INIT_MSGS = [
 ];
 
 // -- 右侧产物渲染 --------------------------------------------------------------
-function StepArtifact({ stepN }: { stepN: number }) {
+function StepArtifact({ stepN, reviewItems, onApprove, onReject, reviewMode }: { 
+  stepN: number; 
+  reviewItems?: Record<string, "approved" | "rejected" | "pending">;
+  onApprove?: (key: string) => void;
+  onReject?: (key: string) => void;
+  reviewMode?: boolean;
+}) {
   const step = STEPS.find(s => s.n === stepN)!;
   const art  = ARTIFACTS[stepN];
 
@@ -168,6 +174,18 @@ function StepArtifact({ stepN }: { stepN: number }) {
           <p className="text-[9px]" style={{ color: S.text3 }}>{art.summary}</p>
         </div>
       </div>
+      {/* Review mode banner */}
+      {reviewMode && art.items.length > 0 && (
+        <div className="p-2.5 rounded-xl flex items-center justify-between"
+          style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
+          <span className="text-[9px] font-bold" style={{ color: S.primary }}>
+            🔍 审核模式 — 逐条确认 AI 产出
+          </span>
+          <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
+            {art.items.filter(item => reviewItems?.[`${stepN}-${item.label}`] === "approved").length}/{art.items.length} 已通过
+          </span>
+        </div>
+      )}
       {/* Artifact items */}
       <div className="space-y-1.5">
         {art.items.map((item, i) => (
@@ -180,6 +198,44 @@ function StepArtifact({ stepN }: { stepN: number }) {
                 style={{ background:`${S.primary}10`, color: S.primary }}>{item.sub}</span>}
             </div>
             <p className="text-[10px] mt-1" style={{ color: S.text }}>{item.value}</p>
+            {/* Review buttons */}
+            {reviewMode && onApprove && onReject && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                {(() => {
+                  const key = `${stepN}-${item.label}`;
+                  const status = reviewItems?.[key];
+                  return (
+                    <>
+                      <motion.button whileTap={{ scale: 0.95 }}
+                        onClick={() => onApprove(key)}
+                        className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[8px] font-bold focus:outline-none"
+                        style={{
+                          background: status === "approved" ? `${S.success}15` : S.s2,
+                          color: status === "approved" ? S.success : S.text3,
+                          border: `1px solid ${status === "approved" ? `${S.success}30` : S.border}`,
+                        }}>
+                        <CheckCircle2 size={9} /> 通过
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.95 }}
+                        onClick={() => onReject(key)}
+                        className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[8px] font-bold focus:outline-none"
+                        style={{
+                          background: status === "rejected" ? `${S.error}15` : S.s2,
+                          color: status === "rejected" ? S.error : S.text3,
+                          border: `1px solid ${status === "rejected" ? `${S.error}30` : S.border}`,
+                        }}>
+                        <XCircle size={9} /> 拒绝
+                      </motion.button>
+                      {status === "rejected" && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.warning}10`, color: S.warning }}>
+                          需 AI 重新生成
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </motion.div>
         ))}
       </div>
@@ -196,6 +252,8 @@ export default function ParseScreen() {
   const [input, setInput]       = useState("");
   const [agentModal, setAgentModal] = useState(false);
   const [agentConfig, setAgentConfig] = useState(false);
+  const [reviewItems, setReviewItems] = useState<Record<string, "approved" | "rejected" | "pending">>({});
+  const [reviewMode, setReviewMode] = useState(false);
   const endRef                  = useRef<HTMLDivElement>(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
@@ -362,18 +420,26 @@ export default function ParseScreen() {
                 const isViewing = viewStep === step.n;
                 return (
                   <div key={i} className="flex items-center shrink-0">
-                    <motion.button
-                      whileTap={{ scale:0.9 }}
-                      onClick={() => setViewStep(step.n)}
-                      title={step.label}
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold focus:outline-none ${isRun ? "animate-pulse":""}`}
-                      style={{
-                        background: isViewing ? S.primary : isDone ? `${S.success}15` : isRun ? `${S.primary}15` : S.s2,
-                        border:`1.5px solid ${isViewing ? S.primary : isDone ? S.success : isRun ? S.primary : S.border2}`,
-                        color: isViewing ? "#fff" : isDone ? S.success : isRun ? S.primary : S.text3,
-                      }}>
-                      {isDone ? "✓" : step.n}
-                    </motion.button>
+                    <div className="relative">
+                      <motion.button
+                        whileTap={{ scale:0.9 }}
+                        onClick={() => setViewStep(step.n)}
+                        title={step.label}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold focus:outline-none ${isRun ? "animate-pulse":""}`}
+                        style={{
+                          background: isViewing ? S.primary : isDone ? `${S.success}15` : isRun ? `${S.primary}15` : S.s2,
+                          border:`1.5px solid ${isViewing ? S.primary : isDone ? S.success : isRun ? S.primary : S.border2}`,
+                          color: isViewing ? "#fff" : isDone ? S.success : isRun ? S.primary : S.text3,
+                        }}>
+                        {isDone ? "✓" : step.n}
+                      </motion.button>
+                      {reviewMode && isDone && (
+                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full flex items-center justify-center"
+                          style={{ background: S.accent }}>
+                          <span className="text-[5px] text-white font-bold">!</span>
+                        </div>
+                      )}
+                    </div>
                     {i < STEPS.length-1 && (
                       <div className="w-1.5 h-px shrink-0"
                         style={{ background: isDone ? `${S.success}40` : S.border }} />
@@ -396,13 +462,27 @@ export default function ParseScreen() {
             <motion.div key={viewStep} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
               exit={{ opacity:0 }} transition={{ duration:0.15 }}
               className="flex-1 overflow-hidden flex flex-col">
-              <StepArtifact stepN={viewStep} />
+              <StepArtifact stepN={viewStep} 
+                reviewItems={reviewItems}
+                onApprove={(key) => setReviewItems(prev => ({ ...prev, [key]: "approved" }))}
+                onReject={(key) => setReviewItems(prev => ({ ...prev, [key]: "rejected" }))}
+                reviewMode={reviewMode}
+              />
             </motion.div>
           </AnimatePresence>
 
           {/* 底部操作栏 */}
           <div className="shrink-0 px-4 py-3 border-t flex items-center gap-2"
             style={{ borderColor: S.border, background: S.card }}>
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setReviewMode(!reviewMode)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold focus:outline-none"
+              style={{ 
+                background: reviewMode ? `${S.accent}15` : S.s2, 
+                border: `1px solid ${reviewMode ? `${S.accent}30` : S.border}`, 
+                color: reviewMode ? S.accent : S.text2 
+              }}>
+              <Eye size={11} /> {reviewMode ? "退出审核" : "审核产出"}
+            </motion.button>
             <motion.button whileTap={{ scale:0.97 }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white focus:outline-none"
               style={{ background: S.primary, boxShadow:`0 2px 8px ${S.primary}30` }}>

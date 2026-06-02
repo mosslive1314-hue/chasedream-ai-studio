@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GitBranch, Send, Bot, ChevronRight, X, Check, Edit2 } from "lucide-react";
 import Link from "next/link";
+import { SCRIPT_BLOCKS as STUDIO_BLOCKS, AI_SUGGESTIONS as STUDIO_AI, PLAYABLE_GRAPH, INIT_VARIABLES, type ScriptBlock } from "@/lib/studio-data";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -11,43 +12,16 @@ const S = {
   success:"#10B981", warning:"#F59E0B",
 };
 
-type BlockType = "scene"|"narr"|"dialog"|"choice"|"cond";
-interface Block {
-  id: string;
-  type: BlockType;
-  label: string;
-  char?: string;
-  content: string;
-  options?: string[];
-  color: string;
-}
-
-const INIT_BLOCKS: Block[] = [
-  { id:"b1", type:"scene",  label:"场景", color:"#5E50E8",
-    content:"霓虹街道 · 夜 · 外  |  2047年，积水路面，广告牌投影闪烁，艾拉穿过熙攘人群。" },
-  { id:"b2", type:"narr",   label:"旁白", color:S.text3,
-    content:"追踪信号在前方100米处中断。她停在一扇锈迹斑斑的门前，耳机里传来微弱杂音。" },
-  { id:"b3", type:"dialog", label:"台词", char:"艾拉", color:S.accent,
-    content:"线人在哪？已经等了整整20分钟了。" },
-  { id:"b4", type:"choice", label:"选择", color:S.warning,
-    content:"是否相信陌生来电？",
-    options:["A. 相信，进地下酒吧","B. 拒绝接触，转身离开","C. 反向追踪来电来源"] },
-  { id:"b5", type:"scene",  label:"场景", color:"#5E50E8",
-    content:"地下酒吧 · 夜 · 内  |  昏暗灯光，嘈杂人群，空气中弥漫着廉价酒精的气味。" },
-  { id:"b6", type:"dialog", label:"台词", char:"线人", color:S.accent,
-    content:"你来了。那枚追踪芯片……他们已经发现了。你必须在他们找到我之前做出选择。" },
-  { id:"b7", type:"cond",   label:"条件", color:S.warning,
-    content:"检查变量：trust_lineman ≥ 40 → 进入N07  |  否则 → 进入N09" },
+type LayerId = "original" | "linear" | "interactive" | "playable";
+const LAYERS: { id: LayerId; label: string; desc: string }[] = [
+  { id: "original", label: "原始文本", desc: "小说/原始剧本" },
+  { id: "linear", label: "线性剧本", desc: "结构化分场剧本" },
+  { id: "interactive", label: "互动剧本", desc: "含分支和变量的互动叙事" },
+  { id: "playable", label: "可运行脚本", desc: "可在模拟器中游玩" },
 ];
 
-const AI_SUGGESTIONS: Record<string, string[]> = {
-  write: ["AI 续写中……✨ 建议：「艾拉注意到线人手背上的追踪芯片切口——那是植入后的标记……」已插入下方。"],
-  polish: ["AI 润色完成 ✨\n原文：「线人在哪？」\n优化为：「线人还没到？这已经是第三次失约了。」—— 更符合角色急迫情绪。"],
-  branch: ["已为「进入路线」节点生成 2 个新分支：\n— C. 利用无人机侦察  → 触发条件 surveillance_drone > 0\n— D. 强行破门  → 触发 alert_level +20"],
-};
-
 export default function ScriptScreen() {
-  const [blocks, setBlocks] = useState<Block[]>(INIT_BLOCKS);
+  const [blocks, setBlocks] = useState<ScriptBlock[]>(STUDIO_BLOCKS);
   const [editId, setEditId] = useState<string|null>(null);
   const [editVal, setEditVal] = useState("");
   const [aiMsg, setAiMsg] = useState("");
@@ -56,11 +30,12 @@ export default function ScriptScreen() {
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const [activeLayer, setActiveLayer] = useState<LayerId>("interactive");
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [aiHistory]);
 
   // 开始内联编辑
-  const startEdit = (block: Block) => {
+  const startEdit = (block: ScriptBlock) => {
     setEditId(block.id);
     setEditVal(block.content);
   };
@@ -83,11 +58,11 @@ export default function ScriptScreen() {
     setTimeout(() => {
       let reply = "收到！正在分析本章剧情结构……";
       if (msg.includes("润色") || msg.includes("优化"))
-        reply = AI_SUGGESTIONS.polish[0];
+        reply = STUDIO_AI.polish[0];
       else if (msg.includes("续写") || msg.includes("继续"))
-        reply = AI_SUGGESTIONS.write[0];
+        reply = STUDIO_AI.write[0];
       else if (msg.includes("分支") || msg.includes("选项"))
-        reply = AI_SUGGESTIONS.branch[0];
+        reply = STUDIO_AI.branch[0];
       else if (msg.includes("节奏"))
         reply = "当前章节节奏分析：\n✓ 开场钩子（霓虹街道）情绪张力良好\n⚠ 第3段台词过短，建议扩充艾拉的心理描写\n✓ 选择节点位置合理，出现在冲突高点";
       else if (msg.includes("角色") || msg.includes("艾拉"))
@@ -100,11 +75,127 @@ export default function ScriptScreen() {
     }, 900);
   };
 
-  return (
-    <div className="h-svh flex overflow-hidden" style={{ background:S.bg }}>
+  // ── PlayablePreview (P0-2) ──
+  const PlayablePreview = () => {
+    const [pNode, setPNode] = useState("N01");
+    const [pVars, setPVars] = useState({...INIT_VARIABLES});
+    const [pPath, setPPath] = useState(["N01"]);
+    const cur = PLAYABLE_GRAPH[pNode];
 
-      {/* ── 左侧：剧本编辑区 ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    const pChoose = (c: {label:string;next:string;effect:string}) => {
+      const nv = {...pVars};
+      const m = c.effect.match(/([+-])(\w+)\s+(\d+)/);
+      if (m) { const k = m[2]; if (k in nv) (nv as any)[k] = (nv as any)[k] + (m[1]==="+"?1:-1)*parseInt(m[3]); }
+      setPVars(nv); setPNode(c.next); setPPath(p => [...p, c.next]);
+    };
+
+    const pReset = () => { setPNode("N01"); setPVars({...INIT_VARIABLES}); setPPath(["N01"]); };
+
+    if (!cur) return <div className="p-8 text-center text-xs" style={{ color: S.text3 }}>节点不存在</div>;
+
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="max-w-md mx-auto">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
+              可运行预览
+            </span>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={pReset}
+              className="text-[9px] px-2 py-1 rounded-lg focus:outline-none"
+              style={{ background: S.s2, color: S.text3 }}>
+              重新开始
+            </motion.button>
+          </div>
+
+          <div className="rounded-2xl overflow-hidden mb-3"
+            style={{ background: cur.isEnding ? (cur.endingType==="good" ? "linear-gradient(160deg,#0f4c2a,#1a6b3a)" : "linear-gradient(160deg,#4c0f0f,#6b1a1a)") : "linear-gradient(160deg,#0d1117,#1a1f2e)" }}>
+            <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+              <span className="text-[9px] font-bold" style={{ color: cur.isEnding ? "#4ade80" : "#a78bfa" }}>
+                {cur.isEnding ? (cur.endingType==="good"?"✦ 好结局":"✕ 坏结局") : `${pNode}`}
+              </span>
+              <span className="text-[8px] font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>{cur.char}</span>
+            </div>
+            <div className="mx-3 mb-3 px-3 py-2.5 rounded-xl" style={{ background: "rgba(0,0,0,0.5)" }}>
+              <p className="text-[11px] leading-relaxed whitespace-pre-line" style={{ color: "rgba(255,255,255,0.9)" }}>
+                {cur.text}
+              </p>
+            </div>
+            {!cur.isEnding && cur.choices && (
+              <div className="px-3 pb-3 space-y-1.5">
+                {cur.choices.map((c, i) => (
+                  <motion.button key={i} whileTap={{ scale: 0.97 }} onClick={() => pChoose(c)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[10px] font-bold text-white focus:outline-none"
+                    style={{ background: "rgba(94,80,232,0.35)", border: "1px solid rgba(94,80,232,0.5)" }}>
+                    <span>{c.label}</span>
+                    <ChevronRight size={11} />
+                  </motion.button>
+                ))}
+              </div>
+            )}
+            {cur.isEnding && (
+              <div className="px-3 pb-3">
+                <motion.button whileTap={{ scale: 0.97 }} onClick={pReset}
+                  className="w-full py-2 rounded-xl text-[10px] font-bold text-white focus:outline-none"
+                  style={{ background: "rgba(255,255,255,0.15)" }}>重新试玩</motion.button>
+              </div>
+            )}
+          </div>
+
+          {/* Debug info */}
+          <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <p className="text-[8px] font-bold mb-1.5" style={{ color: S.text3 }}>调试信息</p>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {pPath.map((p, i) => (
+                <span key={i} className="text-[8px] font-mono px-1 py-0.5 rounded"
+                  style={{ background: i === pPath.length-1 ? `${S.primary}15` : S.s2,
+                    color: i === pPath.length-1 ? S.primary : S.text3 }}>
+                  {p}{i < pPath.length-1 ? "→" : ""}
+                </span>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {Object.entries(pVars).map(([k, v]) => (
+                <div key={k} className="flex justify-between px-2 py-1 rounded" style={{ background: S.s2 }}>
+                  <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{k}</span>
+                  <span className="text-[8px] font-mono font-bold" style={{ color: S.accent }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-svh flex flex-col overflow-hidden" style={{ background:S.bg }}>
+      {/* 四层导航 (P0-2) */}
+      <div className="flex items-center border-b shrink-0"
+        style={{ background: S.card, borderColor: S.border }}>
+        {LAYERS.map(layer => (
+          <motion.button key={layer.id} whileTap={{ scale: 0.97 }}
+            onClick={() => setActiveLayer(layer.id)}
+            className="relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium focus:outline-none"
+            style={{ color: activeLayer === layer.id ? S.primary : S.text3 }}>
+            {layer.label}
+            <span className="text-[8px]" style={{ color: activeLayer === layer.id ? `${S.primary}80` : S.text3 }}>
+              {layer.desc}
+            </span>
+            {activeLayer === layer.id && (
+              <motion.div layoutId="layer-line"
+                className="absolute bottom-0 inset-x-0 h-0.5"
+                style={{ background: S.primary }} />
+            )}
+          </motion.button>
+        ))}
+      </div>
+
+      {/* Content wrapper */}
+      <div className="flex-1 flex overflow-hidden">
+        {(activeLayer === "linear" || activeLayer === "interactive") && (
+          <>
+            {/* ── 左侧：剧本编辑区 ── */}
+            <div className="flex-1 flex flex-col overflow-hidden">
         {/* 工具栏 */}
         <div className="flex items-center justify-between px-4 py-2 shrink-0"
           style={{ background:S.card, borderBottom:`1px solid ${S.border}` }}>
@@ -216,7 +307,7 @@ export default function ScriptScreen() {
           {/* 添加新块 */}
           <motion.button whileTap={{ scale:0.98 }}
             onClick={() => {
-              const nb: Block = { id:`b${Date.now()}`, type:"narr", label:"旁白",
+              const nb: ScriptBlock = { id:`b${Date.now()}`, type:"narr", label:"旁白",
                 color:S.text3, content:"点击此处输入新内容…" };
               setBlocks(bs => [...bs, nb]);
               setTimeout(() => startEdit(nb), 50);
@@ -312,6 +403,36 @@ export default function ScriptScreen() {
             </motion.button>
           </div>
         </div>
+            </div>
+          </>
+        )}
+
+        {activeLayer === "original" && (
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <div className="max-w-2xl mx-auto">
+              <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: S.text3 }}>原始文本</p>
+              <div className="p-4 rounded-xl text-xs leading-loose whitespace-pre-wrap"
+                style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text2 }}>
+                {`2047年，深夜。霓虹灯光把积水的城市街道染成猩红。艾拉站在一扇锈门前，追踪信号在此中断。
+
+线人在地下酒吧等她。他说那枚追踪芯片已经被发现了，她必须在他们找到他之前做出选择。
+
+艾拉面临关键抉择——是走安全的暗巷通道，还是冒险换装渗入企业大厦？
+
+如果选择暗夜通道，她跟着线人穿过地下管道，抵达企业大厦后方。如果选择换装渗透，她换上企业制服，刷伪造ID进入大厦。
+
+无论哪条路，她都将在警卫逼近时面临生死考验。只有1.5秒做出反应！
+
+最终，根据她一路上的表现——潜行能力、警觉程度、对线人的信任——将决定她是带着证据安全撤离（幽灵归来），还是被困在暗巷中身份暴露（今夜失败）。`}
+              </div>
+              <p className="text-[9px] text-center mt-3" style={{ color: S.text3 }}>
+                原始文本为 AI 从原著中提取的线性叙事，不含互动元素
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeLayer === "playable" && <PlayablePreview />}
       </div>
     </div>
   );

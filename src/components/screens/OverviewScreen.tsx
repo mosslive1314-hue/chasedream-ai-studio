@@ -3,13 +3,14 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
-  GitBranch, User, MapPin, Clock, BookOpen, Zap,
+  GitBranch, User, Users, MapPin, Clock, BookOpen, Zap,
   Film, HelpCircle, Trophy, Activity,
   ArrowRight, Layers, Target, Play,
-  ExternalLink, BarChart3, Sparkles, X
+  ExternalLink, BarChart3, Sparkles, X,
+  Package, Rocket
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, type StoryNode } from "@/lib/studio-data";
+import { STORY_NODES, NODE_EDGES, GAME_CHARACTERS, WORLD_BUILDING as WB_DATA, BRANCH_PATHS, QUALITY_CHECKS, type StoryNode } from "@/lib/studio-data";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -34,26 +35,15 @@ const NODE_CFG: Record<string, { label: string; color: string; icon: any }> = {
 };
 
 // ── 角色详情 ──────────────────────────────────────────────────────────────
-const CHARACTERS = [
-  { name: "艾拉", role: "女主角 · 侦探", desc: "黑色短发，银色义眼，黑色风衣，冷静警觉", appearNodes: ["N01","N02","N03","N04","N05","N06","N07","N08","N10"], color: S.primary, emoji: "🕵️" },
-  { name: "线人", role: "关键 NPC", desc: "神秘男性，中年，隐藏身份，掌握关键情报", appearNodes: ["N02","N03","N08"], color: S.warning, emoji: "🕴️" },
-  { name: "反派主管", role: "反派", desc: "西装笔挺，冷峻表情，幕后操控者", appearNodes: ["N05","N09","N11"], color: S.error, emoji: "👔" },
-];
+const CHARACTERS = GAME_CHARACTERS.map(c => ({
+  name: c.name, role: c.role, desc: c.description, appearNodes: c.appearNodes, color: c.color, emoji: c.emoji
+}));
 
 // ── 世界观设定 ────────────────────────────────────────────────────────────
-const WORLD_BUILDING = [
-  { category: "时代背景", content: "2047年，信息战与人工智能渗透社会各层。城市被霓虹灯与数据流覆盖，贫富差距加剧，隐私成为稀缺资源。" },
-  { category: "核心冲突", content: "企业权力与个人隐私的终极博弈。追踪芯片技术使公民无所遁形，反抗者转入地下。" },
-  { category: "主要场景", content: "霓虹街道 · 地下酒吧 · 企业大厦 · 数据中心 · 暗巷通道 — 共6个关键场景。" },
-  { category: "关键道具", content: "追踪芯片 · 变声器 · 加密U盘 · 无人机 · EMP手雷 · 全息投影仪 · 神经接口 · 伪造ID · 信号屏蔽器" },
-  { category: "故事主题", content: "信任与背叛、真相的代价、个人选择改变命运" },
-];
+const WORLD_BUILDING = WB_DATA;
 
 // ── 分支路径分析 ──────────────────────────────────────────────────────────
-const PATHS = [
-  { id: "main", label: "主线 A（成功路线）", nodes: ["N01","N02","N03","N04","N06","N07","N08","N10"], ending: "幽灵归来", type: "good" as const },
-  { id: "alt",  label: "主线 B（暴露路线）", nodes: ["N01","N02","N03","N05","N06","N07","N09","N11"], ending: "今夜失败", type: "bad" as const },
-];
+const PATHS = BRANCH_PATHS;
 
 // ── 统计摘要 ──────────────────────────────────────────────────────────────
 const STATS = [
@@ -68,12 +58,11 @@ const STATS = [
 ];
 
 // ── 项目健康度 ────────────────────────────────────────────────────────────
-const HEALTH = [
-  { label: "主线连通", status: "ok" as const, detail: "入口到所有结局路径已连通" },
-  { label: "结局可达", status: "ok" as const, detail: "2 个结局均可通过正常游玩触发" },
-  { label: "N07 缺少失败反馈", status: "warn" as const, detail: "潜行判定节点失败路径缺少文案" },
-  { label: "9 个节点 BGM 缺失", status: "warn" as const, detail: "所有场景节点均未配置背景音乐" },
-  { label: "2 个节点缺少图片", status: "warn" as const, detail: "N06 警卫逼近、N09 身份暴露" },
+const QC_CATEGORIES = [
+  { key: "structure", label: "结构完整性", icon: Layers },
+  { key: "narrative", label: "叙事质量", icon: BookOpen },
+  { key: "assets", label: "资产完整性", icon: Package },
+  { key: "publish", label: "发布风险", icon: Rocket },
 ];
 
 // ── 展开/收起区块 Hook ────────────────────────────────────────────────────
@@ -173,8 +162,8 @@ export default function OverviewScreen() {
 
   const [hoveredPath, setHoveredPath] = useState<string[] | undefined>(undefined);
   const [selectedNode, setSelectedNode] = useState<StoryNode | null>(null);
-  const doneCount = HEALTH.filter(h => h.status === "ok").length;
-  const healthPct = Math.round((doneCount / HEALTH.length) * 100);
+  const doneCount = QUALITY_CHECKS.filter(h => h.status === "ok").length;
+  const healthPct = Math.round((doneCount / QUALITY_CHECKS.length) * 100);
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
@@ -528,7 +517,7 @@ export default function OverviewScreen() {
 
         {/* ── 项目健康度 ── */}
         <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader icon={Activity} title="项目健康度" subtitle={`完成 ${doneCount}/${HEALTH.length} 项检查`}
+          <SectionHeader icon={Activity} title="项目健康度" subtitle={`完成 ${doneCount}/${QUALITY_CHECKS.length} 项检查`}
             open={secHealth.open} onToggle={secHealth.toggle}
             action={
               <div className="flex items-center gap-1.5">
@@ -544,30 +533,50 @@ export default function OverviewScreen() {
             {secHealth.open && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                <div className="mt-3 space-y-1.5">
-                  {HEALTH.map((item, i) => (
-                    <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg"
-                      style={{ background: item.status === "ok" ? S.success10 : S.warning10 }}>
-                      {item.status === "ok"
-                        ? <CheckCircle2 size={12} style={{ color: S.success, marginTop: 1, flexShrink: 0 }} />
-                        : <AlertTriangle size={12} style={{ color: S.warning, marginTop: 1, flexShrink: 0 }} />}
-                      <div>
-                        <p className="text-[10px] font-bold" style={{ color: item.status === "ok" ? S.success : S.warning }}>
-                          {item.label}
-                        </p>
-                        <p className="text-[9px]" style={{ color: S.text3 }}>{item.detail}</p>
+                <div className="mt-3">
+                  {QC_CATEGORIES.map(cat => {
+                    const items = QUALITY_CHECKS.filter(qc => qc.category === cat.key);
+                    const catOk = items.every(qc => qc.status === "ok");
+                    return (
+                      <div key={cat.key} className="mb-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <cat.icon size={10} style={{ color: catOk ? S.success : S.warning }} />
+                          <span className="text-[9px] font-bold" style={{ color: S.text }}>{cat.label}</span>
+                          <span className="text-[8px] px-1 py-0.5 rounded font-mono"
+                            style={{ background: catOk ? S.success10 : S.warning10, color: catOk ? S.success : S.warning }}>
+                            {items.filter(q => q.status === "ok").length}/{items.length}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {items.map(qc => (
+                            <div key={qc.id} className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg"
+                              style={{ background: qc.status === "ok" ? S.success10 : qc.status === "warn" ? S.warning10 : S.error10 }}>
+                              {qc.status === "ok"
+                                ? <CheckCircle2 size={11} style={{ color: S.success, marginTop: 1, flexShrink: 0 }} />
+                                : qc.status === "warn"
+                                ? <AlertTriangle size={11} style={{ color: S.warning, marginTop: 1, flexShrink: 0 }} />
+                                : <AlertTriangle size={11} style={{ color: S.error, marginTop: 1, flexShrink: 0 }} />}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-bold" style={{ color: qc.status === "ok" ? S.success : qc.status === "warn" ? S.warning : S.error }}>
+                                  {qc.label}
+                                </p>
+                                <p className="text-[8px]" style={{ color: S.text3 }}>{qc.detail}</p>
+                              </div>
+                              {qc.status !== "ok" && qc.fixLink && (
+                                <Link href={qc.fixLink} className="ml-auto shrink-0">
+                                  <motion.span whileTap={{ scale: 0.95 }}
+                                    className="text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5"
+                                    style={{ background: `${S.primary}12`, color: S.primary, border: `1px solid ${S.primary}20` }}>
+                                    修复 <ExternalLink size={7} />
+                                  </motion.span>
+                                </Link>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      {item.status !== "ok" && (
-                        <Link href="/nodes" className="ml-auto shrink-0">
-                          <motion.span whileTap={{ scale: 0.95 }}
-                            className="text-[8px] font-bold px-2 py-0.5 rounded flex items-center gap-0.5"
-                            style={{ background: `${S.primary}12`, color: S.primary, border: `1px solid ${S.primary}20` }}>
-                            修复 <ExternalLink size={7} />
-                          </motion.span>
-                        </Link>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
@@ -605,6 +614,25 @@ export default function OverviewScreen() {
                 </motion.div>
               </Link>
             ))}
+          </div>
+        </div>
+
+        {/* ── 协作成员（占位）────────────────────────────────────────────── */}
+        <div className="p-4 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Users size={14} style={{ color:S.primary }} />
+              <h2 className="text-xs font-bold" style={{ color:S.text }}>协作成员</h2>
+            </div>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded"
+              style={{ background:`${S.text3}12`, color:S.text3 }}>即将上线</span>
+          </div>
+          <div className="flex items-center justify-center py-6 rounded-lg" style={{ background:S.s2, border:`1px dashed ${S.border}` }}>
+            <div className="text-center">
+              <Users size={24} style={{ color:`${S.text3}40` }} />
+              <p className="text-[10px] mt-2" style={{ color:S.text3 }}>邀请团队成员共同编辑项目</p>
+              <p className="text-[9px] mt-1" style={{ color:`${S.text3}80` }}>版本管理与实时协作功能正在开发中</p>
+            </div>
           </div>
         </div>
 

@@ -7,6 +7,7 @@ import {
   Image, Music, Mic, Film, Plus, Edit2, Check
 } from "lucide-react";
 import Link from "next/link";
+import { STORY_NODES, NODE_EDGES, GAME_SCENES, GAME_CHARACTERS, GAME_PROPS, ASSET_CARDS } from "@/lib/studio-data";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -126,6 +127,7 @@ export default function AssetsScreen() {
   const [selectedScene, setSelectedScene] = useState(0);
   const [generating, setGenerating] = useState<string|null>(null);
   const [genDone, setGenDone] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"pipeline" | "by-node">("pipeline");
 
   const handleGenerate = (id: string) => {
     setGenerating(id);
@@ -166,17 +168,35 @@ export default function AssetsScreen() {
             </div>
           ))}
         </div>
-        <Link href="/nodes">
-          <motion.button whileTap={{ scale:0.97 }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-            style={{ background:`linear-gradient(135deg,${S.primary},#A78BFA)` }}>
-            进入节点图编辑 <ArrowRight size={11} />
-          </motion.button>
-        </Link>
+        <div className="flex items-center gap-1.5">
+          {/* View mode toggle */}
+          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={() => setViewMode("pipeline")}
+              className="px-3 py-1.5 text-[10px] font-bold focus:outline-none"
+              style={{ background: viewMode === "pipeline" ? S.primary : S.s2, color: viewMode === "pipeline" ? "#fff" : S.text3 }}>
+              按类型
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={() => setViewMode("by-node")}
+              className="px-3 py-1.5 text-[10px] font-bold focus:outline-none"
+              style={{ background: viewMode === "by-node" ? S.primary : S.s2, color: viewMode === "by-node" ? "#fff" : S.text3 }}>
+              按节点
+            </motion.button>
+          </div>
+          <Link href="/nodes">
+            <motion.button whileTap={{ scale:0.97 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
+              style={{ background:`linear-gradient(135deg,${S.primary},#A78BFA)` }}>
+              进入节点图编辑 <ArrowRight size={11} />
+            </motion.button>
+          </Link>
+        </div>
       </div>
 
       {/* ── 主内容区 ── */}
       <div className="flex-1 overflow-hidden flex">
+        {viewMode === "pipeline" && (
         <AnimatePresence mode="wait">
 
           {/* ══ 角色配置 ══ */}
@@ -554,6 +574,152 @@ export default function AssetsScreen() {
             </motion.div>
           )}
         </AnimatePresence>
+        )}
+
+        {/* 按节点查看 - 资产依赖看板 */}
+        {viewMode === "by-node" && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Summary stats */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "总节点", value: STORY_NODES.length, color: S.primary },
+                { label: "有图片", value: ASSET_CARDS.filter(a => a.hasImage).length, color: S.success },
+                { label: "缺 BGM", value: ASSET_CARDS.filter(a => !a.hasBgm).length, color: S.warning },
+                { label: "缺配音", value: ASSET_CARDS.filter(a => !a.hasVoice).length, color: S.error },
+              ].map(stat => (
+                <div key={stat.label} className="p-3 rounded-xl text-center"
+                  style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <p className="text-lg font-bold font-mono" style={{ color: stat.color }}>{stat.value}</p>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Priority production board */}
+            <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold" style={{ color: S.text }}>资产生产看板</h3>
+                <div className="flex gap-1.5">
+                  <motion.button whileTap={{ scale: 0.97 }}
+                    onClick={() => handleGenerate("batch-bgm")}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-bold focus:outline-none"
+                    style={{ background: `${S.warning}12`, border: `1px solid ${S.warning}25`, color: S.warning }}>
+                    <Music size={9} /> 一键生成全部 BGM
+                  </motion.button>
+                </div>
+              </div>
+              
+              {/* Priority groups */}
+              {[
+                { 
+                  priority: "阻塞发布", 
+                  color: S.error, 
+                  items: ASSET_CARDS.filter(a => !a.hasImage).map(a => ({
+                    node: a, type: "场景图片", reason: "缺少核心视觉资产"
+                  }))
+                },
+                { 
+                  priority: "影响体验", 
+                  color: S.warning, 
+                  items: ASSET_CARDS.filter(a => !a.hasBgm).map(a => ({
+                    node: a, type: "背景音乐", reason: "缺少 BGM 影响沉浸感"
+                  }))
+                },
+              ].map(group => group.items.length > 0 && (
+                <div key={group.priority} className="mb-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: group.color }} />
+                    <span className="text-[9px] font-bold" style={{ color: group.color }}>{group.priority}</span>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${group.color}10`, color: group.color }}>
+                      {group.items.length} 项
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {group.items.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded-lg"
+                        style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center"
+                          style={{ background: `${group.color}10` }}>
+                          {item.node.hasImage && item.node.imageUrl 
+                            ? <img src={item.node.imageUrl} className="w-full h-full object-cover rounded-lg" alt="" />
+                            : <Image size={14} style={{ color: group.color }} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] font-bold truncate" style={{ color: S.text }}>{item.node.nodeLabel}</p>
+                          <p className="text-[8px]" style={{ color: S.text3 }}>缺 {item.type}</p>
+                        </div>
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          onClick={() => handleGenerate(`node-${item.node.nodeId}-${item.type}`)}
+                          className="px-2 py-0.5 rounded text-[8px] font-bold shrink-0 focus:outline-none"
+                          style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}20` }}>
+                          {genDone.includes(`node-${item.node.nodeId}-${item.type}`) ? "✓" : "生成"}
+                        </motion.button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Node detail cards */}
+            <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <h3 className="text-xs font-bold mb-3" style={{ color: S.text }}>节点资产依赖详情</h3>
+              <div className="space-y-2">
+                {ASSET_CARDS.map(asset => {
+                  const node = STORY_NODES.find(n => n.id === asset.nodeId);
+                  const scene = GAME_SCENES.find(s => s.refNodes.includes(asset.nodeId));
+                  const chars = GAME_CHARACTERS.filter(c => c.appearNodes.includes(asset.nodeId));
+                  const props = GAME_PROPS.filter(p => p.refNodes.includes(asset.nodeId));
+                  const missing = [!asset.hasImage, !asset.hasBgm, !asset.hasVoice, !asset.hasVideo].filter(Boolean).length;
+                  
+                  return (
+                    <div key={asset.nodeId} className="p-3 rounded-xl"
+                      style={{ background: S.s2, border: `1px solid ${missing > 0 ? `${S.warning}30` : `${S.success}30`}` }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{asset.nodeLabel}</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded"
+                            style={{ background: node ? `${S.primary}10` : S.s2, color: S.primary }}>
+                            {node?.type || "unknown"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {[
+                            { label: "图", ok: asset.hasImage },
+                            { label: "乐", ok: asset.hasBgm },
+                            { label: "声", ok: asset.hasVoice },
+                            { label: "视", ok: asset.hasVideo },
+                          ].map(a => (
+                            <span key={a.label} className="text-[7px] px-1 py-0.5 rounded font-bold"
+                              style={{ 
+                                background: a.ok ? `${S.success}15` : `${S.error}10`,
+                                color: a.ok ? S.success : S.error 
+                              }}>
+                              {a.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Dependencies */}
+                      <div className="flex gap-3 text-[8px]" style={{ color: S.text3 }}>
+                        {scene && (
+                          <span>📍 {scene.name}</span>
+                        )}
+                        {chars.length > 0 && (
+                          <span>👤 {chars.map(c => c.name).join(", ")}</span>
+                        )}
+                        {props.length > 0 && (
+                          <span>🔧 {props.map(p => p.name).join(", ")}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

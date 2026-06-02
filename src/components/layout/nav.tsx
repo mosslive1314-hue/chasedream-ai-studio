@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Scissors, FileText, GitBranch,
-  Package, Play, Rocket, Settings,
+  Package, Play, Rocket, Settings, Users,
   ChevronLeft, ChevronRight
 } from "lucide-react";
 
 const W_OPEN = 200;
 const W_CLOSED = 56;
 
-const NAV = [
+type NavItem = { href: string; icon: typeof Home; label: string; disabled?: boolean };
+
+const NAV: NavItem[] = [
   { href: "/",         icon: Home,     label: "创作台" },
   { href: "/overview", icon: Home,     label: "总览"   },
   { href: "/parse",    icon: Scissors, label: "剧本解构"},
@@ -20,6 +22,7 @@ const NAV = [
   { href: "/nodes",    icon: GitBranch,label: "节点图"  },
   { href: "/assets",   icon: Package,  label: "资产库"  },
   { href: "/simulator",icon: Play,     label: "试玩"    },
+  { href: "/collab",   icon: Users,    label: "协作", disabled: true },
   { href: "/publish",  icon: Rocket,   label: "发布"    },
 ];
 
@@ -64,6 +67,7 @@ export function BottomNav() {
 export function SideNav() {
   const path = usePathname();
   const [open, setOpen] = useState(true);
+  const [tooltip, setTooltip] = useState<string | null>(null);
   const w = open ? W_OPEN : W_CLOSED;
 
   return (
@@ -99,6 +103,44 @@ export function SideNav() {
         <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
           {NAV.map(item => {
             const active = isActive(item.href, path);
+
+            /* disabled 占位项 —— 渲染为 div + tooltip 提示 */
+            if (item.disabled) {
+              return (
+                <div key={item.href} className="relative">
+                  <motion.div whileTap={{ scale:0.97 }}
+                    onClick={() => setTooltip(tooltip === item.href ? null : item.href)}
+                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-colors"
+                    style={{
+                      background: "transparent",
+                      border: "1px solid transparent",
+                      opacity: 0.5,
+                    }}>
+                    <item.icon size={16} strokeWidth={1.8}
+                      style={{ color: "#9198B5", flexShrink:0 }} />
+                    <AnimatePresence>
+                      {open && (
+                        <motion.span
+                          initial={{ opacity:0, width:0 }} animate={{ opacity:1, width:"auto" }}
+                          exit={{ opacity:0, width:0 }}
+                          transition={{ duration:0.16 }}
+                          className="text-xs font-medium truncate overflow-hidden whitespace-nowrap"
+                          style={{ color: "#9198B5" }}>
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                  {tooltip === item.href && (
+                    <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 px-2 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap shadow-md"
+                      style={{ background:"#1A1D2E", color:"#fff" }}>
+                      即将上线
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link key={item.href} href={item.href} title={item.label} className="block">
                 <motion.div whileTap={{ scale:0.97 }}

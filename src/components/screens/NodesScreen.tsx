@@ -9,10 +9,11 @@ import {
   User, Package, Music, GitBranch, X, Loader2,
   Monitor, Star, Download, Wand2,
   Layout, Eye as EyeIcon, Search,
-  Check, Trash2, Copy, RotateCcw, Settings
+  Check, Trash2, Copy, RotateCcw, Settings,
+  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy
 } from "lucide-react";
 import Link from "next/link";
-import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, type UITemplate, type UITemplateCategory, type UIComponentDef } from "@/lib/studio-data";
+import { STORY_NODES, NODE_EDGES, UI_TEMPLATES, GAME_UI_SETTINGS, STAGE_CHECKS, NARRATIVE_INTENTS, GAME_VARIABLES, HEATMAP_DATA, type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent } from "@/lib/studio-data";
 
 const S = {
   bg:      "#F5F6FA",
@@ -41,16 +42,6 @@ const TABS: { id:TabId; label:string; icon:any }[] = [
   { id:"character", label:"角色",   icon:User      },
   { id:"assets",    label:"资产",   icon:Package   },
   { id:"ui",        label:"用户界面", icon:Monitor },
-];
-
-// ── 左侧阶段检查项（完全对齐截图内容）─────────────────────────────────────
-const CHECKS = [
-  { label:"故事结构",   detail:"11 个节点，入口和结局已连通",           status:"ok"   },
-  { label:"互动选择",   detail:"1 个选择节点，2 个玩家选项",             status:"ok"   },
-  { label:"角色配置",   detail:"3 个角色已配置",                         status:"ok"   },
-  { label:"节点资产",   detail:"8/9 个场景已有图片或视频，建议补齐",     status:"warn" },
-  { label:"预览试玩",   detail:"已从玩家视角打开过预览",                 status:"ok"   },
-  { label:"H5 发布",   detail:"H5 链接已发布，可分享给玩家",             status:"ok"   },
 ];
 
 // ── 节点类型配色（对齐原站颜色风格）────────────────────────────────────────
@@ -110,29 +101,168 @@ function ScriptContent() {
 
 // ── 热力图 Tab ────────────────────────────────────────────────────────────
 function HeatmapContent() {
+  const [viewMode, setViewMode] = useState<"overview"|"detail">("overview");
+  const hmMap = Object.fromEntries(HEATMAP_DATA.map(h => [h.nodeId, h]));
+  
+  const heatColor = (level: string) => {
+    switch(level) {
+      case 'hot':  return { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', label: '🔥 热门' };
+      case 'warm': return { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', label: '☀️ 活跃' };
+      case 'cool': return { bg: 'rgba(59,130,246,0.12)', color: '#3B82F6', label: '💧 一般' };
+      case 'cold': return { bg: 'rgba(107,114,128,0.12)', color: '#6B7280', label: '❄️ 冷门' };
+      default: return { bg: S.s2, color: S.text3, label: '—' };
+    }
+  };
+
+  // 汇总统计
+  const totalPlays = HEATMAP_DATA.reduce((s,h) => s+h.playCount, 0);
+  const avgDropOff = Math.round(HEATMAP_DATA.reduce((s,h) => s+h.dropOffRate, 0) / HEATMAP_DATA.length);
+  const hotNodes = HEATMAP_DATA.filter(h => h.heatLevel === 'hot');
+  const coldNodes = HEATMAP_DATA.filter(h => h.heatLevel === 'cold' || h.heatLevel === 'cool');
+  const highestDrop = [...HEATMAP_DATA].sort((a,b) => b.dropOffRate - a.dropOffRate)[0];
+
+  const choiceNode = STORY_NODES.find(n => n.type === 'choice');
+  const choiceHm = choiceNode ? hmMap[choiceNode.id] : null;
+
   return (
-    <div className="flex-1 flex items-center justify-center flex-col gap-3 p-8">
-      <Flame size={36} style={{ color:"rgba(245,158,11,0.3)" }} />
-      <p className="text-sm font-bold" style={{ color:S.text2 }}>玩家热力图</p>
-      <p className="text-xs text-center" style={{ color:S.text3 }}>
-        发布后收集玩家数据，展示最受关注的节点和最常选择的路径
-      </p>
-      <div className="mt-2 space-y-1.5 w-full max-w-xs">
-        {[
-          { label:"进入路线（选择节点）", pct:78, color:S.warning },
-          { label:"任务简报（场景节点）", pct:95, color:S.primary },
-          { label:"数据到手（场景节点）", pct:42, color:S.accent },
-        ].map(item => (
-          <div key={item.label}>
-            <div className="flex justify-between text-[9px] mb-0.5" style={{ color:S.text3 }}>
-              <span>{item.label}</span><span>{item.pct}%</span>
-            </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background:S.s2 }}>
-              <div className="h-full rounded-full" style={{ width:`${item.pct}%`, background:item.color }} />
-            </div>
-          </div>
-        ))}
+    <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: S.bg }}>
+      {/* 视图切换 */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex rounded-lg overflow-hidden" style={{ border:`1px solid ${S.border}` }}>
+          {(["overview","detail"] as const).map(m => (
+            <motion.button key={m} whileTap={{ scale:0.95 }}
+              onClick={() => setViewMode(m)}
+              className="px-3 py-1.5 text-[10px] font-bold focus:outline-none"
+              style={{
+                background: viewMode===m ? S.primary : S.card,
+                color: viewMode===m ? '#fff' : S.text2,
+              }}>
+              {m === 'overview' ? '📊 总览' : '📋 详细'}
+            </motion.button>
+          ))}
+        </div>
+        <span className="text-[9px] ml-auto" style={{ color:S.text3 }}>基于 234 次模拟游玩数据</span>
       </div>
+
+      {/* 总览模式 */}
+      {viewMode === 'overview' && <>
+        {/* 汇总卡片 */}
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label:'总游玩次数', value:totalPlays, icon:'🎮', color:S.primary },
+            { label:'平均流失率', value:`${avgDropOff}%`, icon:'📉', color:S.warning },
+            { label:'热门节点', value:hotNodes.length, icon:'🔥', color:S.error },
+            { label:'冷门节点', value:coldNodes.length, icon:'❄️', color:'#6B7280' },
+          ].map(s => (
+            <div key={s.label} className="p-3 rounded-xl text-center" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+              <div className="text-lg mb-1">{s.icon}</div>
+              <div className="text-sm font-black" style={{ color:s.color }}>{s.value}</div>
+              <div className="text-[8px] mt-0.5" style={{ color:S.text3 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 节点到达率热力图 */}
+        <div className="p-4 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+          <h3 className="text-xs font-bold mb-3" style={{ color:S.text }}>节点到达率</h3>
+          <div className="space-y-2">
+            {STORY_NODES.map(node => {
+              const hm = hmMap[node.id];
+              if (!hm) return null;
+              const hc = heatColor(hm.heatLevel);
+              return (
+                <div key={node.id} className="flex items-center gap-2">
+                  <span className="text-[9px] w-6 font-mono shrink-0" style={{ color:S.text3 }}>{node.id}</span>
+                  <span className="text-[10px] w-28 truncate shrink-0" style={{ color:S.text2 }}>{node.label}</span>
+                  <div className="flex-1 h-4 rounded-full overflow-hidden relative" style={{ background:S.s2 }}>
+                    <motion.div initial={{ width:0 }} animate={{ width:`${hm.visitRate}%` }}
+                      transition={{ duration:0.8, delay: STORY_NODES.indexOf(node) * 0.05 }}
+                      className="h-full rounded-full" style={{ background: hc.color, opacity:0.7 }} />
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold"
+                      style={{ color: hm.visitRate > 50 ? '#fff' : S.text2 }}>
+                      {hm.visitRate}%
+                    </span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background:hc.bg, color:hc.color }}>{hm.playCount}次</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 流失预警 */}
+        <div className="p-4 rounded-xl" style={{ background:`rgba(239,68,68,0.04)`, border:`1px solid rgba(239,68,68,0.15)` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm">⚠️</span>
+            <h3 className="text-xs font-bold" style={{ color:S.error }}>流失预警</h3>
+          </div>
+          <p className="text-[10px] mb-3" style={{ color:S.text2 }}>
+            「{highestDrop?.nodeId} {STORY_NODES.find(n=>n.id===highestDrop?.nodeId)?.label}」节点流失率最高（{highestDrop?.dropOffRate}%），建议检查该节点难度和文案吸引力。
+          </p>
+          <div className="space-y-1.5">
+            {[...HEATMAP_DATA].sort((a,b) => b.dropOffRate - a.dropOffRate).slice(0, 3).map(h => {
+              const node = STORY_NODES.find(n => n.id === h.nodeId);
+              return (
+                <div key={h.nodeId} className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono w-6" style={{ color:S.error }}>{h.nodeId}</span>
+                  <span className="text-[10px] flex-1 truncate" style={{ color:S.text2 }}>{node?.label}</span>
+                  <span className="text-[10px] font-bold" style={{ color:S.error }}>{h.dropOffRate}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </>}
+
+      {/* 详细模式 */}
+      {viewMode === 'detail' && (
+        <div className="space-y-2">
+          {STORY_NODES.map(node => {
+            const hm = hmMap[node.id];
+            if (!hm) return null;
+            const hc = heatColor(hm.heatLevel);
+            return (
+              <motion.div key={node.id} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
+                className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ background:`${S.primary}12`, color:S.primary }}>{node.id}</span>
+                  <span className="text-xs font-bold" style={{ color:S.text }}>{node.label}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded ml-auto" style={{ background:hc.bg, color:hc.color }}>{hc.label}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {[
+                    { label:'到达率', value:`${hm.visitRate}%` },
+                    { label:'停留时间', value:`${hm.avgTimeSpent}秒` },
+                    { label:'流失率', value:`${hm.dropOffRate}%` },
+                    { label:'完成率', value:`${hm.completionRate}%` },
+                  ].map(m => (
+                    <div key={m.label} className="text-center p-1.5 rounded-lg" style={{ background:S.s2 }}>
+                      <div className="text-[10px] font-bold" style={{ color:S.text }}>{m.value}</div>
+                      <div className="text-[8px]" style={{ color:S.text3 }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {hm.choiceDistribution && (
+                  <div className="mt-1">
+                    <span className="text-[9px]" style={{ color:S.text3 }}>选择分布：</span>
+                    <div className="flex gap-1 mt-0.5">
+                      {hm.choiceDistribution.map((pct, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <span className="text-[9px]" style={{ color:S.text3 }}>{String.fromCharCode(65+i)}</span>
+                          <div className="w-16 h-2 rounded-full overflow-hidden" style={{ background:S.s2 }}>
+                            <div className="h-full rounded-full" style={{ width:`${pct}%`, background: i===0 ? S.primary : S.accent }} />
+                          </div>
+                          <span className="text-[9px] font-bold" style={{ color:S.text2 }}>{pct}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -233,7 +363,14 @@ function AssetsContent() {
 }
 
 // ── 主节点画布（对齐原站 React Flow 风格）──────────────────────────────────
-function CanvasContent({ sel, setSel }: { sel:string|null; setSel:(id:string|null)=>void }) {
+function CanvasContent({ sel, setSel, nodeFilter }: { sel:string|null; setSel:(id:string|null)=>void; nodeFilter:string }) {
+  const filteredNodes = STORY_NODES.filter(node => {
+    if (nodeFilter === "all") return true;
+    if (nodeFilter === "error") return (node as any).hasError;
+    if (nodeFilter === "ending") return node.type === "ending_good" || node.type === "ending_bad";
+    return node.type === nodeFilter;
+  });
+
   return (
     <div className="relative w-full h-full overflow-auto"
       style={{
@@ -286,7 +423,7 @@ function CanvasContent({ sel, setSel }: { sel:string|null; setSel:(id:string|nul
           })}
         </svg>
 
-        {STORY_NODES.map(node => {
+        {filteredNodes.map(node => {
           const cfg = NODE_TYPE[node.type] ?? NODE_TYPE.scene;
           const isSelected = sel===node.id;
           return (
@@ -334,6 +471,14 @@ const UI_CATEGORIES: { id: UITemplateCategory | "all"; label: string }[] = [
   { id: "system",    label: "系统面板" },
 ];
 
+const UI_COVERAGE = [
+  { nodeType: "场景节点 (scene)", needed: ["dialog_box"], has: true, icon: "📖" },
+  { nodeType: "选择节点 (choice)", needed: ["choice_button"], has: true, icon: "🔀" },
+  { nodeType: "QTE 节点 (qte)", needed: ["qte_prompt"], has: false, icon: "⚡" },
+  { nodeType: "结局节点 (ending)", needed: ["menu_panel"], has: false, icon: "🏆" },
+  { nodeType: "系统 UI", needed: ["menu_panel", "save_slot", "settings_panel"], has: false, icon: "⚙️" },
+];
+
 function UIContent() {
   const [catFilter, setCatFilter] = useState<UITemplateCategory | "all">("all");
   const [selectedTpl, setSelectedTpl] = useState<UITemplate | null>(null);
@@ -348,6 +493,7 @@ function UIContent() {
   );
   const [editingComponent, setEditingComponent] = useState<UIComponentDef | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [coverageOpen, setCoverageOpen] = useState(false);
   const [globalTextSpeed, setGlobalTextSpeed] = useState(GAME_UI_SETTINGS.globalTextSpeed);
   const [showSkip, setShowSkip] = useState(GAME_UI_SETTINGS.showSkipButton);
   const [showAuto, setShowAuto] = useState(GAME_UI_SETTINGS.showAutoPlay);
@@ -549,6 +695,12 @@ function UIContent() {
             style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}25`, color: S.accent }}>
             <Download size={10} /> 素材市场
           </motion.button>
+          {/* UI 覆盖检查按钮 */}
+          <motion.button whileTap={{ scale: 0.96 }} onClick={() => setCoverageOpen(!coverageOpen)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none"
+            style={{ background: `${S.warning}12`, border: `1px solid ${S.warning}25`, color: S.warning }}>
+            <Shield size={10} /> 覆盖检查
+          </motion.button>
           {/* 全局设置 */}
           <motion.button whileTap={{ scale: 0.96 }} onClick={() => setPreviewMode(!previewMode)}
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium focus:outline-none"
@@ -558,6 +710,35 @@ function UIContent() {
           </motion.button>
         </div>
       </div>
+
+      {/* ── UI 覆盖检查面板 ── */}
+      {coverageOpen && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+          className="px-4 py-3 border-b" style={{ borderColor: S.border, background: `${S.warning}04` }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold" style={{ color: S.text }}>UI 模板覆盖检查</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded"
+              style={{ background: `${S.warning}15`, color: S.warning }}>
+              {UI_COVERAGE.filter(c => c.has).length}/{UI_COVERAGE.length} 已配置
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {UI_COVERAGE.map(item => (
+              <div key={item.nodeType} className="p-2 rounded-lg text-center"
+                style={{ background: S.card, border: `1px solid ${item.has ? `${S.success}30` : `${S.warning}30`}` }}>
+                <div className="text-lg mb-0.5">{item.icon}</div>
+                <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text }}>{item.nodeType.split(" ")[0]}</p>
+                <p className="text-[7px]" style={{ color: item.has ? S.success : S.warning }}>
+                  {item.has ? "✓ 已配置" : "✗ 未配置"}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[8px] mt-2" style={{ color: S.text3 }}>
+            💡 未配置的类型可通过 AI 生成或从素材市场导入对应模板
+          </p>
+        </motion.div>
+      )}
 
       {/* ── 主体内容 ── */}
       <div className="flex-1 flex overflow-hidden">
@@ -1186,9 +1367,27 @@ export default function NodesScreen() {
   const [aiModal, setAiModal] = useState<"write"|"node"|"bgm"|"portrait"|null>(null);
   const [aiInput, setAiInput] = useState("");
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
+  const [nodeFilter, setNodeFilter] = useState<string>("all");
 
-  const doneCount = CHECKS.filter(c=>c.status==="ok").length;
-  const pct = Math.round((doneCount/CHECKS.length)*100);
+  const NODE_FILTERS = [
+    { id: "all", label: "全部", icon: Layers },
+    { id: "scene", label: "场景", icon: Film },
+    { id: "choice", label: "选择", icon: HelpCircle },
+    { id: "condition", label: "条件", icon: Zap },
+    { id: "qte", label: "QTE", icon: Target },
+    { id: "ending", label: "结局", icon: Trophy },
+    { id: "error", label: "有问题", icon: AlertTriangle },
+  ];
+
+  const doneCount = STAGE_CHECKS.filter(c=>c.status==="ok").length;
+  const pct = Math.round((doneCount/STAGE_CHECKS.length)*100);
+
+  const filteredSidebarNodes = STORY_NODES.filter(node => {
+    if (nodeFilter === "all") return true;
+    if (nodeFilter === "error") return (node as any).hasError;
+    if (nodeFilter === "ending") return node.type === "ending_good" || node.type === "ending_bad";
+    return node.type === nodeFilter;
+  });
 
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
@@ -1299,6 +1498,33 @@ export default function NodesScreen() {
         ))}
       </div>
 
+      {/* ── 节点筛选栏（仅画布 Tab 显示）── */}
+      {activeTab === "canvas" && (
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b"
+          style={{ background: S.card, borderColor: S.border }}>
+          <span className="text-[9px] font-medium mr-1" style={{ color: S.text3 }}>筛选:</span>
+          {NODE_FILTERS.map(f => (
+            <motion.button key={f.id} whileTap={{ scale: 0.96 }}
+              onClick={() => setNodeFilter(f.id)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium focus:outline-none"
+              style={{
+                background: nodeFilter === f.id ? S.primary : "transparent",
+                color: nodeFilter === f.id ? "#fff" : S.text3,
+                border: `1px solid ${nodeFilter === f.id ? S.primary : S.border}`,
+              }}>
+              <f.icon size={9} />
+              {f.label}
+            </motion.button>
+          ))}
+          <span className="ml-auto text-[8px]" style={{ color: S.text3 }}>
+            {nodeFilter === "all" ? STORY_NODES.length : nodeFilter === "error"
+              ? STORY_NODES.filter(n => (n as any).hasError).length
+              : STORY_NODES.filter(n => n.type === nodeFilter || (nodeFilter === "ending" && (n.type === "ending_good" || n.type === "ending_bad"))).length
+            } 个节点
+          </span>
+        </div>
+      )}
+
       {/* ── 三栏主体 ── */}
       <div className="flex-1 flex overflow-hidden">
 
@@ -1331,9 +1557,9 @@ export default function NodesScreen() {
               <motion.div initial={{ height:0 }} animate={{ height:"auto" }} exit={{ height:0 }}
                 className="overflow-hidden">
                 <div className="px-3 py-2 space-y-1">
-                  {CHECKS.map((c,i) => (
+                  {STAGE_CHECKS.map((c,i) => (
                     <div key={i} className="py-1.5"
-                      style={{ borderBottom: i<CHECKS.length-1 ? `1px solid ${S.border}` : "none" }}>
+                      style={{ borderBottom: i<STAGE_CHECKS.length-1 ? `1px solid ${S.border}` : "none" }}>
                       <div className="flex items-start gap-1.5">
                         {c.status==="ok"
                           ? <CheckCircle2 size={12} style={{ color:S.success, marginTop:1, flexShrink:0 }} />
@@ -1367,11 +1593,32 @@ export default function NodesScreen() {
             )}
           </AnimatePresence>
 
+          {/* 情绪曲线 (P0-3) */}
+          <div className="px-3 py-2 border-b" style={{ borderColor: S.border }}>
+            <p className="text-[9px] font-bold mb-1.5" style={{ color: S.text3 }}>叙事情绪曲线</p>
+            <div className="flex items-end gap-0.5 h-8">
+              {NARRATIVE_INTENTS.map((ni, i) => (
+                <div key={ni.nodeId} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div className="w-full rounded-t-sm transition-all"
+                    style={{
+                      height: `${(ni.emotionValue / 10) * 100}%`,
+                      background: ni.emotionValue >= 8 ? S.error : ni.emotionValue >= 6 ? S.warning : S.primary,
+                      opacity: sel === ni.nodeId ? 1 : 0.5,
+                    }}
+                  />
+                  <span className="text-[6px] font-mono" style={{ color: sel === ni.nodeId ? S.primary : S.text3 }}>
+                    {ni.nodeId.replace("N0","")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* 章节节点列表（对齐截图底部：第一章：渗透行动）*/}
           <div className="px-3 py-2" style={{ borderTop:`1px solid ${S.border}` }}>
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold" style={{ color:S.text }}>第一章：渗透行动</p>
-              <p className="text-[9px]" style={{ color:S.text3 }}>11 节点</p>
+              <p className="text-[9px]" style={{ color:S.text3 }}>{filteredSidebarNodes.length} 节点</p>
             </div>
             <div className="mb-1.5">
               <p className="text-[9px] font-medium mb-1" style={{ color:S.text3 }}>节点列表</p>
@@ -1383,7 +1630,7 @@ export default function NodesScreen() {
               </motion.button>
             </div>
             <div className="space-y-0.5">
-              {STORY_NODES.slice(0,6).map(node => (
+              {filteredSidebarNodes.slice(0,6).map(node => (
                 <motion.button key={node.id} whileTap={{ scale:0.97 }}
                   onClick={() => setSel(node.id===sel?null:node.id)}
                   className="w-full text-left px-2 py-1 rounded text-[9px] truncate focus:outline-none"
@@ -1395,6 +1642,69 @@ export default function NodesScreen() {
               ))}
             </div>
           </div>
+
+          {/* 叙事设计意图面板 (P0-3) */}
+          {sel && (() => {
+            const intent = NARRATIVE_INTENTS.find(ni => ni.nodeId === sel);
+            const nodeVars = GAME_VARIABLES.filter(v => v.modifiedBy.includes(sel) || v.readBy.includes(sel));
+            if (intent) return (
+              <div className="px-3 py-2" style={{ borderTop: `1px solid ${S.border}` }}>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: S.primary }}>
+                  ✦ 叙事设计意图
+                </p>
+                <div className="p-2.5 rounded-xl space-y-1.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                      style={{ background: `${S.primary}12`, color: S.primary }}>
+                      {intent.purposeLabel}
+                    </span>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded"
+                      style={{ background: intent.emotionValue >= 7 ? "rgba(239,68,68,0.1)" : intent.emotionValue >= 5 ? "rgba(245,158,11,0.1)" : S.s2,
+                        color: intent.emotionValue >= 7 ? S.error : intent.emotionValue >= 5 ? S.warning : S.text3 }}>
+                      张力 {intent.emotionValue}/10
+                    </span>
+                  </div>
+                  {intent.choiceImpact && (
+                    <div>
+                      <span className="text-[8px] font-medium" style={{ color: S.text3 }}>选择影响: </span>
+                      <span className="text-[8px]" style={{ color: S.text2 }}>{intent.choiceImpact}</span>
+                    </div>
+                  )}
+                  {intent.failFeedback && (
+                    <div className="flex items-start gap-1">
+                      <span className="text-[8px]" style={{ color: S.warning }}>⚠</span>
+                      <span className="text-[8px]" style={{ color: S.text3 }}>{intent.failFeedback}</span>
+                    </div>
+                  )}
+                  {intent.variableChanges && intent.variableChanges.length > 0 && (
+                    <div>
+                      <span className="text-[8px] font-medium block mb-0.5" style={{ color: S.text3 }}>变量变化:</span>
+                      {intent.variableChanges.map((vc, i) => (
+                        <span key={i} className="text-[8px] font-mono px-1 py-0.5 rounded mr-1"
+                          style={{ background: `${S.accent}10`, color: S.accent }}>
+                          {vc.variable} {vc.operation}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {nodeVars.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>关联变量</p>
+                    {nodeVars.map(v => (
+                      <div key={v.id} className="flex items-center justify-between py-0.5">
+                        <span className="text-[8px]" style={{ color: S.text2 }}>{v.label}</span>
+                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
+                          {v.modifiedBy.includes(sel) ? "修改" : "读取"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+            return null;
+          })()}
         </div>
 
         {/* 中央主工作区 */}
@@ -1402,7 +1712,7 @@ export default function NodesScreen() {
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity:0 }} animate={{ opacity:1 }}
               exit={{ opacity:0 }} transition={{ duration:0.1 }} className="h-full">
-              {activeTab==="canvas"    && <CanvasContent sel={sel} setSel={setSel} />}
+              {activeTab==="canvas"    && <CanvasContent sel={sel} setSel={setSel} nodeFilter={nodeFilter} />}
               {activeTab==="script"    && <ScriptContent />}
               {activeTab==="heatmap"   && <HeatmapContent />}
               {activeTab==="story"     && <StoryContent />}
