@@ -136,7 +136,7 @@ function getGroupLabel(group: NavGroup, industry: IndustryType): string {
 
 // Map sidebar nav group keys → pipeline stage linkedPage routes
 const GROUP_STAGE_ROUTES: Record<string, string[]> = {
-  creation: ["/settings", "/parse", "/script", "/story-overview"],
+  creation: ["/my-works", "/parse", "/script", "/story-overview"],
   design:   ["/interaction", "/cinematic", "/nodes"],
   asset:    ["/assets", "/asset-library"],
   delivery: ["/simulator", "/overview", "/publish"],
@@ -185,7 +185,7 @@ function PipelineMiniNav({
 
   // 4 group progress
   const GROUPS = [
-    { key: "creation", label: "创作", routes: ["/settings", "/parse", "/script", "/story-overview"] },
+    { key: "creation", label: "创作", routes: ["/my-works", "/parse", "/script", "/story-overview"] },
     { key: "design",   label: "设计", routes: ["/interaction", "/cinematic", "/nodes"] },
     { key: "asset",    label: "资产", routes: ["/assets", "/asset-library"] },
     { key: "delivery", label: "交付", routes: ["/simulator", "/overview", "/publish"] },

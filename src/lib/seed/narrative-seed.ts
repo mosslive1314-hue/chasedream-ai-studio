@@ -367,7 +367,7 @@ export const PIPELINE_STAGES: PipelineStage[] = [
     issues: [],
     nextAction: '已完成',
     requiresHumanConfirm: false,
-    linkedPage: '/settings',
+    linkedPage: '/my-works',
   },
   {
     id: 'stage-02', order: 2, name: '素材导入与解构',

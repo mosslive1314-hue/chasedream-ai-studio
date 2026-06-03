@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -7,6 +8,7 @@ import {
   Plus, BarChart3, BookOpen, Clapperboard,
 } from "lucide-react";
 import { useProjectStore, useNarrativeStore, useUIStore, useSettingsStore } from "@/store";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 // ── Design System ──────────────────────────────────────────────────────────
 const S = {
@@ -52,6 +54,7 @@ const FADE = {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function MyWorksScreen() {
+  const pathname = usePathname();
   const [activeTab, setActiveTab] = useState(0);
 
   const projects       = useProjectStore(s => s.projects);
@@ -87,6 +90,7 @@ export default function MyWorksScreen() {
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── Pill tabs ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-4 pt-3">

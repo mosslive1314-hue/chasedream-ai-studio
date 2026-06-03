@@ -17,7 +17,7 @@ const S = {
  *  (lowest index) so the user sees the entry-point stage for that page.
  *  Pages NOT in this map (e.g. /cinematic) will NOT show the bar. */
 const PAGE_STAGE_MAP: Record<string, number> = {
-  "/settings": 0,        // 项目创建
+  "/my-works": 0,       // 项目创建 (新建项目入口)
   "/parse": 1,           // 素材导入与解构
   "/story-overview": 2,  // 世界观与叙事规则
   "/script": 4,          // 线性剧本 (stages 3-4 both → /script)
