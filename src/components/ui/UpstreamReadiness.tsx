@@ -12,20 +12,40 @@ const S = {
   border: "#E2E5F0",
 };
 
-/** Map base route path -> pipeline stage index (0-based) */
+/** Map base route path -> primary pipeline stage index (0-based).
+ *  When multiple stages share the same linkedPage, we pick the first
+ *  (lowest index) so the user sees the entry-point stage for that page. */
 const PAGE_STAGE_MAP: Record<string, number> = {
-  "/settings": 0,
-  "/parse": 1,
-  "/story-overview": 0,
-  "/script": 2,
-  "/interaction": 6,
-  "/cinematic": 7,
-  "/nodes": 8,
-  "/assets": 9,
-  "/simulator": 10,
-  "/overview": 10,
-  "/publish": 11,
+  "/settings": 0,        // 项目创建
+  "/parse": 1,           // 素材导入与解构
+  "/story-overview": 2,  // 世界观与叙事规则
+  "/script": 4,          // 线性剧本 (stages 3-4 both → /script)
+  "/interaction": 5,     // 互动叙事设计 (stages 5-6 both → /interaction)
+  "/cinematic": 6,       // 演出设计 → 变量与交互机制 (stage 6, cinematic direction)
+  "/nodes": 7,           // 节点图谱与路径
+  "/assets": 8,          // 资产生成与管理
+  "/simulator": 9,       // 演出预览与试玩
+  "/overview": 10,       // 质检与修复
+  "/publish": 11,        // 发布与版本管理
 };
+
+/** Find the nearest stage whose linkedPage differs from `currentLinkedPage`,
+ *  searching in the given direction (-1 = backward, +1 = forward). */
+function findCrossPageStage(
+  stages: { linkedPage?: string; status: string; name: string; progress: number }[],
+  startIdx: number,
+  direction: -1 | 1,
+  currentLinkedPage: string | undefined,
+) {
+  let i = startIdx + direction;
+  while (i >= 0 && i < stages.length) {
+    if (stages[i].linkedPage && stages[i].linkedPage !== currentLinkedPage) {
+      return stages[i];
+    }
+    i += direction;
+  }
+  return null;
+}
 
 export function UpstreamReadiness({ currentPath }: { currentPath: string }) {
   const stages = useNarrativeStore((s) => s.pipelineStages);
@@ -36,8 +56,8 @@ export function UpstreamReadiness({ currentPath }: { currentPath: string }) {
   if (currentIdx < 0 || !stages.length) return null;
 
   const current = stages[currentIdx];
-  const prev = currentIdx > 0 ? stages[currentIdx - 1] : null;
-  const next = currentIdx < stages.length - 1 ? stages[currentIdx + 1] : null;
+  const prev = findCrossPageStage(stages, currentIdx, -1, current.linkedPage);
+  const next = findCrossPageStage(stages, currentIdx, 1, current.linkedPage);
   const completedCount = stages.filter((s) => s.status === "completed").length;
   const total = stages.length;
 
