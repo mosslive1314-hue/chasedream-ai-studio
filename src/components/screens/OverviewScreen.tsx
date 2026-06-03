@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight,
-  GitBranch, User, Users, MapPin, Clock, BookOpen, Zap,
+  GitBranch, User, MapPin, Clock, BookOpen, Zap,
   Trophy,
   Layers, Play,
   ExternalLink, BarChart3, Sparkles,
@@ -727,23 +727,7 @@ export default function OverviewScreen() {
                           ))}
                         </div>
                       </div>
-                      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <Users size={14} style={{ color: S.primary }} />
-                            <h2 className="text-xs font-bold" style={{ color: S.text }}>协作成员</h2>
-                          </div>
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded"
-                            style={{ background: `${S.text3}12`, color: S.text3 }}>即将上线</span>
-                        </div>
-                        <div className="flex items-center justify-center py-6 rounded-lg" style={{ background: S.s2, border: `1px dashed ${S.border}` }}>
-                          <div className="text-center">
-                            <Users size={24} style={{ color: `${S.text3}40` }} />
-                            <p className="text-[10px] mt-2" style={{ color: S.text3 }}>邀请团队成员共同编辑项目</p>
-                            <p className="text-[9px] mt-1" style={{ color: `${S.text3}80` }}>版本管理与实时协作功能正在开发中</p>
-                          </div>
-                        </div>
-                      </div>
+
                     </div>
                   </motion.div>
                 )}

@@ -1,2 +1,4 @@
-import HomeScreen from "@/components/screens/HomeScreen";
-export default function Home() { return <HomeScreen />; }
+import { redirect } from "next/navigation";
+export default function Home() {
+  redirect("/story-overview");
+}

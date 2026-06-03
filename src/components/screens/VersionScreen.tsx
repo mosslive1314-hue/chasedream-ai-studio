@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   GitCompareArrows, Camera, History, ArrowLeftRight,
   Clock, Plus, Minus, Pencil, Rocket,
-  CheckCircle2, Layers, ChevronRight, GitBranch,
+  CheckCircle2, Layers, ChevronRight, GitBranch, Sparkles, BookOpen,
 } from "lucide-react";
 import { useNarrativeStore, useUIStore } from "@/store";
 import type { VersionDiff } from "@/lib/types/collaboration";
@@ -26,6 +26,7 @@ const TABS = [
   { label: "版本差异", icon: GitCompareArrows },
   { label: "版本快照", icon: Camera },
   { label: "变更记录", icon: History },
+  { label: "版本历史", icon: BookOpen },
 ];
 
 // ── 状态配置 ─────────────────────────────────────────────────────────────
@@ -443,6 +444,70 @@ export default function VersionScreen() {
                   );
                 })}
               </div>
+            </motion.div>
+          )}
+
+          {/* ── Tab 3: 版本历史 ─────────────────────────────────────── */}
+          {activeTab === 3 && (
+            <motion.div key="history" {...fadeIn} className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <BookOpen size={14} style={{ color: S.primary }} />
+                <span className="text-xs font-bold" style={{ color: S.text }}>版本历史</span>
+              </div>
+
+              {/* 版本时间线 */}
+              {snapshots.length > 0 ? (
+                <div className="space-y-2">
+                  {snapshots.map((snap, i) => {
+                    const cfg = STATUS_CFG[snap.status] ?? STATUS_CFG.published;
+                    return (
+                      <div key={i} className="flex gap-3 group">
+                        {/* 时间线 */}
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center"
+                            style={{ background: cfg.bg }}>
+                            {i === snapshots.length - 1
+                              ? <CheckCircle2 size={13} style={{ color: cfg.color }} />
+                              : <Clock size={11} style={{ color: cfg.color }} />}
+                          </div>
+                          {i < snapshots.length - 1 && (
+                            <div className="w-px flex-1 my-1" style={{ background: S.border }} />
+                          )}
+                        </div>
+                        {/* 内容 */}
+                        <div className="flex-1 pb-3 min-w-0">
+                          <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold" style={{ color: S.text }}>{snap.version}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                                  style={{ background: cfg.bg, color: cfg.color }}>
+                                  {cfg.label}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{snap.date}</span>
+                            </div>
+                            <p className="text-[10px] leading-relaxed" style={{ color: S.text2 }}>{snap.summary}</p>
+                            <div className="flex items-center gap-1.5 mt-1.5 text-[9px]" style={{ color: S.text3 }}>
+                              <Layers size={9} />
+                              {snap.changes} 项变更
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl"
+                  style={{ background: S.s2, border: `1px dashed ${S.border}` }}>
+                  <Sparkles size={20} style={{ color: S.text3, marginBottom: 8 }} />
+                  <span className="text-[11px] font-bold" style={{ color: S.text3 }}>即将上线</span>
+                  <span className="text-[9px] mt-1" style={{ color: S.text3 }}>
+                    版本历史功能正在开发中，敬请期待
+                  </span>
+                </div>
+              )}
             </motion.div>
           )}
 

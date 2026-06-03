@@ -1,14 +1,14 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
   BookOpen, Scissors, GitBranch, Layers, Zap,
   Trophy, ArrowRight, Target, Users, MapPin, Package,
   Shield, BarChart3, MessageCircle, Timer, Activity,
-  Eye, Clock, Flame,
+  Eye, Clock, Flame, Upload, FileText, Clipboard,
 } from "lucide-react";
-import { useNarrativeStore, useSettingsStore } from "@/store";
+import { useNarrativeStore, useSettingsStore, useUIStore } from "@/store";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 
 // ── Design tokens ───────────────────────────────────────────────────────
@@ -22,43 +22,6 @@ const S = {
   warning: "#D97706", warning10: "rgba(217,119,6,0.10)",
   error: "#DC2626", error10: "rgba(220,38,38,0.10)",
 };
-
-// ── Pipeline stage labels (10-step deconstruction) ──────────────────────
-const PARSE_STEPS = [
-  "项目创建", "素材导入", "要素提取", "世界规则",
-  "章纲规划", "线性剧本", "互动设计", "变量配置",
-  "节点验证", "资产管理",
-];
-
-const STEP_DESC = [
-  "设定行业、类型、基础参数",
-  "导入原著/小说/大纲文本",
-  "AI 提取角色、场景、道具",
-  "定义世界观约束与规则",
-  "规划章节结构与情绪弧",
-  "精修结构化分场剧本",
-  "设计选择点与分支路径",
-  "配置变量与状态系统",
-  "验证节点连通与逻辑完整",
-  "盘点素材需求与覆盖率",
-];
-
-const STEP_PRODUCES = [
-  "项目配置 + 行业模板",
-  "原始文本 + 素材清单",
-  "角色设定 + 场景设定 + 道具设定",
-  "世界规则集 + 约束条件",
-  "章纲骨架 + 事件列表",
-  "线性剧本 + 剧本块",
-  "互动点 + 对话树 + 后果链",
-  "变量定义 + 状态映射",
-  "节点图 + 连通性报告",
-  "素材需求清单 + 覆盖率",
-];
-
-const STEP_DEPENDS: (number | null)[] = [
-  null, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-];
 
 // ── Tab definitions ─────────────────────────────────────────────────────
 type TabId = "progress" | "narrative" | "interaction" | "world" | "stats";
@@ -92,6 +55,9 @@ function StatPill({ label, value, color }: { label: string; value: number | stri
 export default function StoryOverviewScreen() {
   const projectName = useSettingsStore(s => s.projectName);
   const [activeTab, setActiveTab] = useState<TabId>("progress");
+  const addToast = useUIStore(s => s.addToast);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // ── Store selectors ───────────────────────────────────────────────────
   const storyNodes = useNarrativeStore(s => s.storyNodes);
@@ -128,7 +94,6 @@ export default function StoryOverviewScreen() {
   }), [storyNodes, narrativeIntents, consequenceChains, variables]);
   const tensionStats = useMemo(() => getTensionStats(tensionCurve), [tensionCurve]);
 
-  const doneSteps = pipelineStages.filter(s => (s?.progress ?? 0) >= 100).length;
   const activeStepIdx = pipelineStages.findIndex(s => s?.status === "active");
   const qcPassed = qualityChecks.filter(q => q.status === "ok").length;
   const qcTotal = qualityChecks.length;
@@ -152,13 +117,21 @@ export default function StoryOverviewScreen() {
             <p className="text-[9px]" style={{ color: S.text3 }}>创作进度 · 叙事结构 · 互动设计 · 角色世界 · 项目统计</p>
           </div>
         </div>
-        <Link href="/parse">
+        <div className="flex items-center gap-2">
           <motion.button whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-            style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
-            <Scissors size={11} /> 进入解构
-          </motion.button>
-        </Link>
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold focus:outline-none"
+              style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}>
+              <Upload size={11} /> 导入素材
+            </motion.button>
+          <Link href="/parse">
+            <motion.button whileTap={{ scale: 0.95 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
+              style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
+              <Scissors size={11} /> 进入解构
+            </motion.button>
+          </Link>
+        </div>
       </div>
 
       {/* ── Tab Bar ────────────────────────────────────────────────────── */}
@@ -193,7 +166,8 @@ export default function StoryOverviewScreen() {
             {/* ── Tab 1: 创作进度 ──────────────────────────────────────── */}
             {activeTab === "progress" && (
               <div className="space-y-5">
-                {/* Next action banner */}
+
+                {/* Next action banner (12-stage pipeline) */}
                 <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-4"
                   style={{ background: `linear-gradient(135deg, ${S.primary}08, ${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
                   <div className="flex items-center gap-3">
@@ -201,82 +175,29 @@ export default function StoryOverviewScreen() {
                       <Zap size={14} style={{ color: S.primary }} />
                     </div>
                     <div>
-                      <p className="text-xs font-bold" style={{ color: S.text }}>
-                        {doneSteps >= 10 ? "解构已全部完成！" : `下一步：${PARSE_STEPS[activeStepIdx >= 0 ? activeStepIdx : doneSteps] ?? "全部完成"}`}
-                      </p>
-                      <p className="text-[9px]" style={{ color: S.text3 }}>解构进度 {doneSteps}/10 步已完成</p>
+                      {activeStepIdx >= 0 ? (
+                        <>
+                          <p className="text-xs font-bold" style={{ color: S.text }}>
+                            当前阶段：{pipelineStages[activeStepIdx]?.name ?? "未知"}
+                          </p>
+                          <p className="text-[9px]" style={{ color: S.text3 }}>
+                            进度 {pipelineStages[activeStepIdx]?.progress ?? 0}%
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs font-bold" style={{ color: S.text }}>创作流程已全部完成！</p>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="flex items-center gap-1">
-                      {PARSE_STEPS.map((_, i) => {
-                        const stage = pipelineStages[i];
-                        const prog = stage?.progress ?? 0;
-                        return <div key={i} className="w-2 h-2 rounded-full" style={{
-                          background: prog >= 100 ? S.success : stage?.status === "active" ? S.primary : S.s3,
-                        }} />;
-                      })}
-                    </div>
-                    {doneSteps < 10 && (
-                      <Link href="/parse">
-                        <motion.button whileTap={{ scale: 0.95 }}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white"
-                          style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
-                          前往解构 <ArrowRight size={11} />
-                        </motion.button>
-                      </Link>
-                    )}
-                  </div>
-                </div>
-
-                {/* 10-step pipeline */}
-                <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                  <h3 className="text-xs font-bold mb-4 flex items-center gap-2" style={{ color: S.text }}>
-                    <Layers size={13} style={{ color: S.primary }} /> 10 步创作流水线
-                  </h3>
-                  <div className="space-y-2">
-                    {PARSE_STEPS.map((step, i) => {
-                      const stage = pipelineStages[i];
-                      const progress = stage?.progress ?? 0;
-                      const isComplete = progress >= 100;
-                      const isActive = stage?.status === "active";
-                      const depIdx = STEP_DEPENDS[i];
-                      const depDone = depIdx === null || (pipelineStages[depIdx]?.progress ?? 0) >= 100;
-                      return (
-                        <div key={i} className="rounded-xl p-3" style={{
-                          background: isActive ? `${S.primary}06` : S.s2,
-                          border: `1px solid ${isActive ? S.primary20 : S.border}`,
-                        }}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[8px] font-mono w-5 shrink-0 text-right font-bold" style={{ color: isComplete ? S.success : isActive ? S.primary : S.text3 }}>
-                              {String(i + 1).padStart(2, "0")}
-                            </span>
-                            <span className="text-[10px] font-bold w-16 shrink-0" style={{ color: S.text }}>{step}</span>
-                            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }}
-                                transition={{ duration: 0.5, delay: i * 0.04 }}
-                                className="h-full rounded-full"
-                                style={{ background: isComplete ? S.success : isActive ? S.primary : S.s3 }} />
-                            </div>
-                            <span className="text-[9px] font-mono w-8 shrink-0 text-right font-bold" style={{
-                              color: isComplete ? S.success : isActive ? S.primary : S.text3,
-                            }}>{progress}%</span>
-                          </div>
-                          <div className="flex items-center gap-3 ml-7 mt-0.5">
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{STEP_DESC[i]}</span>
-                            <span className="text-[7px] px-1.5 py-0.5 rounded" style={{ background: S.primary10, color: S.primary }}>
-                              产出: {STEP_PRODUCES[i]}
-                            </span>
-                            {depIdx !== null && (
-                              <span className="text-[7px] flex items-center gap-0.5" style={{ color: depDone ? S.success : S.warning }}>
-                                {depDone ? "✓" : "⏳"} 依赖: {PARSE_STEPS[depIdx]}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {activeStepIdx >= 0 && pipelineStages[activeStepIdx]?.linkedPage && (
+                    <Link href={pipelineStages[activeStepIdx].linkedPage!}>
+                      <motion.button whileTap={{ scale: 0.95 }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white"
+                        style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
+                        前往 <ArrowRight size={11} />
+                      </motion.button>
+                    </Link>
+                  )}
                 </div>
 
                 {/* Quick metrics */}
@@ -298,6 +219,28 @@ export default function StoryOverviewScreen() {
                   <StatPill label="剧本块" value={scriptBlocks.length} color={S.accent} />
                   <StatPill label="节点数" value={storyNodes.length} color={S.warning} />
                   <StatPill label="连线数" value={nodeEdges.length} color={S.error} />
+                </div>
+
+                {/* AI Analysis action */}
+                <div className="rounded-2xl px-4 py-3 flex items-center justify-between"
+                  style={{ background: `linear-gradient(135deg, ${S.primary}08, ${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: S.primary10 }}>
+                      <Zap size={14} style={{ color: S.primary }} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: S.text }}>AI 智能分析</p>
+                      <p className="text-[9px]" style={{ color: S.text3 }}>使用 AI 自动分析剧本结构、情绪弧线与叙事节奏</p>
+                    </div>
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => addToast({ type: "success", title: "AI 分析已启动", message: "正在分析剧本结构，预计需要 1-2 分钟" })}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white shrink-0 focus:outline-none"
+                    style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}
+                  >
+                    <Activity size={11} /> AI 分析剧本
+                  </motion.button>
                 </div>
 
                 {/* Tension curve */}
@@ -535,6 +478,39 @@ export default function StoryOverviewScreen() {
             {/* ── Tab 4: 角色与世界 ────────────────────────────────────── */}
             {activeTab === "world" && (
               <div className="space-y-5">
+
+                {/* AI Extraction actions */}
+                <div className="rounded-2xl px-4 py-3 flex items-center justify-between flex-wrap gap-3"
+                  style={{ background: `linear-gradient(135deg, ${S.accent}08, ${S.primary}06)`, border: `1px solid ${S.accent}15` }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: S.accent10 }}>
+                      <Zap size={14} style={{ color: S.accent }} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: S.text }}>AI 智能提取</p>
+                      <p className="text-[9px]" style={{ color: S.text3 }}>从已导入的素材中自动提取角色、场景与道具信息</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => addToast({ type: "success", title: "AI 提取角色已启动", message: "正在从素材中识别并提取角色信息" })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white focus:outline-none"
+                      style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}
+                    >
+                      <Users size={11} /> AI 提取角色
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => addToast({ type: "success", title: "AI 提取场景已启动", message: "正在从素材中识别并提取场景信息" })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white focus:outline-none"
+                      style={{ background: S.accent, boxShadow: `0 2px 8px ${S.accent}30` }}
+                    >
+                      <MapPin size={11} /> AI 提取场景
+                    </motion.button>
+                  </div>
+                </div>
+
                 {/* Characters */}
                 {characters.length > 0 && (
                   <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
@@ -778,6 +754,112 @@ export default function StoryOverviewScreen() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* ── Import Materials Modal ────────────────────────────────────── */}
+      <AnimatePresence>
+        {importOpen && (
+          <motion.div
+            key="import-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(6px)" }}
+            onClick={() => setImportOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.25 }}
+              className="relative w-full max-w-lg mx-4 rounded-2xl p-5"
+              style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 24px 48px rgba(0,0,0,0.15)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setImportOpen(false)}
+                className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center focus:outline-none"
+                style={{ background: S.s2, color: S.text3 }}
+              >
+                ✕
+              </motion.button>
+
+              <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                <Upload size={13} style={{ color: S.primary }} /> 导入素材
+              </h3>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.docx,.pdf,.epub"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files && files.length > 0) {
+                    const names = Array.from(files).map(f => f.name).join(", ");
+                    addToast({ type: "success", title: "素材导入成功", message: `已导入: ${names}` });
+                    e.target.value = "";
+                  }
+                }}
+              />
+
+              {/* Drag-and-drop zone */}
+              <div className="relative mb-3">
+                <motion.div
+                  whileHover={{ borderColor: S.primary }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer transition-colors"
+                  style={{ background: S.s2, border: `2px dashed ${S.border2}`, minHeight: 100 }}
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
+                    style={{ background: S.primary10 }}>
+                    <Upload size={18} style={{ color: S.primary }} />
+                  </div>
+                  <p className="text-xs font-bold mb-0.5" style={{ color: S.text }}>
+                    拖放文件到此处，或点击选择文件
+                  </p>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>
+                    支持格式：.txt, .docx, .pdf, .epub
+                  </p>
+                </motion.div>
+              </div>
+
+              {/* Quick import buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => addToast({ type: "info", title: "导入小说/IP", message: "请选择要导入的小说或 IP 文件" })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold focus:outline-none"
+                  style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}
+                >
+                  <BookOpen size={11} /> 导入小说/IP
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => addToast({ type: "info", title: "导入大纲", message: "请选择要导入的大纲文件" })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold focus:outline-none"
+                  style={{ background: S.accent10, color: S.accent, border: `1px solid ${S.accent}20` }}
+                >
+                  <FileText size={11} /> 导入大纲
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => addToast({ type: "info", title: "粘贴文本", message: "请在弹出的对话框中粘贴您的文本内容" })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold focus:outline-none"
+                  style={{ background: S.warning10, color: S.warning, border: `1px solid ${S.warning}20` }}
+                >
+                  <Clipboard size={11} /> 粘贴文本
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

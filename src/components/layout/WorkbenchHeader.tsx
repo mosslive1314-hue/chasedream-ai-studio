@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Plus, ChevronDown, Home, MessageSquare,
+  Plus, ChevronDown, MessageSquare,
 } from "lucide-react";
 import { useUIStore, useCanvasAgentStore } from "@/store";
 
@@ -19,7 +19,6 @@ export function WorkbenchHeader() {
   const [moreOpen, setMoreOpen] = useState(false);
   const addToast = useUIStore(s => s.addToast);
   const pathname = usePathname();
-  const isHome = pathname === "/";
   const setPanelOpen = useCanvasAgentStore(s => s.setPanelOpen);
   const panelOpen = useCanvasAgentStore(s => s.panelOpen);
 
@@ -27,18 +26,6 @@ export function WorkbenchHeader() {
     <header className="flex items-center h-11 px-4 gap-1 border-b shrink-0"
       style={{ background: S.card, borderColor: S.border }}>
       <nav className="flex items-center gap-0.5">
-        {/* 首页按钮 — 回到工作台 */}
-        <Link href="/">
-          <motion.span whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50 transition-colors"
-            style={{
-              color: isHome ? S.primary : S.text2,
-              background: isHome ? S.primary10 : "transparent",
-            }}>
-            <Home size={12} /> 工作台
-          </motion.span>
-        </Link>
-
         {[
           { label: "我的作品", href: "/my-works" },
           { label: "我的资产", href: "/assets" },
