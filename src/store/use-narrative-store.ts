@@ -43,6 +43,18 @@ import type {
   PipelineStage,
   EntityRelation,
   CharacterSceneAppearance,
+  POVConfig,
+  TimedDecisionConfig,
+  SubgraphLock,
+  RelationshipMeter,
+  RelationshipDelta,
+  ChapterVariant,
+  DialogueTree,
+  Evidence,
+  Clue,
+  Deduction,
+  MoralAxis,
+  PathTimeEstimate,
 } from '@/lib/studio-data';
 
 // Import seed data - these will be created as part of the studio-data split
@@ -94,6 +106,19 @@ import {
   ENTITY_RELATIONS as SEED_ENTITY_RELATIONS,
   CHARACTER_SCENE_APPEARANCES as SEED_CHARACTER_SCENE_APPEARANCES,
 } from '@/lib/seed/game-seed';
+import {
+  SEED_POV_CONFIGS,
+  SEED_TIMED_DECISIONS,
+  SEED_SUBGRAPH_LOCKS,
+  SEED_RELATIONSHIP_METERS,
+  SEED_CHAPTER_VARIANTS,
+  SEED_DIALOGUE_TREES,
+  SEED_EVIDENCE,
+  SEED_CLUES,
+  SEED_DEDUCTIONS,
+  SEED_MORAL_AXES,
+  SEED_PATH_TIME_ESTIMATES,
+} from '@/lib/studio-data';
 
 // Using NarrativeStoreState to avoid naming collision with the NarrativeState type from studio-data
 interface NarrativeStoreState {
@@ -173,6 +198,19 @@ interface NarrativeStoreState {
   entityRelations: EntityRelation[];
   characterSceneAppearances: CharacterSceneAppearance[];
 
+  // --- Detroit: Become Human Features ---
+  povConfigs: POVConfig[];
+  timedDecisions: TimedDecisionConfig[];
+  subgraphLocks: SubgraphLock[];
+  relationshipMeters: RelationshipMeter[];
+  chapterVariants: ChapterVariant[];
+  dialogueTrees: DialogueTree[];
+  evidence: Evidence[];
+  clues: Clue[];
+  deductions: Deduction[];
+  moralAxes: MoralAxis[];
+  pathTimeEstimates: PathTimeEstimate[];
+
   // --- Node Actions ---
   updateNode: (id: string, updates: Partial<StoryNode>) => void;
   addNode: (node: StoryNode) => void;
@@ -224,6 +262,47 @@ interface NarrativeStoreState {
   // --- Collaboration Actions ---
   updateCollabTask: (id: string, updates: Partial<CollabTask>) => void;
   addCollabComment: (comment: CollabComment) => void;
+
+  // --- POV Config Actions ---
+  updatePOVConfig: (id: string, updates: Partial<POVConfig>) => void;
+  addPOVConfig: (config: POVConfig) => void;
+
+  // --- Timed Decision Actions ---
+  updateTimedDecision: (interactionPointId: string, config: TimedDecisionConfig | undefined) => void;
+
+  // --- Subgraph Lock Actions ---
+  addSubgraphLock: (lock: SubgraphLock) => void;
+  updateSubgraphLock: (id: string, updates: Partial<SubgraphLock>) => void;
+  removeSubgraphLock: (id: string) => void;
+
+  // --- Relationship Meter Actions ---
+  addRelationshipMeter: (meter: RelationshipMeter) => void;
+  updateRelationshipMeter: (id: string, updates: Partial<RelationshipMeter>) => void;
+  addRelationshipDelta: (meterId: string, delta: RelationshipDelta) => void;
+
+  // --- Chapter Variant Actions ---
+  addChapterVariant: (chapterPlanId: string, variant: ChapterVariant) => void;
+  updateChapterVariant: (chapterPlanId: string, variantId: string, updates: Partial<ChapterVariant>) => void;
+
+  // --- Dialogue Tree Actions ---
+  addDialogueTree: (tree: DialogueTree) => void;
+  updateDialogueTree: (id: string, updates: Partial<DialogueTree>) => void;
+  removeDialogueTree: (id: string) => void;
+
+  // --- Evidence/Clue/Deduction Actions ---
+  addEvidence: (evidence: Evidence) => void;
+  updateEvidence: (id: string, updates: Partial<Evidence>) => void;
+  addClue: (clue: Clue) => void;
+  updateClue: (id: string, updates: Partial<Clue>) => void;
+  addDeduction: (deduction: Deduction) => void;
+  updateDeduction: (id: string, updates: Partial<Deduction>) => void;
+
+  // --- Moral Axis Actions ---
+  addMoralAxis: (axis: MoralAxis) => void;
+  updateMoralAxis: (id: string, updates: Partial<MoralAxis>) => void;
+
+  // --- Path Time Estimate Actions ---
+  updatePathTimeEstimate: (pathId: string, estimate: PathTimeEstimate) => void;
 
   // --- Bulk Load ---
   loadProjectData: (data: Partial<NarrativeStoreState>) => void;
@@ -307,6 +386,19 @@ const seedState = {
   // --- Entity Relations (P11) ---
   entityRelations: SEED_ENTITY_RELATIONS,
   characterSceneAppearances: SEED_CHARACTER_SCENE_APPEARANCES,
+
+  // --- Detroit: Become Human Features ---
+  povConfigs: SEED_POV_CONFIGS,
+  timedDecisions: SEED_TIMED_DECISIONS,
+  subgraphLocks: SEED_SUBGRAPH_LOCKS,
+  relationshipMeters: SEED_RELATIONSHIP_METERS,
+  chapterVariants: SEED_CHAPTER_VARIANTS,
+  dialogueTrees: SEED_DIALOGUE_TREES,
+  evidence: SEED_EVIDENCE,
+  clues: SEED_CLUES,
+  deductions: SEED_DEDUCTIONS,
+  moralAxes: SEED_MORAL_AXES,
+  pathTimeEstimates: SEED_PATH_TIME_ESTIMATES,
 };
 
 export const useNarrativeStore = create<NarrativeStoreState>()(
@@ -495,6 +587,181 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
       addCollabComment: (comment) => {
         set(state => ({
           collabComments: [...state.collabComments, comment],
+        }));
+      },
+
+      // --- POV Config Actions ---
+      updatePOVConfig: (id, updates) => {
+        set(state => ({
+          povConfigs: state.povConfigs.map(c =>
+            c.id === id ? { ...c, ...updates } : c
+          ),
+        }));
+      },
+
+      addPOVConfig: (config) => {
+        set(state => ({
+          povConfigs: [...state.povConfigs, config],
+        }));
+      },
+
+      // --- Timed Decision Actions ---
+      updateTimedDecision: (interactionPointId, config) => {
+        set(state => ({
+          timedDecisions: config
+            ? state.timedDecisions.some(td => td.interactionPointId === interactionPointId)
+              ? state.timedDecisions.map(td => td.interactionPointId === interactionPointId ? config : td)
+              : [...state.timedDecisions, config]
+            : state.timedDecisions.filter(td => td.interactionPointId !== interactionPointId),
+        }));
+      },
+
+      // --- Subgraph Lock Actions ---
+      addSubgraphLock: (lock) => {
+        set(state => ({
+          subgraphLocks: [...state.subgraphLocks, lock],
+        }));
+      },
+
+      updateSubgraphLock: (id, updates) => {
+        set(state => ({
+          subgraphLocks: state.subgraphLocks.map(l =>
+            l.id === id ? { ...l, ...updates } : l
+          ),
+        }));
+      },
+
+      removeSubgraphLock: (id) => {
+        set(state => ({
+          subgraphLocks: state.subgraphLocks.filter(l => l.id !== id),
+        }));
+      },
+
+      // --- Relationship Meter Actions ---
+      addRelationshipMeter: (meter) => {
+        set(state => ({
+          relationshipMeters: [...state.relationshipMeters, meter],
+        }));
+      },
+
+      updateRelationshipMeter: (id, updates) => {
+        set(state => ({
+          relationshipMeters: state.relationshipMeters.map(m =>
+            m.id === id ? { ...m, ...updates } : m
+          ),
+        }));
+      },
+
+      addRelationshipDelta: (meterId, delta) => {
+        set(state => ({
+          relationshipMeters: state.relationshipMeters.map(m =>
+            m.id === meterId
+              ? { ...m, currentValue: Math.max(m.minValue, Math.min(m.maxValue, m.currentValue + delta.delta)), history: [...m.history, delta] }
+              : m
+          ),
+        }));
+      },
+
+      // --- Chapter Variant Actions ---
+      addChapterVariant: (chapterPlanId, variant) => {
+        set(state => ({
+          chapterVariants: [...state.chapterVariants, variant],
+        }));
+      },
+
+      updateChapterVariant: (chapterPlanId, variantId, updates) => {
+        set(state => ({
+          chapterVariants: state.chapterVariants.map(v =>
+            v.id === variantId ? { ...v, ...updates } : v
+          ),
+        }));
+      },
+
+      // --- Dialogue Tree Actions ---
+      addDialogueTree: (tree) => {
+        set(state => ({
+          dialogueTrees: [...state.dialogueTrees, tree],
+        }));
+      },
+
+      updateDialogueTree: (id, updates) => {
+        set(state => ({
+          dialogueTrees: state.dialogueTrees.map(t =>
+            t.id === id ? { ...t, ...updates } : t
+          ),
+        }));
+      },
+
+      removeDialogueTree: (id) => {
+        set(state => ({
+          dialogueTrees: state.dialogueTrees.filter(t => t.id !== id),
+        }));
+      },
+
+      // --- Evidence/Clue/Deduction Actions ---
+      addEvidence: (evidence) => {
+        set(state => ({
+          evidence: [...state.evidence, evidence],
+        }));
+      },
+
+      updateEvidence: (id, updates) => {
+        set(state => ({
+          evidence: state.evidence.map(e =>
+            e.id === id ? { ...e, ...updates } : e
+          ),
+        }));
+      },
+
+      addClue: (clue) => {
+        set(state => ({
+          clues: [...state.clues, clue],
+        }));
+      },
+
+      updateClue: (id, updates) => {
+        set(state => ({
+          clues: state.clues.map(c =>
+            c.id === id ? { ...c, ...updates } : c
+          ),
+        }));
+      },
+
+      addDeduction: (deduction) => {
+        set(state => ({
+          deductions: [...state.deductions, deduction],
+        }));
+      },
+
+      updateDeduction: (id, updates) => {
+        set(state => ({
+          deductions: state.deductions.map(d =>
+            d.id === id ? { ...d, ...updates } : d
+          ),
+        }));
+      },
+
+      // --- Moral Axis Actions ---
+      addMoralAxis: (axis) => {
+        set(state => ({
+          moralAxes: [...state.moralAxes, axis],
+        }));
+      },
+
+      updateMoralAxis: (id, updates) => {
+        set(state => ({
+          moralAxes: state.moralAxes.map(a =>
+            a.id === id ? { ...a, ...updates } : a
+          ),
+        }));
+      },
+
+      // --- Path Time Estimate Actions ---
+      updatePathTimeEstimate: (pathId, estimate) => {
+        set(state => ({
+          pathTimeEstimates: state.pathTimeEstimates.some(p => p.pathId === pathId)
+            ? state.pathTimeEstimates.map(p => p.pathId === pathId ? estimate : p)
+            : [...state.pathTimeEstimates, estimate],
         }));
       },
 

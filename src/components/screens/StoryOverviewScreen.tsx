@@ -1,15 +1,17 @@
 "use client";
-import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
-  BookOpen, Scissors, FileText, MousePointer,
-  GitBranch, Layers, Zap, Trophy, ArrowRight,
-  Sparkles, Target,
+  BookOpen, Scissors, GitBranch, Layers, Zap,
+  Trophy, ArrowRight, Target, Users, MapPin, Package,
+  Shield, BarChart3, MessageCircle, Timer, Activity,
+  Eye, Clock, Flame,
 } from "lucide-react";
 import { useNarrativeStore, useSettingsStore } from "@/store";
+import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 
-// ── Design tokens (same as OverviewScreen) ──────────────────────────────
+// ── Design tokens ───────────────────────────────────────────────────────
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
   border: "#E2E5F0", border2: "#CBD0E5",
@@ -28,16 +30,53 @@ const PARSE_STEPS = [
   "节点验证", "资产管理",
 ];
 
+const STEP_DESC = [
+  "设定行业、类型、基础参数",
+  "导入原著/小说/大纲文本",
+  "AI 提取角色、场景、道具",
+  "定义世界观约束与规则",
+  "规划章节结构与情绪弧",
+  "精修结构化分场剧本",
+  "设计选择点与分支路径",
+  "配置变量与状态系统",
+  "验证节点连通与逻辑完整",
+  "盘点素材需求与覆盖率",
+];
+
+const STEP_PRODUCES = [
+  "项目配置 + 行业模板",
+  "原始文本 + 素材清单",
+  "角色设定 + 场景设定 + 道具设定",
+  "世界规则集 + 约束条件",
+  "章纲骨架 + 事件列表",
+  "线性剧本 + 剧本块",
+  "互动点 + 对话树 + 后果链",
+  "变量定义 + 状态映射",
+  "节点图 + 连通性报告",
+  "素材需求清单 + 覆盖率",
+];
+
+const STEP_DEPENDS: (number | null)[] = [
+  null, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+];
+
+// ── Tab definitions ─────────────────────────────────────────────────────
+type TabId = "progress" | "narrative" | "interaction" | "world" | "stats";
+const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
+  { id: "progress",    label: "创作进度", icon: Layers },
+  { id: "narrative",   label: "叙事结构", icon: BookOpen },
+  { id: "interaction", label: "互动设计", icon: GitBranch },
+  { id: "world",       label: "角色与世界", icon: Users },
+  { id: "stats",       label: "项目统计", icon: BarChart3 },
+];
+
 // ── Animation variants ──────────────────────────────────────────────────
 const fadeInUp = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.35 },
 };
-
-const stagger = {
-  animate: { transition: { staggerChildren: 0.08 } },
-};
+const stagger = { animate: { transition: { staggerChildren: 0.08 } } };
 
 // ── Stat pill ───────────────────────────────────────────────────────────
 function StatPill({ label, value, color }: { label: string; value: number | string; color: string }) {
@@ -52,8 +91,11 @@ function StatPill({ label, value, color }: { label: string; value: number | stri
 // ── Main Component ──────────────────────────────────────────────────────
 export default function StoryOverviewScreen() {
   const projectName = useSettingsStore(s => s.projectName);
+  const [activeTab, setActiveTab] = useState<TabId>("progress");
 
   // ── Store selectors ───────────────────────────────────────────────────
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const scriptBlocks = useNarrativeStore(s => s.scriptBlocks);
   const interactionPoints = useNarrativeStore(s => s.interactionPoints);
@@ -64,23 +106,38 @@ export default function StoryOverviewScreen() {
   const worldRules = useNarrativeStore(s => s.worldRules);
   const worldBuilding = useNarrativeStore(s => s.worldBuilding);
   const pipelineStages = useNarrativeStore(s => s.pipelineStages);
+  const characters = useNarrativeStore(s => s.characters);
+  const scenes = useNarrativeStore(s => s.scenes);
+  const props = useNarrativeStore(s => s.props);
+  const narrativeIntents = useNarrativeStore(s => s.narrativeIntents);
+  const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
+  const timedDecisions = useNarrativeStore(s => s.timedDecisions);
+  const qualityChecks = useNarrativeStore(s => s.qualityChecks);
+  const assetCards = useNarrativeStore(s => s.assetCards);
+  const relationshipMeters = useNarrativeStore(s => s.relationshipMeters);
+  const moralAxes = useNarrativeStore(s => s.moralAxes);
 
   // ── Derived data ──────────────────────────────────────────────────────
   const eventsPerChapter = useMemo(() =>
-    chapterPlans.map(cp => ({ title: cp.title, count: cp.events.length })),
-    [chapterPlans],
-  );
-
+    chapterPlans.map(cp => ({ title: cp.title, count: cp.events.length })), [chapterPlans]);
   const maxEvents = useMemo(() =>
-    Math.max(1, ...eventsPerChapter.map(e => e.count)),
-    [eventsPerChapter],
-  );
+    Math.max(1, ...eventsPerChapter.map(e => e.count)), [eventsPerChapter]);
+
+  const tensionCurve = useMemo(() => calculateTensionCurve({
+    storyNodes, narrativeIntents, consequenceChains, variables,
+  }), [storyNodes, narrativeIntents, consequenceChains, variables]);
+  const tensionStats = useMemo(() => getTensionStats(tensionCurve), [tensionCurve]);
+
+  const doneSteps = pipelineStages.filter(s => (s?.progress ?? 0) >= 100).length;
+  const activeStepIdx = pipelineStages.findIndex(s => s?.status === "active");
+  const qcPassed = qualityChecks.filter(q => q.status === "ok").length;
+  const qcTotal = qualityChecks.length;
 
   return (
-    <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
+    <div className="h-svh flex flex-col overflow-hidden" style={{ background: S.bg }}>
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between"
+      <div className="shrink-0 px-5 py-3 flex items-center justify-between"
         style={{ background: "rgba(250,251,255,0.92)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${S.border}` }}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center"
@@ -92,7 +149,7 @@ export default function StoryOverviewScreen() {
               剧本总览
               <span className="ml-1.5 text-[10px] font-medium" style={{ color: S.text3 }}>{projectName}</span>
             </h2>
-            <p className="text-[9px]" style={{ color: S.text3 }}>创作进度与叙事结构全景</p>
+            <p className="text-[9px]" style={{ color: S.text3 }}>创作进度 · 叙事结构 · 互动设计 · 角色世界 · 项目统计</p>
           </div>
         </div>
         <Link href="/parse">
@@ -104,273 +161,623 @@ export default function StoryOverviewScreen() {
         </Link>
       </div>
 
-      <motion.div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-5"
-        variants={stagger} initial="initial" animate="animate">
+      {/* ── Tab Bar ────────────────────────────────────────────────────── */}
+      <div className="shrink-0 flex items-center gap-1 px-5 pt-2 pb-0" style={{ borderBottom: `1px solid ${S.border}`, background: S.card }}>
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <motion.button key={tab.id} whileTap={{ scale: 0.97 }}
+              onClick={() => setActiveTab(tab.id)}
+              className="relative flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold focus:outline-none"
+              style={{ color: isActive ? S.primary : S.text3 }}>
+              <tab.icon size={12} />
+              {tab.label}
+              {isActive && (
+                <motion.div layoutId="story-tab-line"
+                  className="absolute bottom-0 inset-x-0 h-0.5 rounded-full"
+                  style={{ background: S.primary }} />
+              )}
+            </motion.button>
+          );
+        })}
+      </div>
 
-        {/* ── Three Core Cards ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* ── Tab Content ────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+        <AnimatePresence mode="wait">
+          <motion.div key={activeTab}
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
 
-          {/* ── Card A: 解构进度 ──────────────────────────────────────── */}
-          <motion.div variants={fadeInUp}
-            className="rounded-2xl p-5"
-            style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                <Layers size={14} style={{ color: S.primary }} />
-              </div>
-              <div>
-                <h3 className="text-xs font-bold" style={{ color: S.text }}>解构进度</h3>
-                <p className="text-[9px]" style={{ color: S.text3 }}>10 步解构流水线</p>
-              </div>
-            </div>
-
-            {/* Pipeline step progress bars */}
-            <div className="space-y-1.5 mb-4">
-              {PARSE_STEPS.map((step, i) => {
-                const stage = pipelineStages[i];
-                const progress = stage?.progress ?? 0;
-                const isComplete = progress >= 100;
-                const isActive = stage?.status === "active";
-                return (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="text-[8px] font-mono w-4 shrink-0 text-right" style={{ color: S.text3 }}>
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="text-[9px] w-16 shrink-0 truncate" style={{ color: S.text2 }}>{step}</span>
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.5, delay: i * 0.05 }}
-                        className="h-full rounded-full"
-                        style={{
-                          background: isComplete ? S.success : isActive ? S.primary : S.s3,
-                        }}
-                      />
+            {/* ── Tab 1: 创作进度 ──────────────────────────────────────── */}
+            {activeTab === "progress" && (
+              <div className="space-y-5">
+                {/* Next action banner */}
+                <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-4"
+                  style={{ background: `linear-gradient(135deg, ${S.primary}08, ${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: S.primary10 }}>
+                      <Zap size={14} style={{ color: S.primary }} />
                     </div>
-                    <span className="text-[8px] font-mono w-7 shrink-0 text-right" style={{
-                      color: isComplete ? S.success : isActive ? S.primary : S.text3,
-                    }}>
-                      {progress}%
-                    </span>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: S.text }}>
+                        {doneSteps >= 10 ? "解构已全部完成！" : `下一步：${PARSE_STEPS[activeStepIdx >= 0 ? activeStepIdx : doneSteps] ?? "全部完成"}`}
+                      </p>
+                      <p className="text-[9px]" style={{ color: S.text3 }}>解构进度 {doneSteps}/10 步已完成</p>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-1">
+                      {PARSE_STEPS.map((_, i) => {
+                        const stage = pipelineStages[i];
+                        const prog = stage?.progress ?? 0;
+                        return <div key={i} className="w-2 h-2 rounded-full" style={{
+                          background: prog >= 100 ? S.success : stage?.status === "active" ? S.primary : S.s3,
+                        }} />;
+                      })}
+                    </div>
+                    {doneSteps < 10 && (
+                      <Link href="/parse">
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white"
+                          style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
+                          前往解构 <ArrowRight size={11} />
+                        </motion.button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
 
-            {/* Key metrics */}
-            <div className="grid grid-cols-3 gap-2">
-              <StatPill label="已规划章节" value={chapterPlans.length} color={S.primary} />
-              <StatPill label="世界规则" value={worldRules.length} color={S.warning} />
-              <StatPill label="世界观条目" value={worldBuilding.length} color={S.accent} />
-            </div>
-          </motion.div>
+                {/* 10-step pipeline */}
+                <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <h3 className="text-xs font-bold mb-4 flex items-center gap-2" style={{ color: S.text }}>
+                    <Layers size={13} style={{ color: S.primary }} /> 10 步创作流水线
+                  </h3>
+                  <div className="space-y-2">
+                    {PARSE_STEPS.map((step, i) => {
+                      const stage = pipelineStages[i];
+                      const progress = stage?.progress ?? 0;
+                      const isComplete = progress >= 100;
+                      const isActive = stage?.status === "active";
+                      const depIdx = STEP_DEPENDS[i];
+                      const depDone = depIdx === null || (pipelineStages[depIdx]?.progress ?? 0) >= 100;
+                      return (
+                        <div key={i} className="rounded-xl p-3" style={{
+                          background: isActive ? `${S.primary}06` : S.s2,
+                          border: `1px solid ${isActive ? S.primary20 : S.border}`,
+                        }}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[8px] font-mono w-5 shrink-0 text-right font-bold" style={{ color: isComplete ? S.success : isActive ? S.primary : S.text3 }}>
+                              {String(i + 1).padStart(2, "0")}
+                            </span>
+                            <span className="text-[10px] font-bold w-16 shrink-0" style={{ color: S.text }}>{step}</span>
+                            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }}
+                                transition={{ duration: 0.5, delay: i * 0.04 }}
+                                className="h-full rounded-full"
+                                style={{ background: isComplete ? S.success : isActive ? S.primary : S.s3 }} />
+                            </div>
+                            <span className="text-[9px] font-mono w-8 shrink-0 text-right font-bold" style={{
+                              color: isComplete ? S.success : isActive ? S.primary : S.text3,
+                            }}>{progress}%</span>
+                          </div>
+                          <div className="flex items-center gap-3 ml-7 mt-0.5">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{STEP_DESC[i]}</span>
+                            <span className="text-[7px] px-1.5 py-0.5 rounded" style={{ background: S.primary10, color: S.primary }}>
+                              产出: {STEP_PRODUCES[i]}
+                            </span>
+                            {depIdx !== null && (
+                              <span className="text-[7px] flex items-center gap-0.5" style={{ color: depDone ? S.success : S.warning }}>
+                                {depDone ? "✓" : "⏳"} 依赖: {PARSE_STEPS[depIdx]}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-          {/* ── Card B: 叙事结构 ──────────────────────────────────────── */}
-          <motion.div variants={fadeInUp}
-            className="rounded-2xl p-5"
-            style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.accent10 }}>
-                <BookOpen size={14} style={{ color: S.accent }} />
+                {/* Quick metrics */}
+                <div className="grid grid-cols-4 gap-3">
+                  <StatPill label="已规划章节" value={chapterPlans.length} color={S.primary} />
+                  <StatPill label="剧本块" value={scriptBlocks.length} color={S.accent} />
+                  <StatPill label="世界规则" value={worldRules.length} color={S.warning} />
+                  <StatPill label="世界观条目" value={worldBuilding.length} color={S.primary} />
+                </div>
               </div>
-              <div>
-                <h3 className="text-xs font-bold" style={{ color: S.text }}>叙事结构</h3>
-                <p className="text-[9px]" style={{ color: S.text3 }}>剧本与章节数据</p>
+            )}
+
+            {/* ── Tab 2: 叙事结构 ──────────────────────────────────────── */}
+            {activeTab === "narrative" && (
+              <div className="space-y-5">
+                {/* Stats row */}
+                <div className="grid grid-cols-4 gap-3">
+                  <StatPill label="章节数" value={chapterPlans.length} color={S.primary} />
+                  <StatPill label="剧本块" value={scriptBlocks.length} color={S.accent} />
+                  <StatPill label="节点数" value={storyNodes.length} color={S.warning} />
+                  <StatPill label="连线数" value={nodeEdges.length} color={S.error} />
+                </div>
+
+                {/* Tension curve */}
+                {tensionCurve.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Flame size={13} style={{ color: S.error }} /> 故事弧光 · 情绪张力曲线
+                    </h3>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-[8px] font-mono" style={{ color: S.text3 }}>峰 <b style={{ color: S.error }}>{tensionStats.max}</b></span>
+                      <span className="text-[8px] font-mono" style={{ color: S.text3 }}>均 <b style={{ color: S.text2 }}>{tensionStats.avg}</b></span>
+                      <span className="text-[8px] font-mono" style={{ color: S.text3 }}>谷 <b style={{ color: S.success }}>{tensionStats.min}</b></span>
+                      <div className="flex items-center gap-2 ml-auto">
+                        {[
+                          { label: "平缓", color: TENSION_COLORS.calm },
+                          { label: "渐进", color: TENSION_COLORS.building },
+                          { label: "紧张", color: TENSION_COLORS.tense },
+                          { label: "高潮", color: TENSION_COLORS.climax },
+                          { label: "收束", color: TENSION_COLORS.resolution },
+                        ].map(item => (
+                          <div key={item.label} className="flex items-center gap-0.5">
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />
+                            <span className="text-[7px]" style={{ color: S.text3 }}>{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-end gap-1" style={{ height: 64 }}>
+                      {tensionCurve.map((tp) => (
+                        <div key={tp.nodeId} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                          <motion.div initial={{ height: 0 }} animate={{ height: Math.max(4, tp.tension * 5.5) }}
+                            transition={{ duration: 0.3 }} className="w-full rounded-t-sm"
+                            style={{ background: TENSION_COLORS[tp.category], opacity: 0.85 }} />
+                          <span className="text-[6px] font-mono" style={{ color: S.text3 }}>{tp.nodeId.replace("N", "")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chapter events distribution */}
+                {eventsPerChapter.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <BookOpen size={13} style={{ color: S.accent }} /> 章节事件分布
+                    </h3>
+                    <div className="flex items-end gap-2" style={{ height: 80 }}>
+                      {eventsPerChapter.map((ch, i) => {
+                        const h = Math.max(8, (ch.count / maxEvents) * 72);
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                            <motion.div initial={{ height: 0 }} animate={{ height: h }}
+                              transition={{ duration: 0.4, delay: i * 0.06 }}
+                              className="w-full rounded-t-md"
+                              style={{ background: `linear-gradient(to top, ${S.primary}, ${S.accent})`, opacity: 0.85, minHeight: 8 }} />
+                            <span className="text-[8px] font-bold" style={{ color: S.text2 }}>{ch.count}</span>
+                            <span className="text-[7px] font-mono truncate w-full text-center" style={{ color: S.text3 }}>
+                              {ch.title.length > 6 ? ch.title.slice(0, 6) + ".." : ch.title}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Branch paths */}
+                {branchPaths.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <GitBranch size={13} style={{ color: S.primary }} /> 分支路径总览
+                    </h3>
+                    <div className="space-y-1.5">
+                      {branchPaths.map(path => (
+                        <div key={path.id} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                          style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <div className="flex items-center gap-2">
+                            <Trophy size={10} style={{ color: path.type === "good" ? S.success : S.error }} />
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{path.label}</span>
+                            <span className="text-[8px] px-1.5 py-0.5 rounded" style={{
+                              background: path.type === "good" ? S.success10 : S.error10,
+                              color: path.type === "good" ? S.success : S.error,
+                            }}>{path.type === "good" ? "好结局" : "坏结局"}</span>
+                          </div>
+                          <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{path.nodes.length} 节点</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* World rules */}
+                {worldRules.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Shield size={13} style={{ color: S.warning }} /> 世界规则
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.warning10, color: S.warning }}>{worldRules.length}</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {worldRules.map((rule, i) => (
+                        <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <div className="w-2 h-2 rounded-full" style={{
+                              background: rule.type === "setting" ? S.primary : rule.type === "character_constraint" ? S.accent : rule.type === "narrative_taboo" ? S.error : S.warning,
+                            }} />
+                            <span className="text-[9px] font-bold" style={{ color: S.text }}>{rule.title}</span>
+                            <span className="text-[7px] px-1 py-0.5 rounded ml-auto" style={{
+                              background: rule.severity === "hard" ? S.error10 : rule.severity === "soft" ? S.warning10 : S.accent10,
+                              color: rule.severity === "hard" ? S.error : rule.severity === "soft" ? S.warning : S.accent,
+                            }}>{rule.severity === "hard" ? "强制" : rule.severity === "soft" ? "建议" : "提示"}</span>
+                          </div>
+                          <p className="text-[8px] leading-relaxed" style={{ color: S.text3 }}>{rule.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* World building */}
+                {worldBuilding.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Activity size={13} style={{ color: S.accent }} /> 世界观设定
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.accent10, color: S.accent }}>{worldBuilding.length}</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {worldBuilding.map((wb, i) => (
+                        <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: S.primary }}>{wb.category}</span>
+                          <p className="text-[9px] mt-1 leading-relaxed" style={{ color: S.text2 }}>{wb.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <StatPill label="章节数" value={chapterPlans.length} color={S.primary} />
-              <StatPill label="剧本块" value={scriptBlocks.length} color={S.accent} />
-              <StatPill label="互动点" value={interactionPoints.length} color={S.warning} />
-            </div>
+            {/* ── Tab 3: 互动设计概览 ──────────────────────────────────── */}
+            {activeTab === "interaction" && (
+              <div className="space-y-5">
+                {/* Stats grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { icon: GitBranch, label: "分支路径", value: branchPaths.length, color: S.primary },
+                    { icon: Zap, label: "变量", value: variables.length, color: S.accent },
+                    { icon: Target, label: "后果链", value: consequenceChains.length, color: S.warning },
+                    { icon: Trophy, label: "QTE 配置", value: qteConfigs.length, color: S.error },
+                    { icon: MessageCircle, label: "对话树", value: dialogueTrees.length, color: S.primary },
+                    { icon: Timer, label: "限时选择", value: timedDecisions.length, color: S.accent },
+                    { icon: Layers, label: "互动点", value: interactionPoints.length, color: S.warning },
+                    { icon: Eye, label: "关系计量", value: relationshipMeters.length, color: S.error },
+                  ].map((item, i) => (
+                    <div key={i} className="p-3 rounded-xl flex items-center gap-2.5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                      <item.icon size={16} style={{ color: item.color }} />
+                      <div>
+                        <p className="text-lg font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>{item.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-            {/* Bar chart: events per chapter */}
-            {eventsPerChapter.length > 0 && (
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: S.text3 }}>
-                  章节事件分布
-                </p>
-                <div className="flex items-end gap-1.5" style={{ height: 80 }}>
-                  {eventsPerChapter.map((ch, i) => {
-                    const h = Math.max(8, (ch.count / maxEvents) * 72);
+                {/* Variable usage */}
+                {variables.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Zap size={13} style={{ color: S.accent }} /> 变量使用率
+                    </h3>
+                    {(() => {
+                      const used = variables.filter(v => v.modifiedBy.length > 0 || v.readBy.length > 0).length;
+                      const pct = variables.length > 0 ? Math.round((used / variables.length) * 100) : 0;
+                      return (
+                        <div>
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-2xl font-bold font-mono" style={{ color: pct >= 70 ? S.success : S.warning }}>{pct}%</span>
+                            <span className="text-[9px]" style={{ color: S.text3 }}>{used}/{variables.length} 变量已使用</span>
+                          </div>
+                          <div className="h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6 }}
+                              className="h-full rounded-full" style={{ background: pct >= 70 ? S.success : S.warning }} />
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            {variables.slice(0, 12).map(v => {
+                              const isUsed = v.modifiedBy.length > 0 || v.readBy.length > 0;
+                              return (
+                                <span key={v.id} className="text-[8px] px-1.5 py-0.5 rounded font-mono" style={{
+                                  background: isUsed ? S.success10 : S.error10,
+                                  color: isUsed ? S.success : S.error,
+                                }}>{v.name}</span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Consequence coverage */}
+                <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                    <Target size={13} style={{ color: S.warning }} /> 后果链覆盖
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <StatPill label="总后果链" value={consequenceChains.length} color={S.primary} />
+                    <StatPill label="延迟型" value={consequenceChains.filter(c => c.timing === "delayed").length} color={S.warning} />
+                    <StatPill label="结局型" value={consequenceChains.filter(c => c.timing === "ending").length} color={S.error} />
+                  </div>
+                </div>
+
+                {/* Branch paths summary */}
+                {branchPaths.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <GitBranch size={13} style={{ color: S.primary }} /> 分支路径概览
+                    </h3>
+                    <div className="space-y-1.5">
+                      {branchPaths.map(path => (
+                        <div key={path.id} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                          style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <div className="flex items-center gap-2">
+                            <Trophy size={10} style={{ color: path.type === "good" ? S.success : S.error }} />
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{path.label}</span>
+                          </div>
+                          <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{path.nodes.length} 节点</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab 4: 角色与世界 ────────────────────────────────────── */}
+            {activeTab === "world" && (
+              <div className="space-y-5">
+                {/* Characters */}
+                {characters.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Users size={13} style={{ color: S.primary }} /> 角色一览
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.primary10, color: S.primary }}>{characters.length}</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {characters.map(char => (
+                        <div key={char.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
+                              style={{ background: `${char.color}15`, color: char.color }}>
+                              {char.name.charAt(0)}
+                            </div>
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{char.name}</span>
+                            <span className="text-[7px] px-1.5 py-0.5 rounded ml-auto" style={{
+                              background: char.role === "protagonist" ? S.primary10 : char.role === "antagonist" ? S.error10 : S.accent10,
+                              color: char.role === "protagonist" ? S.primary : char.role === "antagonist" ? S.error : S.accent,
+                            }}>{char.role === "protagonist" ? "主角" : char.role === "antagonist" ? "反派" : "配角"}</span>
+                          </div>
+                          <p className="text-[8px] leading-relaxed mb-1.5" style={{ color: S.text3 }}>{char.description}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[7px]" style={{ color: S.text3 }}>出场: {char.appearNodes.length} 节点</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Relationship meters */}
+                {relationshipMeters.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Eye size={13} style={{ color: S.accent }} /> 关系计量
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.accent10, color: S.accent }}>{relationshipMeters.length}</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {relationshipMeters.map((meter, i) => {
+                        const pct = ((meter.currentValue - meter.minValue) / (meter.maxValue - meter.minValue)) * 100;
+                        return (
+                          <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[9px] font-bold" style={{ color: S.text }}>{meter.characterAName} ↔ {meter.characterBName}</span>
+                              <span className="text-[8px] font-mono font-bold" style={{ color: S.primary }}>{meter.currentValue}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                              <div className="h-full rounded-full" style={{
+                                width: `${Math.max(0, Math.min(100, pct))}%`,
+                                background: `linear-gradient(90deg, ${S.error}, ${S.warning}, ${S.success})`,
+                              }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Moral axes */}
+                {moralAxes.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Activity size={13} style={{ color: S.warning }} /> 道德轴追踪
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.warning10, color: S.warning }}>{moralAxes.length}</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {moralAxes.map((axis, i) => {
+                        const pos = ((axis.currentValue + 100) / 200) * 100;
+                        return (
+                          <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[9px] font-bold" style={{ color: S.text }}>{axis.name}</span>
+                              <span className="text-[8px] font-mono font-bold" style={{ color: Math.abs(axis.currentValue) > 70 ? S.error : S.text2 }}>{axis.currentValue}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[7px]" style={{ color: S.text3 }}>{axis.negativeLabel}</span>
+                              <div className="flex-1 h-1.5 rounded-full relative" style={{ background: axis.gradientColors ? `linear-gradient(90deg, ${axis.gradientColors.join(", ")})` : S.s3 }}>
+                                <div className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rotate-45 border"
+                                  style={{ left: `${pos}%`, background: S.card, borderColor: S.text }} />
+                              </div>
+                              <span className="text-[7px]" style={{ color: S.text3 }}>{axis.positiveLabel}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Scenes */}
+                {scenes.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <MapPin size={13} style={{ color: S.accent }} /> 场景列表
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.accent10, color: S.accent }}>{scenes.length}</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {scenes.map((sc, i) => (
+                        <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <span className="text-[9px] font-bold" style={{ color: S.text }}>{sc.name}</span>
+                          <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{sc.location}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Props */}
+                {props.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Package size={13} style={{ color: S.warning }} /> 道具列表
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.warning10, color: S.warning }}>{props.length}</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      {props.map((p, i) => (
+                        <div key={i} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <span className="text-[9px] font-bold" style={{ color: S.text }}>{p.name}</span>
+                          <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{p.type}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab 5: 项目统计 ──────────────────────────────────────── */}
+            {activeTab === "stats" && (
+              <div className="space-y-5">
+                {/* Core data */}
+                <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <h3 className="text-xs font-bold mb-4 flex items-center gap-2" style={{ color: S.text }}>
+                    <BarChart3 size={13} style={{ color: S.primary }} /> 核心数据
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <StatPill label="章节" value={chapterPlans.length} color={S.primary} />
+                    <StatPill label="节点" value={storyNodes.length} color={S.accent} />
+                    <StatPill label="连线" value={nodeEdges.length} color={S.warning} />
+                    <StatPill label="结局" value={storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length} color={S.error} />
+                    <StatPill label="角色" value={characters.length} color={S.primary} />
+                    <StatPill label="场景" value={scenes.length} color={S.accent} />
+                    <StatPill label="道具" value={props.length} color={S.warning} />
+                    <StatPill label="预估时长" value={`${Math.round(storyNodes.length * 1.5)}min`} color={S.error} />
+                  </div>
+                </div>
+
+                {/* Asset coverage */}
+                <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <h3 className="text-xs font-bold mb-4 flex items-center gap-2" style={{ color: S.text }}>
+                    <Layers size={13} style={{ color: S.accent }} /> 资产覆盖率
+                  </h3>
+                  {(() => {
+                    const total = storyNodes.length;
+                    if (total === 0) return <p className="text-[9px]" style={{ color: S.text3 }}>暂无节点数据</p>;
+                    const withImages = assetCards.filter(a => a.hasImage).length;
+                    const withBgm = assetCards.filter(a => a.hasBgm).length;
+                    const withVoice = assetCards.filter(a => a.hasVoice).length;
+                    const items = [
+                      { label: "图片素材", count: withImages, total, color: S.primary },
+                      { label: "BGM", count: withBgm, total, color: S.accent },
+                      { label: "配音", count: withVoice, total, color: S.warning },
+                    ];
                     return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                        <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: h }}
-                          transition={{ duration: 0.4, delay: i * 0.06 }}
-                          className="w-full rounded-t-md"
-                          style={{
-                            background: `linear-gradient(to top, ${S.primary}, ${S.accent})`,
-                            opacity: 0.85,
-                            minHeight: 8,
-                          }}
-                        />
-                        <span className="text-[7px] font-mono truncate w-full text-center" style={{ color: S.text3 }}>
-                          第{ch.title.replace(/\D/g, "") || i + 1}章
-                        </span>
+                      <div className="space-y-3">
+                        {items.map((item, i) => {
+                          const pct = item.total > 0 ? Math.round((item.count / item.total) * 100) : 0;
+                          return (
+                            <div key={i}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[9px] font-bold" style={{ color: S.text2 }}>{item.label}</span>
+                                <span className="text-[9px] font-mono font-bold" style={{ color: item.color }}>{pct}%</span>
+                              </div>
+                              <div className="h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }}
+                                  className="h-full rounded-full" style={{ background: item.color }} />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
-              </div>
-            )}
-          </motion.div>
 
-          {/* ── Card C: 互动设计 ──────────────────────────────────────── */}
-          <motion.div variants={fadeInUp}
-            className="rounded-2xl p-5"
-            style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.warning10 }}>
-                <GitBranch size={14} style={{ color: S.warning }} />
-              </div>
-              <div>
-                <h3 className="text-xs font-bold" style={{ color: S.text }}>互动设计</h3>
-                <p className="text-[9px]" style={{ color: S.text3 }}>分支、变量与互动机制</p>
-              </div>
-            </div>
-
-            {/* Stats grid */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className="p-3 rounded-xl flex items-center gap-2.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                <GitBranch size={16} style={{ color: S.primary }} />
-                <div>
-                  <p className="text-lg font-bold font-mono" style={{ color: S.primary }}>{branchPaths.length}</p>
-                  <p className="text-[8px]" style={{ color: S.text3 }}>分支路径</p>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl flex items-center gap-2.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                <Zap size={16} style={{ color: S.accent }} />
-                <div>
-                  <p className="text-lg font-bold font-mono" style={{ color: S.accent }}>{variables.length}</p>
-                  <p className="text-[8px]" style={{ color: S.text3 }}>变量</p>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl flex items-center gap-2.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                <Target size={16} style={{ color: S.warning }} />
-                <div>
-                  <p className="text-lg font-bold font-mono" style={{ color: S.warning }}>{consequenceChains.length}</p>
-                  <p className="text-[8px]" style={{ color: S.text3 }}>后果链</p>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl flex items-center gap-2.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                <Trophy size={16} style={{ color: S.error }} />
-                <div>
-                  <p className="text-lg font-bold font-mono" style={{ color: S.error }}>{qteConfigs.length}</p>
-                  <p className="text-[8px]" style={{ color: S.text3 }}>QTE 配置</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Branch summary */}
-            {branchPaths.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: S.text3 }}>
-                  路径概览
-                </p>
-                {branchPaths.map(path => (
-                  <div key={path.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg"
-                    style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                    <div className="flex items-center gap-1.5">
-                      <Trophy size={9} style={{ color: path.type === "good" ? S.success : S.error }} />
-                      <span className="text-[9px] font-bold" style={{ color: S.text }}>{path.label}</span>
+                {/* QC summary */}
+                {qcTotal > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-4 flex items-center gap-2" style={{ color: S.text }}>
+                      <Shield size={13} style={{ color: S.success }} /> 质量检查通过率
+                    </h3>
+                    <div className="flex items-center gap-4 mb-3">
+                      <span className="text-3xl font-bold font-mono" style={{ color: qcPassed === qcTotal ? S.success : S.warning }}>
+                        {Math.round((qcPassed / qcTotal) * 100)}%
+                      </span>
+                      <span className="text-[9px]" style={{ color: S.text3 }}>通过 {qcPassed}/{qcTotal} 项</span>
                     </div>
-                    <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{path.nodes.length} 节点</span>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${(qcPassed / qcTotal) * 100}%` }} transition={{ duration: 0.6 }}
+                        className="h-full rounded-full" style={{ background: qcPassed === qcTotal ? S.success : S.warning }} />
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Narrative scoring summary */}
+                {tensionCurve.length > 0 && (
+                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
+                      <Clock size={13} style={{ color: S.primary }} /> 叙事节奏评估
+                    </h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <StatPill label="峰值张力" value={tensionStats.max} color={S.error} />
+                      <StatPill label="均值张力" value={tensionStats.avg} color={S.primary} />
+                      <StatPill label="节奏方差" value={(() => {
+                        const vals = tensionCurve.map(t => t.tension);
+                        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+                        const variance = vals.reduce((s, v) => s + (v - avg) ** 2, 0) / vals.length;
+                        return Math.round(Math.sqrt(variance) * 10) / 10;
+                      })()} color={S.accent} />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      {(["calm", "building", "tense", "climax", "resolution"] as const).map(cat => {
+                        const count = tensionCurve.filter(t => t.category === cat).length;
+                        const labels: Record<string, string> = { calm: "平缓", building: "渐进", tense: "紧张", climax: "高潮", resolution: "收束" };
+                        return (
+                          <span key={cat} className="text-[8px] px-2 py-1 rounded-lg font-medium" style={{
+                            background: `${TENSION_COLORS[cat]}15`, color: TENSION_COLORS[cat],
+                          }}>
+                            {labels[cat]}: {count}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
           </motion.div>
-        </div>
-
-        {/* ── 创作流程指引 ──────────────────────────────────────────────── */}
-        <motion.div variants={fadeInUp}
-          className="rounded-2xl p-5"
-          style={{ background: `linear-gradient(135deg,${S.primary}06,${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles size={14} style={{ color: S.primary }} />
-            <h3 className="text-xs font-bold" style={{ color: S.text }}>创作流程指引</h3>
-            <span className="text-[9px]" style={{ color: S.text3 }}>按顺序完成以下步骤</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Step 1 */}
-            <div className="rounded-2xl p-4" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-                  style={{ background: S.primary10 }}>
-                  <span className="text-xs font-black" style={{ color: S.primary }}>1</span>
-                </div>
-                <Scissors size={14} style={{ color: S.primary }} />
-                <h4 className="text-xs font-bold" style={{ color: S.text }}>剧本解构</h4>
-              </div>
-              <p className="text-[9px] mb-3 leading-relaxed" style={{ color: S.text3 }}>
-                导入素材，AI 自动提取角色、场景、道具，建立世界规则与章纲规划。
-              </p>
-              <Link href="/parse">
-                <motion.div whileTap={{ scale: 0.97 }}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer"
-                  style={{ background: S.primary10, border: `1px solid ${S.primary}20` }}>
-                  <span className="text-[10px] font-bold" style={{ color: S.primary }}>前往</span>
-                  <ArrowRight size={12} style={{ color: S.primary }} />
-                </motion.div>
-              </Link>
-            </div>
-
-            {/* Step 2 */}
-            <div className="rounded-2xl p-4" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-                  style={{ background: S.accent10 }}>
-                  <span className="text-xs font-black" style={{ color: S.accent }}>2</span>
-                </div>
-                <FileText size={14} style={{ color: S.accent }} />
-                <h4 className="text-xs font-bold" style={{ color: S.text }}>剧本编辑</h4>
-              </div>
-              <p className="text-[9px] mb-3 leading-relaxed" style={{ color: S.text3 }}>
-                编写完整线性剧本，包含对白、场景描述、旁白与动作指引，完善章节细节。
-              </p>
-              <Link href="/script">
-                <motion.div whileTap={{ scale: 0.97 }}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer"
-                  style={{ background: S.accent10, border: `1px solid ${S.accent}20` }}>
-                  <span className="text-[10px] font-bold" style={{ color: S.accent }}>前往</span>
-                  <ArrowRight size={12} style={{ color: S.accent }} />
-                </motion.div>
-              </Link>
-            </div>
-
-            {/* Step 3 */}
-            <div className="rounded-2xl p-4" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center"
-                  style={{ background: S.warning10 }}>
-                  <span className="text-xs font-black" style={{ color: S.warning }}>3</span>
-                </div>
-                <MousePointer size={14} style={{ color: S.warning }} />
-                <h4 className="text-xs font-bold" style={{ color: S.text }}>互动设计</h4>
-              </div>
-              <p className="text-[9px] mb-3 leading-relaxed" style={{ color: S.text3 }}>
-                设计分支路径、玩家选择、变量系统与 QTE 互动机制，构建多结局叙事。
-              </p>
-              <Link href="/interaction">
-                <motion.div whileTap={{ scale: 0.97 }}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer"
-                  style={{ background: S.warning10, border: `1px solid ${S.warning}20` }}>
-                  <span className="text-[10px] font-bold" style={{ color: S.warning }}>前往</span>
-                  <ArrowRight size={12} style={{ color: S.warning }} />
-                </motion.div>
-              </Link>
-            </div>
-          </div>
-        </motion.div>
-
-        <div className="h-6" />
-      </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

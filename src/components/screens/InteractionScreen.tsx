@@ -7,13 +7,21 @@ import {
   BarChart3, ShieldAlert, TrendingUp, TrendingDown, Minus,
   Eye, GitBranch, FlaskConical, BookOpen, Sparkles,
   Clock, AlertCircle, CircleCheck, CircleX, Link2,
+  MessageCircle, Timer, Search, Gamepad2,
+  Crosshair, MousePointer, MapPin, Repeat, CircleDot, Keyboard,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import {
   type InteractionPoint, type InteractionOption,
   type ConsequenceChain, type ConsequenceTiming,
+  type TimedDecisionConfig, type DialogueTree,
+  type QTEConfig, type HotspotConfig,
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
+import { DialogueTreeEditor } from "@/components/ui/DialogueTreeEditor";
+import { InvestigationPanel } from "@/components/ui/InvestigationPanel";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -34,7 +42,15 @@ function emotionColor(v: number): { color: string; bg: string; label: string } {
 }
 
 // ── Tab types ────────────────────────────────────────────────────────────
-type ViewTab = "interactions" | "consequences" | "suggestions";
+type ViewTab = "interactions" | "dialogue" | "consequences" | "timed" | "suggestions" | "qte";
+
+// ── Display style mapping for timed decisions ─────────────────────────────
+const TIMED_DISPLAY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
+  bar:       { bg: "rgba(59,130,246,0.10)",  color: "#3B82F6", label: "进度条" },
+  circle:    { bg: "rgba(16,185,129,0.10)", color: "#10B981", label: "环形" },
+  hidden:    { bg: "rgba(107,114,128,0.10)", color: "#6B7280", label: "隐藏" },
+  heartbeat: { bg: "rgba(239,68,68,0.10)",  color: "#EF4444", label: "心跳" },
+};
 
 // ── Timing color helpers ─────────────────────────────────────────────────
 function timingColor(t: ConsequenceTiming): { color: string; bg: string; label: string } {
@@ -49,11 +65,13 @@ type TestFilter = "all" | "tested" | "untested";
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function InteractionScreen() {
+  const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<ViewTab>("interactions");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>("all");
   const [testFilter, setTestFilter] = useState<TestFilter>("all");
   const [hoveredChainId, setHoveredChainId] = useState<string | null>(null);
+  const [investigationOpen, setInvestigationOpen] = useState(false);
 
   // ── Store selectors ───────────────────────────────────────────────────
   const interactionPoints = useNarrativeStore(s => s.interactionPoints);
@@ -61,6 +79,11 @@ export default function InteractionScreen() {
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const narrativeStates = useNarrativeStore(s => s.narrativeStates);
   const consequenceChains = useNarrativeStore(s => s.consequenceChains);
+  const timedDecisions = useNarrativeStore(s => s.timedDecisions);
+  const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
+  const qteConfigs = useNarrativeStore(s => s.qteConfigs);
+  const hotspotConfigs = useNarrativeStore(s => s.hotspotConfigs);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
   const updateInteractionPoint = useNarrativeStore(s => s.updateInteractionPoint);
   const addToast = useUIStore(s => s.addToast);
 
@@ -151,6 +174,7 @@ export default function InteractionScreen() {
   if (interactionPoints.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: S.bg }}>
+        <UpstreamReadiness currentPath={pathname} />
         <div className="text-center max-w-md p-8">
           <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: '#F4F6FC' }}>
             <Zap size={28} style={{ color: '#7C6CF5' }} />
@@ -168,6 +192,7 @@ export default function InteractionScreen() {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen" style={{ background: S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
         {/* ── A. Top Stats Bar ───────────────────────────────────────────── */}
@@ -192,8 +217,11 @@ export default function InteractionScreen() {
         {/* ── Tab Switcher ──────────────────────────────────────────────── */}
         <div className="flex items-center gap-1" style={{ borderBottom: `2px solid ${S.border}` }}>
           <TabButton active={activeTab === "interactions"} onClick={() => setActiveTab("interactions")} label="互动点设计" icon={<Zap size={14} />} />
+          <TabButton active={activeTab === "dialogue"} onClick={() => setActiveTab("dialogue")} label="对话树" icon={<MessageCircle size={14} />} badge={dialogueTrees.length > 0 ? dialogueTrees.length : undefined} />
           <TabButton active={activeTab === "consequences"} onClick={() => setActiveTab("consequences")} label="后果追踪" icon={<GitBranch size={14} />} badge={conseqStats.unresolved.length > 0 ? conseqStats.unresolved.length : undefined} />
+          <TabButton active={activeTab === "timed"} onClick={() => setActiveTab("timed")} label="限时选择" icon={<Timer size={14} />} badge={timedDecisions.length > 0 ? timedDecisions.length : undefined} />
           <TabButton active={activeTab === "suggestions"} onClick={() => setActiveTab("suggestions")} label="设计建议" icon={<Sparkles size={14} />} />
+          <TabButton active={activeTab === "qte"} onClick={() => setActiveTab("qte")} label="QTE / 热区" icon={<Gamepad2 size={14} />} badge={qteConfigs.length + hotspotConfigs.length > 0 ? qteConfigs.length + hotspotConfigs.length : undefined} />
         </div>
 
         {/* ════════════ TAB: Interaction Points ════════════ */}
@@ -279,6 +307,25 @@ export default function InteractionScreen() {
                               </div>
                               {/* Row 3: narrative purpose */}
                               <p className="text-xs leading-relaxed line-clamp-1" style={{ color: S.text2 }}>{ip.narrativePurpose}</p>
+                              {/* Timed decision indicator (Detroit feature) */}
+                              {ip.timedDecision && (
+                                <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-lg" style={{ background: "#FFF7ED", border: "1px solid #FDBA74" }}>
+                                  <Clock size={12} style={{ color: "#F97316" }} />
+                                  <span className="text-xs font-medium" style={{ color: "#EA580C" }}>
+                                    {ip.timedDecision.timeLimit}秒限时
+                                  </span>
+                                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#FED7AA", color: "#C2410C" }}>
+                                    {ip.timedDecision.displayStyle === 'bar' ? '进度条' :
+                                     ip.timedDecision.displayStyle === 'circle' ? '圆环' :
+                                     ip.timedDecision.displayStyle === 'heartbeat' ? '心跳' : '隐藏'}
+                                  </span>
+                                  {ip.timedDecision.silenceMeaning && (
+                                    <span className="text-xs italic" style={{ color: "#9A3412" }}>
+                                      沉默 = {ip.timedDecision.silenceMeaning}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             {/* Right: test badge + expand icon */}
                             <div className="flex items-center gap-2 shrink-0">
@@ -386,6 +433,34 @@ export default function InteractionScreen() {
                   </div>
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {/* ════════════ TAB: Dialogue Tree ════════════ */}
+          {activeTab === "dialogue" && (
+            <motion.div key="dialogue" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} transition={{ duration: 0.2 }} className="space-y-6">
+
+              {/* Header */}
+              <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageCircle size={16} style={{ color: "#8B5CF6" }} />
+                  <h2 className="text-sm font-bold" style={{ color: S.text }}>对话树</h2>
+                </div>
+                <p className="text-xs" style={{ color: S.text3 }}>多轮对话分支编辑器，设计复杂对话交互</p>
+                <div className="flex items-center gap-3 mt-3">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                    <MessageCircle size={11} style={{ color: "#8B5CF6" }} />
+                    <span className="text-xs font-medium" style={{ color: "#7C3AED" }}>对话树 {dialogueTrees.length}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: S.s3 }}>
+                    <Layers size={11} style={{ color: S.text3 }} />
+                    <span className="text-xs font-medium" style={{ color: S.text2 }}>总节点 {dialogueTrees.reduce((s, t) => s + t.nodes.length, 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialogue Tree Editor */}
+              <DialogueTreeEditor />
             </motion.div>
           )}
 
@@ -647,6 +722,128 @@ export default function InteractionScreen() {
                 </div>
               )}
 
+              {/* ── Investigation Panel (collapsible) ───────────────── */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <motion.button
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => setInvestigationOpen(v => !v)}
+                  className="w-full flex items-center gap-2 px-5 py-4 text-left focus:outline-none"
+                  style={{ borderBottom: investigationOpen ? `1px solid ${S.border}` : "none" }}
+                >
+                  <Search size={15} style={{ color: "#0EA5E9" }} />
+                  <h2 className="text-sm font-bold flex-1" style={{ color: S.text }}>调查推理系统</h2>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: "rgba(14,165,233,0.08)", color: "#0EA5E9" }}>证据 · 线索 · 推理</span>
+                  <motion.div animate={{ rotate: investigationOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown size={14} style={{ color: S.text3 }} />
+                  </motion.div>
+                </motion.button>
+                <AnimatePresence>
+                  {investigationOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-5">
+                        <InvestigationPanel />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+            </motion.div>
+          )}
+
+          {/* ════════════ TAB: Timed Decisions ════════════ */}
+          {activeTab === "timed" && (
+            <motion.div key="timed" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.2 }} className="space-y-6">
+
+              {/* Header */}
+              <div>
+                <h2 className="text-lg font-bold" style={{ color: S.text }}>限时选择</h2>
+                <p className="text-xs mt-0.5" style={{ color: S.text3 }}>设计限时决策点——沉默也是一种选择</p>
+              </div>
+
+              {/* Stats */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                  <Timer size={12} style={{ color: "#F59E0B" }} />
+                  <span className="text-xs font-medium" style={{ color: "#D97706" }}>限时决策点 {timedDecisions.length}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: S.s3 }}>
+                  <Clock size={12} style={{ color: S.text3 }} />
+                  <span className="text-xs font-medium" style={{ color: S.text2 }}>
+                    平均时限 {timedDecisions.length > 0 ? (timedDecisions.reduce((s, t) => s + t.timeLimit, 0) / timedDecisions.length).toFixed(0) : 0}秒
+                  </span>
+                </div>
+              </div>
+
+              {/* Timed Decision Cards */}
+              {timedDecisions.length === 0 ? (
+                <div className="rounded-2xl p-8 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <Timer size={32} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                  <p className="text-sm font-bold" style={{ color: S.text3 }}>暂无限时决策</p>
+                  <p className="text-xs mt-1" style={{ color: S.text3 }}>限时决策会在互动点上添加倒计时压力，沉默也是一种选择</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {timedDecisions.map((td) => {
+                    const displayStyle = TIMED_DISPLAY_STYLES[td.displayStyle] || TIMED_DISPLAY_STYLES.bar;
+                    const timeColor = td.timeLimit <= 5 ? "#EF4444" : td.timeLimit <= 10 ? "#F59E0B" : S.primary;
+                    return (
+                      <div key={td.interactionPointId} className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}`, borderLeft: `4px solid ${timeColor}` }}>
+                        {/* Header row */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <Timer size={14} style={{ color: timeColor }} />
+                          <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: S.s3, color: S.text2 }}>{td.interactionPointId}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: displayStyle.bg, color: displayStyle.color }}>{displayStyle.label}</span>
+                        </div>
+
+                        {/* Time limit display */}
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="text-center">
+                            <span className="text-3xl font-black tabular-nums" style={{ color: timeColor }}>{td.timeLimit}</span>
+                            <span className="text-xs ml-1" style={{ color: S.text3 }}>秒</span>
+                          </div>
+                          {/* Animated timer bar */}
+                          <div className="flex-1">
+                            <div className="h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                              <motion.div
+                                className="h-full rounded-full"
+                                style={{ background: timeColor }}
+                                initial={{ width: "100%" }}
+                                animate={{ width: "0%" }}
+                                transition={{ duration: td.timeLimit, repeat: Infinity, ease: "linear" }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Silence meaning */}
+                        <div className="flex items-start gap-2 p-3 rounded-lg mb-2" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.15)" }}>
+                          <Clock size={12} className="mt-0.5 shrink-0" style={{ color: "#D97706" }} />
+                          <div>
+                            <span className="text-[10px] font-semibold" style={{ color: "#D97706" }}>沉默意义</span>
+                            <p className="text-xs mt-0.5" style={{ color: S.text2 }}>{td.silenceMeaning}</p>
+                          </div>
+                        </div>
+
+                        {/* Timeout consequence */}
+                        <div className="flex items-start gap-2 p-3 rounded-lg" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                          <AlertTriangle size={12} className="mt-0.5 shrink-0" style={{ color: "#EF4444" }} />
+                          <div>
+                            <span className="text-[10px] font-semibold" style={{ color: "#EF4444" }}>超时后果</span>
+                            <p className="text-xs mt-0.5" style={{ color: S.text2 }}>{td.timeoutConsequence}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -785,6 +982,413 @@ export default function InteractionScreen() {
 
             </motion.div>
           )}
+
+          {/* ════════════ TAB: QTE / Hotspot ════════════ */}
+          {activeTab === "qte" && (() => {
+            const qteTested = qteConfigs.filter(q => q.tested).length;
+            const qteUntested = qteConfigs.length - qteTested;
+            const sceneNodeIds = storyNodes.filter(n => n.type === "scene" || n.type === "start").map(n => n.id);
+            const hotspotNodeIds = new Set(hotspotConfigs.map(h => h.nodeId));
+            const missingHotspotNodes = storyNodes.filter(n => sceneNodeIds.includes(n.id) && !hotspotNodeIds.has(n.id));
+            const timeWarnings = qteConfigs.filter(q => q.timeLimit < 1 || q.timeLimit > 10);
+
+            const OP_MAP: Record<string, string> = { tap: "\u{1F446}", swipe: "\u{1F44B}", hold: "\u{270A}", sequence: "\u{2328}\u{FE0F}" };
+            const FAIL_LABELS: Record<string, string> = { bad_ending: "\u574F\u7ED3\u5C40", alternate_path: "\u5907\u7528\u8DEF\u7EBF", retry: "\u91CD\u8BD5" };
+
+            function diffStyle(d: string) {
+              if (d === "easy") return { color: S.success, bg: "rgba(5,150,105,0.10)", label: "\u7B80\u5355" };
+              if (d === "normal") return { color: S.warning, bg: "rgba(217,119,6,0.10)", label: "\u666E\u901A" };
+              return { color: S.error, bg: "rgba(220,38,38,0.10)", label: "\u56F0\u96BE" };
+            }
+            function szStyle(s: string) {
+              if (s === "small") return { label: "\u5C0F", px: 8 };
+              if (s === "medium") return { label: "\u4E2D", px: 14 };
+              return { label: "\u5927", px: 20 };
+            }
+
+            return (
+            <motion.div key="qte" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.2 }} className="space-y-6">
+
+              {/* QTE Stats Row */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: S.primary10 }}>
+                  <Gamepad2 size={13} style={{ color: S.primary }} />
+                  <span className="text-xs font-medium" style={{ color: S.text2 }}>QTE</span>
+                  <span className="text-sm font-bold" style={{ color: S.primary }}>{qteConfigs.length}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: S.accent10 }}>
+                  <Crosshair size={13} style={{ color: S.accent }} />
+                  <span className="text-xs font-medium" style={{ color: S.text2 }}>Hotspot</span>
+                  <span className="text-sm font-bold" style={{ color: S.accent }}>{hotspotConfigs.length}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(5,150,105,0.10)" }}>
+                  <CheckCircle2 size={13} style={{ color: S.success }} />
+                  <span className="text-xs font-medium" style={{ color: S.text2 }}>{"\u5DF2\u6D4B\u8BD5"}</span>
+                  <span className="text-sm font-bold" style={{ color: S.success }}>{qteTested}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: qteUntested > 0 ? "rgba(217,119,6,0.10)" : S.s3 }}>
+                  <AlertTriangle size={13} style={{ color: qteUntested > 0 ? S.warning : S.text3 }} />
+                  <span className="text-xs font-medium" style={{ color: S.text2 }}>{"\u672A\u6D4B\u8BD5"}</span>
+                  <span className="text-sm font-bold" style={{ color: qteUntested > 0 ? S.warning : S.text3 }}>{qteUntested}</span>
+                </div>
+              </div>
+
+              {/* ── QTE Configs List ── */}
+              {qteConfigs.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Gamepad2 size={14} style={{ color: S.primary }} />
+                    <h3 className="text-sm font-bold" style={{ color: S.text }}>QTE {"\u4E8B\u4EF6"}</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md font-bold" style={{ background: S.primary10, color: S.primary }}>{qteConfigs.length}</span>
+                  </div>
+                  {qteConfigs.map((qte) => {
+                    const expanded = expandedIds.has(`qte-${qte.id}`);
+                    const diff = diffStyle(qte.difficulty);
+                    return (
+                      <motion.div
+                        key={qte.id}
+                        layout
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2 }}
+                        className="rounded-2xl overflow-hidden"
+                        style={{
+                          background: S.card,
+                          border: `1px solid ${expanded ? S.primary : S.border}`,
+                          boxShadow: expanded ? `0 4px 24px ${S.primary10}` : "0 1px 3px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <button onClick={() => toggle(`qte-${qte.id}`)} className="w-full text-left p-4 focus:outline-none">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="text-sm font-bold" style={{ color: S.text }}>{qte.name}</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: diff.bg, color: diff.color }}>{diff.label}</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: S.s3, color: S.text3 }}>{qte.nodeId}</span>
+                              </div>
+                              <p className="text-xs line-clamp-1" style={{ color: S.text2 }}>{qte.triggerMoment}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold" style={{ background: qte.tested ? "rgba(5,150,105,0.10)" : "rgba(217,119,6,0.10)", color: qte.tested ? S.success : S.warning }}>
+                                {qte.tested ? "\u5DF2\u6D4B\u8BD5" : "\u672A\u6D4B\u8BD5"}
+                              </span>
+                              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.s2 }}>
+                                {expanded ? <ChevronUp size={12} style={{ color: S.text3 }} /> : <ChevronDown size={12} style={{ color: S.text3 }} />}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                        <AnimatePresence>
+                          {expanded && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
+                              <div className="px-4 pb-4 space-y-4" style={{ borderTop: `1px solid ${S.border}` }}>
+                                {/* Trigger */}
+                                <div className="pt-3">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <Target size={12} style={{ color: S.primary }} />
+                                    <h4 className="text-[10px] font-bold uppercase tracking-wide" style={{ color: S.primary }}>{"\u89E6\u53D1\u65F6\u673A"}</h4>
+                                  </div>
+                                  <p className="text-xs" style={{ color: S.text2 }}>{qte.triggerMoment}</p>
+                                </div>
+                                {/* Operation */}
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl">{OP_MAP[qte.operationType]}</span>
+                                  <div>
+                                    <p className="text-xs font-bold" style={{ color: S.text }}>{qte.operationLabel}</p>
+                                    <p className="text-[10px]" style={{ color: S.text3 }}>{qte.operationType}</p>
+                                  </div>
+                                </div>
+                                {/* Time limit bar */}
+                                <div className="flex items-center gap-3">
+                                  <Clock size={12} style={{ color: S.warning }} />
+                                  <span className="text-sm font-bold" style={{ color: S.warning }}>{qte.timeLimit}s</span>
+                                  <div className="flex-1 max-w-[160px] h-2.5 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                                    <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min((qte.timeLimit / 10) * 100, 100)}%` }} transition={{ duration: 0.6, delay: 0.1 }} className="h-full rounded-full" style={{ background: qte.timeLimit < 2 ? S.error : qte.timeLimit < 5 ? S.warning : S.success }} />
+                                  </div>
+                                </div>
+                                {/* Success/Failure feedback */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="p-3 rounded-xl" style={{ background: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <CheckCircle2 size={11} style={{ color: S.success }} />
+                                      <span className="text-[10px] font-bold" style={{ color: S.success }}>{"\u6210\u529F\u53CD\u9988"}</span>
+                                    </div>
+                                    <p className="text-xs" style={{ color: S.text2 }}>{qte.successFeedback}</p>
+                                  </div>
+                                  <div className="p-3 rounded-xl" style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <AlertTriangle size={11} style={{ color: S.error }} />
+                                      <span className="text-[10px] font-bold" style={{ color: S.error }}>{"\u5931\u8D25\u53CD\u9988"}</span>
+                                    </div>
+                                    <p className="text-xs" style={{ color: S.text2 }}>{qte.failureFeedback}</p>
+                                  </div>
+                                </div>
+                                {/* Variable changes */}
+                                {qte.variableChanges.length > 0 && (
+                                  <div>
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                      <Layers size={11} style={{ color: S.accent }} />
+                                      <span className="text-[10px] font-bold uppercase" style={{ color: S.accent }}>{"\u53D8\u91CF\u53D8\u5316"}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {qte.variableChanges.map((v, i) => (
+                                        <code key={i} className="px-1.5 py-0.5 rounded-md text-[10px]" style={{ background: S.s2, color: S.accent }}>{v}</code>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Failure path */}
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle size={11} style={{ color: qte.failurePath === "retry" ? S.warning : S.error }} />
+                                  <span className="text-[10px] font-bold" style={{ color: S.text3 }}>{"\u5931\u8D25\u8DEF\u5F84"}:</span>
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold" style={{ background: qte.failurePath === "retry" ? "rgba(217,119,6,0.10)" : "rgba(220,38,38,0.10)", color: qte.failurePath === "retry" ? S.warning : S.error }}>
+                                    {FAIL_LABELS[qte.failurePath] ?? qte.failurePath}
+                                  </span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+              {qteConfigs.length === 0 && (
+                <div className="rounded-2xl p-8 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <Gamepad2 size={24} className="mx-auto mb-2" style={{ color: S.text3 }} />
+                  <p className="text-xs" style={{ color: S.text3 }}>{"\u6682\u65E0 QTE \u4E8B\u4EF6"}</p>
+                </div>
+              )}
+
+              {/* ── Hotspot Configs List ── */}
+              {hotspotConfigs.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Crosshair size={14} style={{ color: S.accent }} />
+                    <h3 className="text-sm font-bold" style={{ color: S.text }}>Hotspot {"\u70ED\u533A"}</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md font-bold" style={{ background: S.accent10, color: S.accent }}>{hotspotConfigs.length}</span>
+                  </div>
+                  {hotspotConfigs.map((hs) => {
+                    const expanded = expandedIds.has(`hs-${hs.id}`);
+                    const sz = szStyle(hs.size);
+                    return (
+                      <motion.div
+                        key={hs.id}
+                        layout
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2 }}
+                        className="rounded-2xl overflow-hidden"
+                        style={{
+                          background: S.card,
+                          border: `1px solid ${expanded ? S.accent : S.border}`,
+                          boxShadow: expanded ? `0 4px 24px ${S.accent10}` : "0 1px 3px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <button onClick={() => toggle(`hs-${hs.id}`)} className="w-full text-left p-4 focus:outline-none">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="text-sm font-bold" style={{ color: S.text }}>{hs.name}</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: S.s3, color: S.text3 }}>{hs.nodeId}</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: S.accent10, color: S.accent }}>{sz.label}</span>
+                                {hs.timed && (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold" style={{ background: "rgba(217,119,6,0.10)", color: S.warning }}>{"\u9650\u65F6"}</span>
+                                )}
+                              </div>
+                              <p className="text-xs line-clamp-1" style={{ color: S.text2 }}>{hs.clickFeedback}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.s2 }}>
+                                {expanded ? <ChevronUp size={12} style={{ color: S.text3 }} /> : <ChevronDown size={12} style={{ color: S.text3 }} />}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                        <AnimatePresence>
+                          {expanded && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
+                              <div className="px-4 pb-4 space-y-4" style={{ borderTop: `1px solid ${S.border}` }}>
+                                {/* Position preview */}
+                                <div className="pt-3">
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <MapPin size={12} style={{ color: S.primary }} />
+                                    <span className="text-[10px] font-bold uppercase" style={{ color: S.primary }}>{"\u4F4D\u7F6E\u5750\u6807"}</span>
+                                  </div>
+                                  <div className="flex items-start gap-3">
+                                    <div className="relative rounded-lg overflow-hidden shrink-0" style={{ width: 96, height: 54, background: S.s3, border: `1px solid ${S.border}` }}>
+                                      <div className="absolute inset-0" style={{ opacity: 0.3 }}>
+                                        <div className="absolute left-1/2 top-0 bottom-0 w-px" style={{ background: S.border2 }} />
+                                        <div className="absolute top-1/2 left-0 right-0 h-px" style={{ background: S.border2 }} />
+                                      </div>
+                                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.2 }} className="absolute rounded-full" style={{ left: `${hs.positionX}%`, top: `${hs.positionY}%`, width: sz.px, height: sz.px, background: S.accent, transform: "translate(-50%, -50%)", boxShadow: `0 0 6px ${S.accent}` }} />
+                                      <div className="absolute bottom-0.5 right-1 text-[7px]" style={{ color: S.text3 }}>16:9</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2 text-xs"><span style={{ color: S.text3, minWidth: 24 }}>X:</span><span className="font-bold" style={{ color: S.text }}>{hs.positionX}%</span></div>
+                                      <div className="flex items-center gap-2 text-xs"><span style={{ color: S.text3, minWidth: 24 }}>Y:</span><span className="font-bold" style={{ color: S.text }}>{hs.positionY}%</span></div>
+                                      <div className="flex items-center gap-2 text-xs"><span style={{ color: S.text3, minWidth: 24 }}>{"\u5C3A\u5BF8"}:</span><span className="font-bold" style={{ color: S.accent }}>{sz.label}</span></div>
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Click feedback */}
+                                <div>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <MousePointer size={11} style={{ color: S.accent }} />
+                                    <span className="text-[10px] font-bold uppercase" style={{ color: S.accent }}>{"\u70B9\u51FB\u53CD\u9988"}</span>
+                                  </div>
+                                  <p className="text-xs" style={{ color: S.text2 }}>{hs.clickFeedback}</p>
+                                </div>
+                                {/* Appear condition */}
+                                {hs.appearCondition && (
+                                  <div>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <Eye size={11} style={{ color: S.warning }} />
+                                      <span className="text-[10px] font-bold uppercase" style={{ color: S.warning }}>{"\u51FA\u73B0\u6761\u4EF6"}</span>
+                                    </div>
+                                    <code className="px-2 py-0.5 rounded-lg text-[10px]" style={{ background: "rgba(217,119,6,0.10)", color: S.warning }}>{hs.appearCondition}</code>
+                                  </div>
+                                )}
+                                {/* Trigger script */}
+                                <div>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Keyboard size={11} style={{ color: S.primary }} />
+                                    <span className="text-[10px] font-bold uppercase" style={{ color: S.primary }}>{"\u89E6\u53D1\u811A\u672C"}</span>
+                                  </div>
+                                  <code className="px-2 py-0.5 rounded-lg text-[10px] font-mono" style={{ background: S.s2, color: S.primary }}>{hs.triggerScript}</code>
+                                </div>
+                                {/* Timed settings */}
+                                <div className="flex items-center gap-3">
+                                  <Timer size={11} style={{ color: hs.timed ? S.warning : S.text3 }} />
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold" style={{ background: hs.timed ? "rgba(217,119,6,0.10)" : S.s3, color: hs.timed ? S.warning : S.text3 }}>{hs.timed ? "\u9650\u65F6" : "\u4E0D\u9650\u65F6"}</span>
+                                  {hs.timed && hs.timeLimit && <span className="text-xs font-bold" style={{ color: S.warning }}>{hs.timeLimit}s</span>}
+                                </div>
+                                {/* Toggle states */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                      <CircleDot size={10} style={{ color: hs.highlightOnHover ? S.accent : S.text3 }} />
+                                      <span className="text-[10px] font-medium" style={{ color: S.text2 }}>{"\u60AC\u505C\u9AD8\u4EAE"}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold" style={{ color: hs.highlightOnHover ? S.success : S.text3 }}>{hs.highlightOnHover ? "\u5F00\u542F" : "\u5173\u95ED"}</span>
+                                  </div>
+                                  <div className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                      <Repeat size={10} style={{ color: hs.repeatable ? S.accent : S.text3 }} />
+                                      <span className="text-[10px] font-medium" style={{ color: S.text2 }}>{"\u53EF\u91CD\u590D\u70B9\u51FB"}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold" style={{ color: hs.repeatable ? S.success : S.text3 }}>{hs.repeatable ? "\u5F00\u542F" : "\u5173\u95ED"}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+              {hotspotConfigs.length === 0 && (
+                <div className="rounded-2xl p-8 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <Crosshair size={24} className="mx-auto mb-2" style={{ color: S.text3 }} />
+                  <p className="text-xs" style={{ color: S.text3 }}>{"\u6682\u65E0 Hotspot \u70ED\u533A"}</p>
+                </div>
+              )}
+
+              {/* ── QTE Design Suggestions ── */}
+              <div className="rounded-2xl p-5 space-y-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} style={{ color: S.primary }} />
+                  <h3 className="text-sm font-bold" style={{ color: S.text }}>QTE {"\u8BBE\u8BA1\u5EFA\u8BAE"}</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Untested QTEs */}
+                  <div className="p-3 rounded-xl space-y-2" style={{ background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.2)" }}>
+                    <div className="flex items-center gap-1.5">
+                      <TestTube size={12} style={{ color: S.warning }} />
+                      <h4 className="text-[10px] font-bold" style={{ color: S.warning }}>{"\u672A\u6D4B\u8BD5\u7684 QTE"}</h4>
+                    </div>
+                    {qteUntested === 0 ? (
+                      <p className="text-[10px]" style={{ color: S.success }}>{"\u6240\u6709 QTE \u5747\u5DF2\u6D4B\u8BD5"}</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {qteConfigs.filter(q => !q.tested).map(q => (
+                          <li key={q.id} className="flex items-center gap-1.5 text-[10px]" style={{ color: S.text2 }}>
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: S.warning }} />
+                            <span className="font-medium">{q.name}</span>
+                            <span style={{ color: S.text3 }}>({q.nodeId})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {/* Nodes missing hotspots */}
+                  <div className="p-3 rounded-xl space-y-2" style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+                    <div className="flex items-center gap-1.5">
+                      <Crosshair size={12} style={{ color: S.error }} />
+                      <h4 className="text-[10px] font-bold" style={{ color: S.error }}>{"\u7F3A\u5C11 Hotspot \u7684\u8282\u70B9"}</h4>
+                    </div>
+                    {missingHotspotNodes.length === 0 ? (
+                      <p className="text-[10px]" style={{ color: S.success }}>{"\u6240\u6709\u573A\u666F\u8282\u70B9\u5747\u6709 Hotspot"}</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {missingHotspotNodes.map(n => (
+                          <li key={n.id} className="flex items-center gap-1.5 text-[10px]" style={{ color: S.text2 }}>
+                            <AlertTriangle size={9} className="shrink-0" style={{ color: S.error }} />
+                            <span className="font-medium">{n.label}</span>
+                            <span style={{ color: S.text3 }}>({n.id})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {/* QTE time distribution */}
+                  <div className="p-3 rounded-xl space-y-2" style={{ background: S.primary10, border: "1px solid rgba(94,80,232,0.2)" }}>
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={12} style={{ color: S.primary }} />
+                      <h4 className="text-[10px] font-bold" style={{ color: S.primary }}>QTE {"\u65F6\u95F4\u5206\u5E03"}</h4>
+                    </div>
+                    {timeWarnings.length === 0 ? (
+                      <div className="space-y-1">
+                        <p className="text-[10px]" style={{ color: S.success }}>{"\u6240\u6709 QTE \u65F6\u95F4\u8BBE\u7F6E\u5408\u7406"}</p>
+                        {qteConfigs.map(q => (
+                          <div key={q.id} className="flex items-center justify-between text-[10px]">
+                            <span style={{ color: S.text2 }}>{q.name}</span>
+                            <span className="font-bold" style={{ color: S.text }}>{q.timeLimit}s</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ul className="space-y-1">
+                        {timeWarnings.map(q => (
+                          <li key={q.id} className="flex items-center gap-1.5 text-[10px]" style={{ color: S.text2 }}>
+                            <AlertTriangle size={9} className="shrink-0" style={{ color: S.warning }} />
+                            <span className="font-medium">{q.name}</span>
+                            <span style={{ color: S.warning }}>{q.timeLimit}s {q.timeLimit < 1 ? "\u8FC7\u77ED" : "\u8FC7\u957F"}</span>
+                          </li>
+                        ))}
+                        {qteConfigs.filter(q => !timeWarnings.includes(q)).map(q => (
+                          <li key={q.id} className="flex items-center justify-between text-[10px]">
+                            <span className="flex items-center gap-1.5" style={{ color: S.text2 }}>
+                              <CheckCircle2 size={9} className="shrink-0" style={{ color: S.success }} />
+                              <span className="font-medium">{q.name}</span>
+                            </span>
+                            <span style={{ color: S.success }}>{q.timeLimit}s</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+            </motion.div>
+            );
+          })()}
         </AnimatePresence>
 
       </div>

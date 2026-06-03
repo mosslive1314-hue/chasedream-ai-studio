@@ -4,14 +4,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight,
   GitBranch, User, Users, MapPin, Clock, BookOpen, Zap,
-  Film, HelpCircle, Trophy,
-  ArrowRight, Layers, Target, Play,
-  ExternalLink, BarChart3, Sparkles, X,
-  Package, Rocket, Shield
+  Trophy,
+  Layers, Play,
+  ExternalLink, BarChart3, Sparkles,
+  Package, Rocket, Shield, Heart
 } from "lucide-react";
 import Link from "next/link";
-import { INDUSTRY_LABELS, INDUSTRY_TEMPLATES, INDUSTRY_QC_RULES, type IndustryType, type StoryNode } from "@/lib/studio-data";
+import { INDUSTRY_LABELS, INDUSTRY_QC_RULES, type IndustryType } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, useSettingsStore, useProjectStore } from "@/store";
+import { usePathname } from "next/navigation";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -22,17 +24,6 @@ const S = {
   success: "#059669", success10: "rgba(5,150,105,0.10)",
   warning: "#D97706", warning10: "rgba(217,119,6,0.10)",
   error: "#DC2626", error10: "rgba(220,38,38,0.10)",
-};
-
-// ── 节点类型配置 ──────────────────────────────────────────────────────────
-const NODE_CFG: Record<string, { label: string; color: string; icon: any }> = {
-  start:       { label: "场景",  color: S.primary, icon: Film },
-  scene:       { label: "场景",  color: S.primary, icon: Film },
-  choice:      { label: "选择",  color: S.warning, icon: HelpCircle },
-  condition:   { label: "条件",  color: S.warning, icon: Zap },
-  qte:         { label: "QTE",   color: S.error,   icon: Target },
-  ending_good: { label: "好结局", color: S.success,  icon: Trophy },
-  ending_bad:  { label: "坏结局", color: S.error,    icon: Trophy },
 };
 
 
@@ -58,71 +49,11 @@ const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = 
 // ── 素材风格一致性 — 动态从 store 计算（P12-#22）──────────────────────────
 
 
-// ── 迷你节点地图 ──────────────────────────────────────────────────────────
-function MiniNodeMap({ highlightPath, storyNodes, nodeEdges }: {
-  highlightPath?: string[];
-  storyNodes: StoryNode[];
-  nodeEdges: { from: string; to: string; label?: string }[];
-}) {
-  const scaleX = 0.38;
-  const scaleY = 0.22;
-  const padX = 20;
-  const padY = 10;
-  const w = 380;
-  const h = 170;
-
-  return (
-    <div className="relative w-full overflow-hidden rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}`, height: h }}>
-      <svg className="w-full h-full" viewBox={`0 0 ${w} ${h}`}>
-        {/* 连线 */}
-        {nodeEdges.map((edge, i) => {
-          const fn = storyNodes.find(n => n.id === edge.from);
-          const tn = storyNodes.find(n => n.id === edge.to);
-          if (!fn || !tn) return null;
-          const x1 = fn.x * scaleX + padX, y1 = (fn.y + 20) * scaleY + padY;
-          const x2 = tn.x * scaleX + padX, y2 = tn.y * scaleY + padY;
-          const cy = (y1 + y2) / 2;
-          const isHighlight = highlightPath && highlightPath.includes(edge.from) && highlightPath.includes(edge.to);
-          return (
-            <path key={i}
-              d={`M ${x1},${y1} C ${x1},${cy} ${x2},${cy} ${x2},${y2}`}
-              fill="none" stroke={isHighlight ? S.primary : S.border2}
-              strokeWidth={isHighlight ? 2 : 1} opacity={isHighlight ? 0.8 : 0.5}
-            />
-          );
-        })}
-        {/* 节点 */}
-        {storyNodes.map(node => {
-          const cfg = NODE_CFG[node.type] ?? NODE_CFG.scene;
-          const x = node.x * scaleX + padX;
-          const y = node.y * scaleY + padY;
-          const isHL = highlightPath?.includes(node.id);
-          return (
-            <g key={node.id}>
-              <circle cx={x} cy={y} r={isHL ? 5 : 3.5}
-                fill={cfg.color} opacity={isHL ? 1 : 0.5}
-                stroke={isHL ? "#fff" : "none"} strokeWidth={1.5}
-              />
-              {isHL && (
-                <text x={x} y={y - 8} textAnchor="middle"
-                  fontSize={7} fill={S.text2} fontWeight="bold">
-                  {node.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function OverviewScreen() {
+  const pathname = usePathname();
   const [activeSubTab, setActiveSubTab] = useState<Record<number, number>>({ 0: 0, 1: 0, 2: 0, 3: 0 });
 
-  const [hoveredPath, setHoveredPath] = useState<string[] | undefined>(undefined);
-  const [selectedNode, setSelectedNode] = useState<StoryNode | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const industry = useUIStore(s => s.industry);
   const setIndustry = useUIStore(s => s.setIndustry);
@@ -131,7 +62,6 @@ export default function OverviewScreen() {
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const characters = useNarrativeStore(s => s.characters);
-  const worldBuilding = useNarrativeStore(s => s.worldBuilding);
   const branchPaths = useNarrativeStore(s => s.branchPaths);
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const scenes = useNarrativeStore(s => s.scenes);
@@ -305,29 +235,11 @@ export default function OverviewScreen() {
   }, [styleConsistency]);
 
   // ── Derived data ────────────────────────────────────────────────────────
-  const charList = useMemo(() =>
-    characters.map(c => ({
-      name: c.name, role: c.role, desc: c.description,
-      appearNodes: c.appearNodes, color: c.color, emoji: c.emoji,
-    })),
-    [characters],
-  );
-
   function t(key: string): string {
     const map = INDUSTRY_LABELS[key];
     return map ? map[industry] : key;
   }
 
-  function dimLabel(dimension: string): string {
-    // Industry-specific overrides for narrative quality dimensions
-    const overrides: Record<string, Record<IndustryType, string>> = {
-      '选择意义度': { game: '选择意义度', tourism: '选择体验价值', education: '选择意义度', derivative: '选择意义度' },
-      '分支平衡性': { game: '分支平衡性', tourism: '路线均衡性', education: '分支平衡性', derivative: '分支平衡性' },
-    };
-    const override = overrides[dimension];
-    if (override) return override[industry];
-    return dimension;
-  }
   const doneCount = qualityChecks.filter(h => h.status === "ok").length;
   const healthPct = Math.round((doneCount / qualityChecks.length) * 100);
 
@@ -351,6 +263,7 @@ export default function OverviewScreen() {
 
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── 顶部项目信息 ── */}
       <div className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between"
@@ -421,9 +334,8 @@ export default function OverviewScreen() {
         <div className="flex items-center gap-2 flex-wrap">
           {[
             { label: "项目概览", icon: BarChart3 },
-            { label: "结构分析", icon: GitBranch },
-            { label: "内容审查", icon: User },
-            { label: "质量与协作", icon: Shield },
+            { label: "质量检查", icon: Shield },
+            { label: "风格一致性", icon: Heart },
           ].map((tab, i) => {
             const TabIcon = tab.icon;
             return (
@@ -452,7 +364,7 @@ export default function OverviewScreen() {
             <motion.div key="tab-0" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
               {/* Sub-tab bar */}
               <div className="flex items-center gap-1.5 mb-3">
-                {["核心数据", "剧本概览", "进度时间线"].map((label, i) => (
+                {["核心数据", "剧本概览"].map((label, i) => (
                   <button key={i}
                     onClick={() => setActiveSubTab(prev => ({ ...prev, 0: i }))}
                     className="px-3 py-1 rounded-lg text-[10px] font-bold transition-colors focus:outline-none"
@@ -593,342 +505,15 @@ export default function OverviewScreen() {
                     </div>
                   </motion.div>
                 )}
-                {activeSubTab[0] === 2 && (
-                  <motion.div key="sub-0-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: S.text3 }}>故事结构 · 第一章：渗透行动</p>
-                        <Link href="/script"><span className="text-[9px] flex items-center gap-0.5" style={{ color: S.primary }}>编辑剧本 <ExternalLink size={9} /></span></Link>
-                      </div>
-                      <div className="space-y-1.5">
-                        {[
-                          { time: "2047 · 夜", event: "序章：霓虹夜幕", desc: "艾拉在霓虹街道追踪失踪线人", node: "N01" },
-                          { time: "→", event: "任务简报", desc: "获取线人最后位置和关键情报", node: "N02" },
-                          { time: "→", event: "关键选择：进入路线", desc: "玩家选择A.暗夜通道 或 B.换装渗透", node: "N03", isChoice: true },
-                          { time: "→", event: "渗透行动", desc: "根据选择进入不同潜行路线", node: "N04/N05" },
-                          { time: "→", event: "QTE：警卫逼近", desc: "限时操作——躲避或对抗警卫", node: "N06", isQte: true },
-                          { time: "→", event: "条件判定：潜行分数", desc: "根据累计表现判定成功/失败", node: "N07", isCond: true },
-                          { time: "→", event: "结局分支", desc: "成功→数据到手→幽灵归来 / 失败→身份暴露→今夜失败", node: "N08-N11", isEnding: true },
-                        ].map((item, i) => (
-                          <div key={i} className="flex gap-2 items-start">
-                            <div className="flex flex-col items-center">
-                              <div className="w-2 h-2 rounded-full mt-1.5 shrink-0"
-                                style={{ background: item.isChoice ? S.warning : item.isQte ? S.error : item.isCond ? S.warning : item.isEnding ? S.accent : S.primary }} />
-                              {i < 6 && <div className="w-px flex-1 min-h-[16px]" style={{ background: S.border }} />}
-                            </div>
-                            <div className="flex-1 pb-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{item.time}</span>
-                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{item.event}</span>
-                                {item.isChoice && <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: `${S.warning}15`, color: S.warning }}>选择</span>}
-                                {item.isQte && <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: `${S.error}15`, color: S.error }}>QTE</span>}
-                                {item.isCond && <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: `${S.warning}15`, color: S.warning }}>条件</span>}
-                              </div>
-                              <p className="text-[9px]" style={{ color: S.text3 }}>{item.desc}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
               </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ═══════════════════ TAB 1: 结构分析 ═══════════════════ */}
-        <AnimatePresence mode="wait">
-          {activeTab === 1 && (
-            <motion.div key="tab-1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              {/* Sub-tab bar */}
-              <div className="flex items-center gap-1.5 mb-3">
-                {["节点图谱", "分支路径", "叙事评分"].map((label, i) => (
-                  <button key={i}
-                    onClick={() => setActiveSubTab(prev => ({ ...prev, 1: i }))}
-                    className="px-3 py-1 rounded-lg text-[10px] font-bold transition-colors focus:outline-none"
-                    style={{
-                      background: activeSubTab[1] === i ? S.primary10 : "transparent",
-                      color: activeSubTab[1] === i ? S.primary : S.text3,
-                      border: `1px solid ${activeSubTab[1] === i ? S.primary20 : "transparent"}`,
-                    }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <AnimatePresence mode="wait">
-                {activeSubTab[1] === 0 && (
-                  <motion.div key="sub-1-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] font-bold" style={{ color: S.text }}>{storyNodes.length} 个节点 · {nodeEdges.length} 条连线</p>
-                        <Link href="/nodes"><span className="text-[9px] flex items-center gap-0.5" style={{ color: S.primary }}>打开编辑器 <ExternalLink size={9} /></span></Link>
-                      </div>
-                      <MiniNodeMap highlightPath={hoveredPath} storyNodes={storyNodes} nodeEdges={nodeEdges} />
-                      <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        {Object.entries(NODE_CFG).filter(([k]) => !["start"].includes(k)).map(([key, cfg]) => (
-                          <div key={key} className="flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-full" style={{ background: cfg.color }} />
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{cfg.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-1.5">
-                        {storyNodes.map(node => {
-                          const cfg = NODE_CFG[node.type] ?? NODE_CFG.scene;
-                          return (
-                            <motion.button key={node.id} whileTap={{ scale: 0.97 }}
-                              onClick={() => setSelectedNode(selectedNode?.id === node.id ? null : node)}
-                              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left focus:outline-none"
-                              style={{
-                                background: selectedNode?.id === node.id ? S.primary10 : S.s2,
-                                border: `1px solid ${selectedNode?.id === node.id ? S.primary20 : S.border}`,
-                              }}>
-                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
-                              <span className="text-[9px] font-bold truncate" style={{ color: S.text }}>{node.id}</span>
-                              <span className="text-[9px] truncate" style={{ color: S.text3 }}>{node.label}</span>
-                              {node.hasError && <AlertTriangle size={8} style={{ color: S.error, flexShrink: 0 }} />}
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-                      <AnimatePresence>
-                        {selectedNode && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
-                            <div className="mt-2 p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-bold" style={{ color: S.text }}>{selectedNode.label}</span>
-                                  <span className="text-[8px] px-1.5 py-0.5 rounded"
-                                    style={{ background: `${NODE_CFG[selectedNode.type]?.color}15`, color: NODE_CFG[selectedNode.type]?.color }}>
-                                    {NODE_CFG[selectedNode.type]?.label}
-                                  </span>
-                                </div>
-                                <button onClick={() => setSelectedNode(null)} className="focus:outline-none"><X size={12} style={{ color: S.text3 }} /></button>
-                              </div>
-                              <div className="space-y-1 text-[9px]" style={{ color: S.text3 }}>
-                                <div>节点ID: {selectedNode.id}</div>
-                                <div>连接入: {nodeEdges.filter(e => e.to === selectedNode.id).map(e => e.from).join(", ") || "无（入口节点）"}</div>
-                                <div>连接出: {nodeEdges.filter(e => e.from === selectedNode.id).map(e => `${e.to}${e.label ? `(${e.label})` : ""}`).join(", ") || "无（终点节点）"}</div>
-                                {selectedNode.hasError && (
-                                  <div className="flex items-center gap-1 mt-1 px-2 py-1 rounded" style={{ background: S.error10 }}>
-                                    <AlertTriangle size={9} style={{ color: S.error }} />
-                                    <span style={{ color: S.error }}>{selectedNode.errorMsg}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </motion.div>
-                )}
-                {activeSubTab[1] === 1 && (
-                  <motion.div key="sub-1-1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      <div className="space-y-2">
-                        {branchPaths.map(path => (
-                          <motion.div key={path.id}
-                            onMouseEnter={() => setHoveredPath(path.nodes)}
-                            onMouseLeave={() => setHoveredPath(undefined)}
-                            className="p-3 rounded-xl cursor-pointer"
-                            style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <Trophy size={11} style={{ color: path.type === "good" ? S.success : S.error }} />
-                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{path.label}</span>
-                                <span className="text-[8px] px-1.5 py-0.5 rounded"
-                                  style={{ background: path.type === "good" ? S.success10 : S.error10, color: path.type === "good" ? S.success : S.error }}>
-                                  {path.ending}
-                                </span>
-                              </div>
-                              <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{path.nodes.length} 节点</span>
-                            </div>
-                            <div className="flex items-center gap-0.5 flex-wrap">
-                              {path.nodes.map((nid, i) => {
-                                const node = storyNodes.find(n => n.id === nid);
-                                const cfg = NODE_CFG[node?.type ?? "scene"];
-                                return (
-                                  <div key={nid} className="flex items-center gap-0.5">
-                                    <div className="px-1.5 py-0.5 rounded text-[8px] font-medium"
-                                      style={{ background: `${cfg.color}12`, color: cfg.color, border: `1px solid ${cfg.color}25` }}>
-                                      {node?.label ?? nid}
-                                    </div>
-                                    {i < path.nodes.length - 1 && <ArrowRight size={8} style={{ color: S.text3 }} />}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </motion.div>
-                        ))}
-                        <p className="text-[8px] text-center" style={{ color: S.text3 }}>鼠标悬停路径可在上方节点图中高亮显示</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-                {activeSubTab[1] === 2 && (
-                  <motion.div key="sub-1-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-[9px] font-bold" style={{ color: S.text }}>{narrativeScores.length} 个维度综合评估</p>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-mono font-black" style={{ color: totalScore >= 80 ? S.success : totalScore >= 60 ? S.warning : S.error }}>{totalScore}</span>
-                          <span className="text-[9px]" style={{ color: S.text3 }}>/100</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-center mb-4">
-                        <div className="relative flex items-center justify-center" style={{ width: 80, height: 80 }}>
-                          <svg width="80" height="80" viewBox="0 0 80 80" className="absolute">
-                            <circle cx="40" cy="40" r="34" fill="none" stroke={S.s3} strokeWidth="6" />
-                            <circle cx="40" cy="40" r="34" fill="none"
-                              stroke={totalScore >= 80 ? S.success : totalScore >= 60 ? S.warning : S.error}
-                              strokeWidth="6" strokeLinecap="round"
-                              strokeDasharray={`${totalScore * 2.14} 214`}
-                              transform="rotate(-90 40 40)"
-                              style={{ transition: 'stroke-dasharray 0.6s ease' }} />
-                          </svg>
-                          <div className="text-center z-10">
-                            <span className="text-xl font-black font-mono" style={{ color: totalScore >= 80 ? S.success : totalScore >= 60 ? S.warning : S.error }}>{totalScore}</span>
-                            <span className="text-[9px] font-bold" style={{ color: S.text3 }}>/100</span>
-                            <p className="text-[7px]" style={{ color: S.text3 }}>{totalScore >= 80 ? '优秀' : totalScore >= 60 ? '良好' : '需改进'}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        {narrativeScores.map((ns, i) => {
-                          const pct = Math.round((ns.score / ns.maxScore) * 100);
-                          const barColor = pct >= 80 ? S.success : pct >= 60 ? S.warning : S.error;
-                          return (
-                            <div key={i} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{dimLabel(ns.dimension)}</span>
-                                <span className="text-[10px] font-mono font-bold" style={{ color: barColor }}>{ns.score}/{ns.maxScore}</span>
-                              </div>
-                              <div className="h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: S.s3 }}>
-                                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor, transition: 'width 0.4s ease' }} />
-                              </div>
-                              <p className="text-[8px] mb-1" style={{ color: S.text3 }}>{ns.detail}</p>
-                              {ns.strengths.length > 0 && (
-                                <div className="mb-1">
-                                  {ns.strengths.map((s, j) => (
-                                    <div key={j} className="flex items-start gap-1 mb-0.5">
-                                      <CheckCircle2 size={8} style={{ color: S.success, marginTop: 2, flexShrink: 0 }} />
-                                      <span className="text-[8px]" style={{ color: S.success }}>{s}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {ns.improvements.length > 0 && (
-                                <div>
-                                  {ns.improvements.map((imp, j) => (
-                                    <div key={j} className="flex items-start gap-1 mb-0.5">
-                                      <AlertTriangle size={8} style={{ color: S.warning, marginTop: 2, flexShrink: 0 }} />
-                                      <span className="text-[8px]" style={{ color: S.warning }}>{imp}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="mt-3 p-3 rounded-xl" style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}20` }}>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Target size={11} style={{ color: S.warning }} />
-                          <span className="text-[10px] font-bold" style={{ color: S.warning }}>改进优先级</span>
-                        </div>
-                        <div className="space-y-1">
-                          {[...narrativeScores].sort((a, b) => a.score - b.score).slice(0, 3).map((ns, i) => (
-                            <div key={i} className="flex items-start gap-2">
-                              <span className="text-[8px] font-mono font-bold shrink-0 mt-0.5" style={{ color: S.warning }}>P{i + 1}</span>
-                              <div>
-                                <span className="text-[9px] font-bold" style={{ color: S.text }}>{dimLabel(ns.dimension)}</span>
-                                <span className="text-[8px] ml-1" style={{ color: S.text3 }}>({ns.score}分) — {ns.improvements[0]}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ═══════════════════ TAB 2: 内容审查 ═══════════════════ */}
+        {/* ═══════════════════ TAB 2: 风格一致性 ═══════════════════ */}
         <AnimatePresence mode="wait">
           {activeTab === 2 && (
             <motion.div key="tab-2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              {/* Sub-tab bar */}
-              <div className="flex items-center gap-1.5 mb-3">
-                {["角色", "世界观", "风格一致性"].map((label, i) => (
-                  <button key={i}
-                    onClick={() => setActiveSubTab(prev => ({ ...prev, 2: i }))}
-                    className="px-3 py-1 rounded-lg text-[10px] font-bold transition-colors focus:outline-none"
-                    style={{
-                      background: activeSubTab[2] === i ? S.primary10 : "transparent",
-                      color: activeSubTab[2] === i ? S.primary : S.text3,
-                      border: `1px solid ${activeSubTab[2] === i ? S.primary20 : "transparent"}`,
-                    }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <AnimatePresence mode="wait">
-                {activeSubTab[2] === 0 && (
-                  <motion.div key="sub-2-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <div className="rounded-xl p-3 space-y-2" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      {charList.map(char => (
-                        <div key={char.name} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                          <div className="flex items-start gap-2.5">
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-lg"
-                              style={{ background: `${char.color}12` }}>{char.emoji}</div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 mb-0.5">
-                                <span className="text-xs font-bold" style={{ color: S.text }}>{char.name}</span>
-                                <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${char.color}12`, color: char.color }}>{char.role}</span>
-                              </div>
-                              <p className="text-[9px] mb-1.5" style={{ color: S.text3 }}>{char.desc}</p>
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-[8px]" style={{ color: S.text3 }}>出场节点:</span>
-                                {char.appearNodes.map(nid => {
-                                  const node = storyNodes.find(n => n.id === nid);
-                                  return (
-                                    <span key={nid} className="text-[8px] px-1 py-0.5 rounded font-mono"
-                                      style={{ background: `${char.color}08`, color: char.color, border: `1px solid ${char.color}20` }}>
-                                      {node?.label ?? nid}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            <span className="text-[9px] font-mono shrink-0" style={{ color: S.text3 }}>{char.appearNodes.length} 次</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-                {activeSubTab[2] === 1 && (
-                  <motion.div key="sub-2-1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {worldBuilding.map(wb => (
-                          <div key={wb.category} className="p-2.5 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                            <p className="text-[8px] font-bold uppercase tracking-wider mb-0.5" style={{ color: S.text3 }}>{wb.category}</p>
-                            <p className="text-[10px] leading-relaxed" style={{ color: S.text2 }}>{wb.content}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-                {activeSubTab[2] === 2 && (
-                  <motion.div key="sub-2-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-[9px] font-bold" style={{ color: S.text }}>{styleSummary.consistentCount}/{styleSummary.totalAssets} 项资产风格统一</p>
@@ -994,35 +579,32 @@ export default function OverviewScreen() {
                         </p>
                       </div>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ═══════════════════ TAB 3: 质量与协作 ═══════════════════ */}
+        {/* ═══════════════════ TAB 1: 质量检查 ═══════════════════ */}
         <AnimatePresence mode="wait">
-          {activeTab === 3 && (
-            <motion.div key="tab-3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+          {activeTab === 1 && (
+            <motion.div key="tab-1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
               {/* Sub-tab bar */}
               <div className="flex items-center gap-1.5 mb-3">
-                {["健康检查", "下一步"].map((label, i) => (
+                {["健康检查", "改进建议"].map((label, i) => (
                   <button key={i}
-                    onClick={() => setActiveSubTab(prev => ({ ...prev, 3: i }))}
+                    onClick={() => setActiveSubTab(prev => ({ ...prev, 1: i }))}
                     className="px-3 py-1 rounded-lg text-[10px] font-bold transition-colors focus:outline-none"
                     style={{
-                      background: activeSubTab[3] === i ? S.primary10 : "transparent",
-                      color: activeSubTab[3] === i ? S.primary : S.text3,
-                      border: `1px solid ${activeSubTab[3] === i ? S.primary20 : "transparent"}`,
+                      background: activeSubTab[1] === i ? S.primary10 : "transparent",
+                      color: activeSubTab[1] === i ? S.primary : S.text3,
+                      border: `1px solid ${activeSubTab[1] === i ? S.primary20 : "transparent"}`,
                     }}>
                     {label}
                   </button>
                 ))}
               </div>
               <AnimatePresence mode="wait">
-                {activeSubTab[3] === 0 && (
-                  <motion.div key="sub-3-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                {activeSubTab[1] === 0 && (
+                  <motion.div key="sub-1-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-[9px] font-bold" style={{ color: S.text }}>完成 {doneCount}/{qualityChecks.length} 项检查</p>
@@ -1110,8 +692,8 @@ export default function OverviewScreen() {
                     </div>
                   </motion.div>
                 )}
-                {activeSubTab[3] === 1 && (
-                  <motion.div key="sub-3-1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                {activeSubTab[1] === 1 && (
+                  <motion.div key="sub-1-1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <div className="space-y-3">
                       <div className="rounded-xl p-3" style={{ background: `linear-gradient(135deg,${S.primary}08,${S.accent}08)`, border: `1px solid ${S.primary}20` }}>
                         <div className="flex items-center gap-2 mb-3">

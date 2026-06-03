@@ -5,13 +5,15 @@ import {
   Camera, Video, Mic, Music, Clock, ArrowRight, Play, Film,
   ChevronDown, Move, Eye, Volume2, Zap, Sparkles, Star,
   CircleDot, Scissors, Sun, Waves, Users, Crosshair,
-  ZoomIn, ZoomOut,
+  ZoomIn, ZoomOut, Aperture, BookOpen,
 } from "lucide-react";
 import {
   type CinematicDirection, type CameraShotType, type CameraMovement,
-  type TransitionType, type EmotionIntensity,
+  type TransitionType, type EmotionIntensity, type POVConfig,
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
+import { usePathname } from "next/navigation";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -93,13 +95,15 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 };
 
 // ── Section tab definitions ──────────────────────────────────────────────
-type SectionTabId = "camera" | "performance" | "pacing" | "audio" | "timeline";
+type SectionTabId = "camera" | "performance" | "pacing" | "audio" | "pov" | "timeline" | "lens_preset";
 const SECTION_TABS: { id: SectionTabId; label: string; icon: typeof Camera; color: string }[] = [
   { id: "camera",      label: "镜头设计",   icon: Camera, color: "#0EA5E9" },
   { id: "performance", label: "表演指导",   icon: Users,  color: "#8B5CF6" },
   { id: "pacing",      label: "节奏与转场", icon: Zap,    color: "#F59E0B" },
   { id: "audio",       label: "音频设计",   icon: Music,  color: "#00A99D" },
+  { id: "pov",         label: "POV 视角",   icon: Eye,    color: "#06B6D4" },
   { id: "timeline",    label: "节点时间线", icon: Film,   color: "#8B5CF6" },
+  { id: "lens_preset", label: "镜头预设库", icon: Aperture, color: "#E11D48" },
 ];
 
 // ── Chapter filter options ─────────────────────────────────────────────
@@ -120,10 +124,12 @@ const CHAPTER_NODE_MAP: Record<string, string[]> = {
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function CinematicEditorScreen() {
+  const pathname = usePathname();
   // ── Store selectors ──
   const cinematicDirections = useNarrativeStore(s => s.cinematicDirections);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const characters = useNarrativeStore(s => s.characters);
+  const povConfigs = useNarrativeStore(s => s.povConfigs);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const updateCinematicDirection = useNarrativeStore(s => s.updateCinematicDirection);
   const addToast = useUIStore(s => s.addToast);
@@ -169,6 +175,7 @@ export default function CinematicEditorScreen() {
 
   return (
     <div className="min-h-screen" style={{ background: S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
         {/* ── A. Header ─────────────────────────────────────────────────── */}
@@ -361,6 +368,82 @@ export default function CinematicEditorScreen() {
                 </div>
               )}
 
+              {/* ── POV 视角系统 ─────────────────────────── */}
+              {sectionTab === "pov" && (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div>
+                    <h2 className="text-lg font-bold" style={{ color: S.text }}>POV 视角系统</h2>
+                    <p className="text-xs mt-0.5" style={{ color: S.text3 }}>管理多主角视角切换，支持第一人称/第三人称/过肩视角</p>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.2)" }}>
+                      <Eye size={12} style={{ color: "#06B6D4" }} />
+                      <span className="text-xs font-medium" style={{ color: "#0891B2" }}>视角配置 {povConfigs.length}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: S.s3 }}>
+                      <Users size={12} style={{ color: S.text3 }} />
+                      <span className="text-xs font-medium" style={{ color: S.text2 }}>主角数量 {new Set(povConfigs.map(p => p.characterId)).size}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: S.s3 }}>
+                      <Film size={12} style={{ color: S.text3 }} />
+                      <span className="text-xs font-medium" style={{ color: S.text2 }}>覆盖章节 {new Set(povConfigs.map(p => p.chapterId)).size}</span>
+                    </div>
+                  </div>
+
+                  {/* POV Cards */}
+                  {povConfigs.length === 0 ? (
+                    <div className="rounded-2xl p-10 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                      <Eye size={32} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                      <p className="text-sm font-bold" style={{ color: S.text3 }}>暂无视角配置</p>
+                      <p className="text-xs mt-1" style={{ color: S.text3 }}>配置 POV 视角后，这里会展示视角切换方案</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
+                      {povConfigs.map((pov, idx) => {
+                        const char = characters.find(c => c.id === pov.characterId);
+                        const charColor = char?.color || "#8B5CF6";
+                        const charName = char?.name || pov.characterId;
+                        const styleLabels: Record<string, { label: string; bg: string; color: string }> = {
+                          first_person: { label: "第一人称", bg: "rgba(59,130,246,0.10)", color: "#3B82F6" },
+                          third_person: { label: "第三人称", bg: "rgba(139,92,246,0.10)", color: "#8B5CF6" },
+                          over_shoulder: { label: "过肩视角", bg: "rgba(6,182,212,0.10)", color: "#06B6D4" },
+                        };
+                        const styleMeta = styleLabels[pov.narrativeStyle] || styleLabels.third_person;
+                        return (
+                          <div key={idx} className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}`, borderLeft: `4px solid ${charColor}` }}>
+                            {/* Character header */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: charColor }} />
+                              <span className="text-sm font-bold" style={{ color: S.text }}>{charName}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: S.s3, color: S.text3 }}>{pov.chapterId}</span>
+                            </div>
+                            {/* Narrative style badge */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-[10px] px-2.5 py-1 rounded-md font-medium" style={{ background: styleMeta.bg, color: styleMeta.color }}>{styleMeta.label}</span>
+                            </div>
+                            {/* Switch trigger */}
+                            {pov.switchAfterEvent != null && (
+                              <p className="text-xs mb-3" style={{ color: S.text2 }}>
+                                在第 <span className="font-bold" style={{ color: S.primary }}>{pov.switchAfterEvent}</span> 个事件后切换视角
+                              </p>
+                            )}
+                            {/* Inner monologue */}
+                            {pov.innerMonologue && (
+                              <div className="pl-3 py-2" style={{ borderLeft: `2px solid ${charColor}` }}>
+                                <p className="text-xs italic" style={{ color: S.text2 }}>&ldquo;{pov.innerMonologue}&rdquo;</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {sectionTab === "timeline" && (
                 <NodeTimeline
                   directions={filteredDirections}
@@ -368,6 +451,10 @@ export default function CinematicEditorScreen() {
                   selectedNodeId={selectedNodeId}
                   onSelect={setSelectedNodeId}
                 />
+              )}
+
+              {sectionTab === "lens_preset" && (
+                <LensPresetLibrary characters={characters} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -891,6 +978,222 @@ function NodeTimeline({
                     <ArrowRight size={14} style={{ color: S.text3 }} />
                   </div>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Lens Preset Library (镜头预设库)
+// ══════════════════════════════════════════════════════════════════════════
+
+interface LensPreset {
+  id: string;
+  name: string;
+  focalLength: string;
+  aperture: string;
+  category: "standard" | "creative" | "action";
+  description: string;
+  shotTypes: CameraShotType[];
+  movements: CameraMovement[];
+  bestFor: string;
+}
+
+const LENS_PRESETS: LensPreset[] = [
+  { id: "lp-35",  name: "35mm 标准广角",   focalLength: "35mm", aperture: "f/2.8", category: "standard",
+    description: "适合交代环境全貌与角色空间关系，透视感自然", shotTypes: ["wide", "medium"], movements: ["pan_left", "pan_right", "static"],
+    bestFor: "场景建立、群戏" },
+  { id: "lp-50",  name: "50mm 标准镜头",   focalLength: "50mm", aperture: "f/1.8", category: "standard",
+    description: "接近人眼视角，最适合对话与情感表达", shotTypes: ["medium", "close_up"], movements: ["static", "dolly_in"],
+    bestFor: "对话场景、独白" },
+  { id: "lp-85",  name: "85mm 人像镜头",   focalLength: "85mm", aperture: "f/1.4", category: "standard",
+    description: "浅景深压缩空间，突出角色情绪与面部细节", shotTypes: ["close_up"], movements: ["static", "push_in"],
+    bestFor: "特写、情感高潮" },
+  { id: "lp-24",  name: "24mm 广角镜头",   focalLength: "24mm", aperture: "f/4.0", category: "creative",
+    description: "夸大透视与空间纵深，制造压迫感或壮阔感", shotTypes: ["wide", "pull_out"], movements: ["crane_up", "crane_down", "dolly_out"],
+    bestFor: "壮阔场景、恐惧感" },
+  { id: "lp-135", name: "135mm 长焦压缩",  focalLength: "135mm", aperture: "f/2.0", category: "creative",
+    description: "强烈背景压缩，角色仿佛被困在画面中", shotTypes: ["medium", "close_up"], movements: ["tracking", "static"],
+    bestFor: "监视、跟踪、孤立感" },
+  { id: "lp-anam", name: "变形宽银幕",     focalLength: "40mm", aperture: "f/2.39:1", category: "creative",
+    description: "电影级宽幅画面，边缘畸变增添科幻质感", shotTypes: ["wide", "tracking"], movements: ["pan_left", "pan_right", "orbit"],
+    bestFor: "赛博朋克、科幻" },
+  { id: "lp-hand", name: "手持跟拍",        focalLength: "28mm", aperture: "f/2.8", category: "action",
+    description: "手持晃动感增强临场感，适合追逐与紧张场景", shotTypes: ["tracking", "handheld"], movements: ["tracking", "push_in"],
+    bestFor: "追逐、紧张对话" },
+  { id: "lp-stab", name: "稳定器一镜到底",  focalLength: "35mm", aperture: "f/2.0", category: "action",
+    description: "流畅运镜穿越场景，展现完整空间叙事", shotTypes: ["tracking", "wide"], movements: ["orbit", "crane_up", "dolly_in"],
+    bestFor: "长镜头、空间探索" },
+];
+
+const LENS_CATEGORY_META: Record<string, { label: string; color: string; bg: string }> = {
+  standard: { label: "标准",   color: "#0EA5E9", bg: "rgba(14,165,233,0.08)" },
+  creative: { label: "创意",   color: "#8B5CF6", bg: "rgba(139,92,246,0.08)" },
+  action:   { label: "动作",   color: "#F59E0B", bg: "rgba(245,158,11,0.08)" },
+};
+
+function LensPresetLibrary({ characters }: { characters: { id: string; name: string; role: string; color: string; emoji: string; appearNodes: string[]; emotionStates: { label: string; done: boolean }[]; visualPrompt: string }[] }) {
+  const [lockedChars, setLockedChars] = useState<Record<string, boolean>>({});
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+
+  const lockedCount = Object.values(lockedChars).filter(Boolean).length;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
+      className="space-y-6">
+
+      {/* ── A. 镜头预设模板 ──────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Aperture size={16} style={{ color: "#E11D48" }} />
+          <h2 className="text-sm font-bold" style={{ color: S.text }}>镜头预设模板</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: "rgba(225,29,72,0.08)", color: "#E11D48" }}>
+            {LENS_PRESETS.length} 个预设
+          </span>
+        </div>
+
+        {/* Category filter chips */}
+        <div className="flex items-center gap-2 mb-4">
+          {Object.entries(LENS_CATEGORY_META).map(([key, meta]) => (
+            <span key={key} className="text-[10px] px-2.5 py-1 rounded-lg font-medium"
+              style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.color}20` }}>
+              {meta.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Preset grid */}
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+          {LENS_PRESETS.map(preset => {
+            const catMeta = LENS_CATEGORY_META[preset.category];
+            const isSelected = selectedPreset === preset.id;
+            return (
+              <motion.div key={preset.id}
+                whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedPreset(isSelected ? null : preset.id)}
+                className="rounded-xl p-4 cursor-pointer transition-all"
+                style={{
+                  background: isSelected ? `${catMeta.color}06` : S.card,
+                  border: `1.5px solid ${isSelected ? catMeta.color : S.border}`,
+                  boxShadow: isSelected ? `0 4px 16px ${catMeta.color}12` : "0 1px 3px rgba(0,0,0,0.04)",
+                }}>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: catMeta.bg }}>
+                      <Aperture size={14} style={{ color: catMeta.color }} />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold block" style={{ color: S.text }}>{preset.name}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: catMeta.bg, color: catMeta.color }}>
+                        {catMeta.label}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] font-mono font-bold block" style={{ color: catMeta.color }}>{preset.focalLength}</span>
+                    <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{preset.aperture}</span>
+                  </div>
+                </div>
+                {/* Description */}
+                <p className="text-[10px] leading-relaxed mb-2.5" style={{ color: S.text2 }}>{preset.description}</p>
+                {/* Tags */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {preset.shotTypes.map(st => {
+                    const meta = SHOT_META[st];
+                    return meta ? (
+                      <span key={st} className="flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded"
+                        style={{ background: meta.bg, color: meta.color }}>
+                        {meta.label}
+                      </span>
+                    ) : null;
+                  })}
+                  <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: S.s3, color: S.text3 }}>
+                    适用：{preset.bestFor}
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── B. 角色外貌锁定 ──────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BookOpen size={16} style={{ color: S.accent }} />
+            <h2 className="text-sm font-bold" style={{ color: S.text }}>角色外貌提示词</h2>
+            <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: S.accent10, color: S.accent }}>
+              {characters.length} 个角色
+            </span>
+          </div>
+          <span className="text-[10px] font-medium" style={{ color: lockedCount > 0 ? S.success : S.text3 }}>
+            {lockedCount > 0 ? `${lockedCount} 个已锁定` : "未锁定"}
+          </span>
+        </div>
+
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+          {characters.map(char => {
+            const isLocked = lockedChars[char.id] ?? false;
+            const doneStates = char.emotionStates.filter(s => s.done).length;
+            return (
+              <div key={char.id} className="rounded-xl overflow-hidden"
+                style={{ background: S.card, border: `1px solid ${S.border}`, borderLeft: `4px solid ${char.color}` }}>
+                {/* Character header */}
+                <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${S.border}` }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
+                      style={{ background: `${char.color}15` }}>
+                      <span>{char.emoji}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: S.text }}>{char.name}</p>
+                      <p className="text-[9px]" style={{ color: S.text3 }}>{char.role} · 出现 {char.appearNodes.length} 节点</p>
+                    </div>
+                  </div>
+                  <motion.button whileTap={{ scale: 0.9 }}
+                    onClick={() => setLockedChars(prev => ({ ...prev, [char.id]: !prev[char.id] }))}
+                    className="text-[9px] px-2.5 py-1 rounded-full font-bold focus:outline-none"
+                    style={{
+                      background: isLocked ? "rgba(0,169,157,0.15)" : "rgba(245,158,11,0.12)",
+                      color: isLocked ? S.accent : S.warning,
+                      border: `1px solid ${isLocked ? "rgba(0,169,157,0.3)" : "rgba(245,158,11,0.25)"}`,
+                    }}>
+                    {isLocked ? "✓ 已锁定" : "锁定外貌"}
+                  </motion.button>
+                </div>
+                {/* Prompt + emotion states */}
+                <div className="px-4 py-3">
+                  <p className="text-[9px] mb-1 font-medium" style={{ color: S.text3 }}>外貌提示词</p>
+                  {char.visualPrompt ? (
+                    <p className="text-[10px] leading-relaxed" style={{ color: isLocked ? S.text : S.text3 }}>
+                      {char.visualPrompt}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] italic" style={{ color: S.border2 }}>尚未设置外貌提示词</p>
+                  )}
+                  {/* Emotion state chips */}
+                  <div className="flex gap-1.5 mt-2.5 flex-wrap">
+                    {char.emotionStates.map((state, j) => (
+                      <span key={j} className="text-[8px] px-1.5 py-0.5 rounded font-medium"
+                        style={{
+                          background: state.done ? `${char.color}15` : S.s3,
+                          color: state.done ? char.color : S.text3,
+                          border: `1px solid ${state.done ? `${char.color}30` : "transparent"}`,
+                        }}>
+                        {state.done ? "✓ " : ""}{state.label}
+                      </span>
+                    ))}
+                    <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
+                      {doneStates}/{char.emotionStates.length} 就绪
+                    </span>
+                  </div>
+                </div>
               </div>
             );
           })}

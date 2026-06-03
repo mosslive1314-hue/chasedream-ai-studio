@@ -1,2 +1,4 @@
-import PlaytScreen from "@/components/screens/PlaytScreen";
-export default function PlaytPage() { return <PlaytScreen />; }
+import { redirect } from "next/navigation";
+export default function PlaytPage() {
+  redirect("/simulator");
+}

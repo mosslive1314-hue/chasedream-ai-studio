@@ -10,3 +10,4 @@ export * from './industry';
 export * from './advanced-narrative';
 export * from './cinematic';
 export * from './collaboration';
+export * from './detroit-features';

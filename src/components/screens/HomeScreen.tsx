@@ -8,6 +8,7 @@ import {
   Monitor, Smartphone, Gamepad2, Globe, Palette,
   Bot, ShieldCheck, Wand2,
   ArrowRight, CheckCircle2, Layers,
+  BookOpen, Clapperboard,
 } from "lucide-react";
 import {
   PROJECT_SPEC_TEMPLATES,
@@ -23,7 +24,7 @@ const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
   border: "#E2E5F0", border2: "#CBD0E5",
   primary: "#5E50E8", primary10: "rgba(94,80,232,0.10)", primary20: "rgba(94,80,232,0.20)",
-  accent: "#00A99D",
+  accent: "#00A99D", accent10: "rgba(0,169,157,0.08)",
   text: "#1A1D2E", text2: "#4A5068", text3: "#8892B0",
   success: "#059669", warning: "#D97706", error: "#DC2626",
   // legacy aliases (header / stats area)
@@ -92,6 +93,14 @@ const stepVariants = {
   exit:   (dir: number) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
 };
 
+// ── Status badge config ────────────────────────────────────────────────────
+const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  published:   { label: "已发布", bg: `${S.success}14`, color: S.success },
+  in_progress: { label: "制作中", bg: S.primary10, color: S.primary },
+  idle:        { label: "闲置", bg: S.s3, color: S.text3 },
+  draft:       { label: "草稿", bg: S.s3, color: S.text3 },
+};
+
 // ── 主组件 ───────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -114,6 +123,8 @@ export default function HomeScreen() {
   const pipelineStages = useNarrativeStore(s => s.pipelineStages);
   const projectName = useSettingsStore(s => s.projectName);
   const currentProject = useProjectStore(s => s.currentProject);
+  const projects = useProjectStore(s => s.projects);
+  const currentProjectId = useProjectStore(s => s.currentProjectId);
 
   // ── Pipeline active stage memo ──
   const activeStage = useMemo(() => pipelineStages.find(s => s.status === "active"), [pipelineStages]);
@@ -125,6 +136,11 @@ export default function HomeScreen() {
 
   const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); };
   const closeWizard = () => setWizardOpen(false);
+
+  const handleSelectProject = (id: string) => {
+    useProjectStore.getState().setCurrentProject(id);
+    addToast({ type: "success", title: "已切换项目", message: projects.find(p => p.id === id)?.title ?? "" });
+  };
 
   // Auto-open wizard when navigating from header "新建项目" button
   useEffect(() => {
@@ -405,6 +421,74 @@ export default function HomeScreen() {
               );
             })}
           </div>
+        </div>
+
+        {/* ── 我的作品 ── */}
+        <div className="p-4 rounded-2xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.accent10 }}>
+                <BookOpen size={14} style={{ color: S.accent }} />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold" style={{ color: S.text }}>我的作品</h2>
+                <p className="text-[9px]" style={{ color: S.text3 }}>项目管理与切换</p>
+              </div>
+            </div>
+            <motion.button whileTap={{ scale: 0.97 }} onClick={openWizard}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white focus:outline-none"
+              style={{ background: S.primary }}>
+              <Plus size={12} /> 新建项目
+            </motion.button>
+          </div>
+          {projects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10">
+              <BookOpen size={28} style={{ color: S.text3 }} />
+              <p className="mt-2 text-xs" style={{ color: S.text3 }}>暂无作品，点击「新建项目」开始创作</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {projects.map(p => {
+                const isActive = p.id === currentProjectId;
+                const badge = STATUS_BADGE[p.status] || STATUS_BADGE.draft;
+                return (
+                  <motion.div key={p.id} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
+                    onClick={() => handleSelectProject(p.id)}
+                    className="group relative cursor-pointer rounded-xl overflow-hidden"
+                    style={{
+                      background: S.s2,
+                      border: `1.5px solid ${isActive ? S.primary : S.border}`,
+                      boxShadow: isActive ? `0 0 0 2px ${S.primary20}` : "none",
+                    }}>
+                    {/* Cover */}
+                    <div className="relative h-16 w-full"
+                      style={{ background: p.cover ? `url(${p.cover}) center/cover` : `linear-gradient(135deg, ${S.primary10}, ${S.accent10})` }}>
+                      {!p.cover && (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Clapperboard size={18} style={{ color: S.primary, opacity: 0.5 }} />
+                        </div>
+                      )}
+                      <span className="absolute top-1.5 right-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+                        style={{ background: badge.bg, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-[11px] font-semibold leading-tight truncate" style={{ color: S.text }}>{p.title}</p>
+                      <p className="mt-0.5 text-[9px] truncate" style={{ color: S.text3 }}>{p.genre}</p>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[9px]" style={{ color: S.text3 }}>
+                        <span>{p.chapters}章</span>
+                        <span>·</span>
+                        <span>{p.nodes}节点</span>
+                        <span>·</span>
+                        <span>{p.branches}分支</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
       </main>

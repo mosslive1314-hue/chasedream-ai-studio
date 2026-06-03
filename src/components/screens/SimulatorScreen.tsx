@@ -1,17 +1,20 @@
 "use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import {
   ChevronLeft, ChevronRight, SkipBack, RefreshCw, Trophy, Play,
   FlaskConical, Gamepad2, AlertTriangle, Clock, RotateCw,
   Map, Star, GitBranch, Eye, ArrowRight,
-  Target, Users, Package, GitMerge, Ruler, Zap,
+  Target, Users, Package, GitMerge, Ruler, Zap, Lock,
 } from "lucide-react";
 import {
   type PlayableNode, type PathTestResult, type PlayerExplorationMap,
+  type SubgraphLock, type GameVariable, type NarrativeState,
 } from "@/lib/studio-data";
+import { evaluateCondition } from "@/lib/condition-engine";
 import { useNarrativeStore, useProjectStore } from "@/store";
 
 const S = {
@@ -108,6 +111,7 @@ interface AdvDiag {
 
 export default function SimulatorScreen() {
   const router = useRouter();
+  const pathname = usePathname();
 
   // ── Store selectors ──
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
@@ -115,11 +119,36 @@ export default function SimulatorScreen() {
   const initVariables = useNarrativeStore(s => s.initVariables);
   const pathTestResults = useNarrativeStore(s => s.pathTestResults);
   const playerExploration = useNarrativeStore(s => s.playerExploration);
+  const pathTimeEstimates = useNarrativeStore(s => s.pathTimeEstimates);
+  const subgraphLocks = useNarrativeStore(s => s.subgraphLocks);
+  const narrativeVariables = useNarrativeStore(s => s.variables);
+  const narrativeStates = useNarrativeStore(s => s.narrativeStates);
 
   const [nodeId, setNodeId] = useState("N01");
   const [vars, setVars] = useState<Record<string, number>>({ ...initVariables });
   const [path, setPath] = useState<string[]>(["N01"]);
   const [history, setHistory] = useState<{ nodeId: string; vars: Record<string, number>; path: string[] }[]>([]);
+
+  // ── Subgraph lock evaluation ─────────────────────────────────────────────
+  const lockedNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const lock of subgraphLocks) {
+      try {
+        const triggered = evaluateCondition(
+          lock.triggerCondition,
+          narrativeVariables,
+          narrativeStates,
+          vars as Record<string, number | string | boolean>,
+        );
+        if (triggered) {
+          lock.lockedNodeIds.forEach(id => ids.add(id));
+        }
+      } catch {
+        // Skip locks with invalid conditions
+      }
+    }
+    return ids;
+  }, [subgraphLocks, narrativeVariables, narrativeStates, vars]);
 
   // P4-9: Test mode state
   const [testMode, setTestMode] = useState(false);
@@ -343,7 +372,8 @@ export default function SimulatorScreen() {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="h-svh flex overflow-hidden" style={{ background: "#000" }}>
+    <div className="h-svh flex flex-col overflow-hidden" style={{ background: "#000" }}>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── 左侧：沉浸式游戏区 / 测试面板 / 探索图 ── */}
       <div className="flex-1 flex flex-col relative">
@@ -418,6 +448,15 @@ export default function SimulatorScreen() {
               ))}
             </div>
           )}
+
+          {/* Subgraph lock status indicator (play mode only) */}
+          {mainTab === "play" && lockedNodeIds.size > 0 && (
+            <div className="flex items-center gap-1.5 text-[8px] font-bold px-2 py-1 rounded-lg mt-1"
+              style={{ background: "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.3)", color: "#FCA5A5" }}>
+              <Lock size={10} />
+              <span>{lockedNodeIds.size} 个节点已锁死</span>
+            </div>
+          )}
         </div>
 
         {/* ════════════════════════════════════════════════════════════════════
@@ -477,27 +516,45 @@ export default function SimulatorScreen() {
                   {/* 选择按钮 */}
                   {!isEnding && node.choices && (
                     <div className="space-y-2 mt-3">
-                      {node.choices.map((c, i) => (
-                        <motion.button key={i}
-                          initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.1 + i * 0.08 }}
-                          whileTap={{ scale: 0.96 }}
-                          onClick={() => choose(c)}
-                          className="w-full py-3 px-4 rounded-xl font-bold text-[11px] flex items-center justify-between text-white focus:outline-none"
-                          style={{
-                            background: "linear-gradient(90deg, rgba(99,85,216,0.4), rgba(0,169,157,0.3))",
-                            border: `1px solid rgba(99,85,216,0.5)`,
-                            boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
-                          }}>
-                          <span className="flex items-center gap-2">{c.label}</span>
-                          <div className="flex items-center gap-2">
-                            {c.effect !== "+0" && (
-                              <span className="text-[8px] font-normal opacity-60">{c.effect}</span>
-                            )}
-                            <ChevronRight size={12} />
-                          </div>
-                        </motion.button>
-                      ))}
+                      {node.choices.some(c => lockedNodeIds.has(c.next)) && (
+                        <div className="flex items-center gap-1.5 text-[9px] px-2.5 py-1.5 rounded-lg"
+                          style={{ background: "rgba(220,38,38,0.12)", color: "#FCA5A5", border: "1px solid rgba(220,38,38,0.2)" }}>
+                          <Lock size={10} />
+                          <span>前方路径已被锁死</span>
+                        </div>
+                      )}
+                      {node.choices.map((c, i) => {
+                        const isLocked = lockedNodeIds.has(c.next);
+                        return (
+                          <motion.button key={i}
+                            initial={{ opacity: 0, x: -4 }} animate={{ opacity: isLocked ? 0.35 : 1, x: 0 }}
+                            transition={{ delay: 0.1 + i * 0.08 }}
+                            whileTap={isLocked ? {} : { scale: 0.96 }}
+                            onClick={() => !isLocked && choose(c)}
+                            disabled={isLocked}
+                            title={isLocked ? `此节点已被锁死 — 路径不可达` : undefined}
+                            className="w-full py-3 px-4 rounded-xl font-bold text-[11px] flex items-center justify-between text-white focus:outline-none"
+                            style={{
+                              background: isLocked
+                                ? "rgba(80,80,80,0.35)"
+                                : "linear-gradient(90deg, rgba(99,85,216,0.4), rgba(0,169,157,0.3))",
+                              border: `1px solid ${isLocked ? "rgba(120,120,120,0.4)" : "rgba(99,85,216,0.5)"}`,
+                              boxShadow: isLocked ? "none" : "0 4px 10px rgba(0,0,0,0.5)",
+                              cursor: isLocked ? "not-allowed" : "pointer",
+                            }}>
+                            <span className="flex items-center gap-2">
+                              {isLocked && <Lock size={10} style={{ color: "#FCA5A5" }} />}
+                              {c.label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {c.effect !== "+0" && (
+                                <span className="text-[8px] font-normal opacity-60">{c.effect}</span>
+                              )}
+                              <ChevronRight size={12} />
+                            </div>
+                          </motion.button>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -708,6 +765,32 @@ export default function SimulatorScreen() {
                           {result.endingType === "good" ? "好结局" : "坏结局"}
                         </span>
                       </div>
+                      {(() => {
+                        const estimate = pathTimeEstimates.find(e => e.pathId === result.pathId);
+                        if (!estimate) return null;
+                        const minutes = Math.floor(estimate.totalDuration / 60);
+                        const seconds = estimate.totalDuration % 60;
+                        const paceColor = estimate.pacingLabel === 'fast' ? '#EF4444' : 
+                                          estimate.pacingLabel === 'moderate' ? '#F59E0B' : '#3B82F6';
+                        const paceLabel = estimate.pacingLabel === 'fast' ? '快节奏' : 
+                                          estimate.pacingLabel === 'moderate' ? '适中' : '慢节奏';
+                        return (
+                          <div
+                            className="flex items-center gap-2 ml-auto shrink-0"
+                            title={estimate.segments.map(seg => `${seg.nodeLabel}: ${Math.floor(seg.totalTime / 60)}分${seg.totalTime % 60}秒`).join(' | ')}
+                          >
+                            <span className="text-xs" style={{ color: "#8892B0" }}>
+                              {minutes}分{seconds > 0 ? `${seconds}秒` : ''}
+                            </span>
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded font-medium"
+                              style={{ background: `${paceColor}15`, color: paceColor }}
+                            >
+                              {paceLabel}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       <span className="text-[9px] px-2 py-0.5 rounded-lg font-bold shrink-0 ml-2" style={{
                         background: result.passed ? "rgba(5,150,105,0.2)" : "rgba(220,38,38,0.2)",
                         color: result.passed ? "#4ade80" : "#f87171",

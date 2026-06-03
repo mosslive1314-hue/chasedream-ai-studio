@@ -1,4 +1,4 @@
-import QTEEditorScreen from "@/components/screens/QTEEditorScreen";
+import { redirect } from "next/navigation";
 export default function QTEEditorPage() {
-  return <QTEEditorScreen />;
+  redirect("/interaction");
 }

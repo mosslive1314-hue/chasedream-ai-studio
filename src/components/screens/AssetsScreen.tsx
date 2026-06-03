@@ -4,10 +4,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
   User, MapPin, Package, Sparkles, Play, ArrowRight,
-  Image, Music, Mic, Film, Plus, Edit2, Check, Headphones
+  Image, Music, Mic, Film, Plus, Edit2, Check, Headphones,
+  Volume2, Waves, Radio, Library, Search,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, type IndustryType, type AssetCard } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
 
@@ -173,6 +175,7 @@ const ASSET_FILTER_MAP: Record<string, (a: AssetCard) => boolean> = {
 };
 
 export default function AssetsScreen() {
+  const pathname = usePathname();
   // ── Store selectors ──
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const nodeEdges = useNarrativeStore(s => s.nodeEdges);
@@ -247,6 +250,7 @@ export default function AssetsScreen() {
 
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── 顶层资产类型 Tab 栏 ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0"
@@ -255,6 +259,7 @@ export default function AssetsScreen() {
           { id: "image", label: "图片", icon: Image },
           { id: "video", label: "视频", icon: Film },
           { id: "audio", label: "音频", icon: Music },
+          { id: "library", label: "资产库", icon: Library },
         ].map(tab => (
           <Link key={tab.id} href={`/assets?tab=${tab.id}`}>
             <motion.button whileTap={{ scale: 0.96 }}
@@ -940,45 +945,165 @@ export default function AssetsScreen() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${S.primary}12` }}>
               <Film size={20} style={{ color: S.primary }} />
             </div>
-            <div>
-              <h2 className="text-sm font-bold" style={{ color: S.text }}>视频资产管理</h2>
-              <p className="text-[10px]" style={{ color: S.text3 }}>管理过场动画、演出片段、预告片等视频资产</p>
+            <div className="flex-1">
+              <h2 className="text-sm font-bold" style={{ color: S.text }}>视频素材生产</h2>
+              <p className="text-[10px]" style={{ color: S.text3 }}>开场动画、转场片段、QTE 动作与过场 CG</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {[
+                { label: "节点总数", value: storyNodes.length, color: S.text2 },
+                { label: "需要视频", value: assetCards.filter(a => !a.hasVideo).length, color: S.warning },
+                { label: "已完成", value: assetCards.filter(a => a.hasVideo).length, color: S.success },
+              ].map(stat => (
+                <div key={stat.label} className="text-center px-3 py-1.5 rounded-lg" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <span className="text-xs font-bold font-mono block" style={{ color: stat.color }}>{stat.value}</span>
+                  <span className="text-[8px]" style={{ color: S.text3 }}>{stat.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Mock video assets grid */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { name: "序章开场动画", duration: "01:24", resolution: "1920x1080", status: "已渲染", statusColor: S.success },
-              { name: "N06 警卫追逐", duration: "00:48", resolution: "1920x1080", status: "渲染中", statusColor: S.warning },
-              { name: "结局A 幽灵归来", duration: "02:10", resolution: "3840x2160", status: "待渲染", statusColor: S.text3 },
-              { name: "结局B 真相大白", duration: "01:55", resolution: "1920x1080", status: "待渲染", statusColor: S.text3 },
-            ].map(vid => (
-              <div key={vid.name} className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <div className="h-24 flex items-center justify-center" style={{ background: "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
-                  <Film size={24} style={{ color: "#ffffff40" }} />
-                </div>
-                <div className="p-3 space-y-1.5">
-                  <p className="text-[10px] font-bold" style={{ color: S.text }}>{vid.name}</p>
-                  <div className="flex items-center gap-2 text-[9px]" style={{ color: S.text3 }}>
-                    <span>{vid.duration}</span>
-                    <span>{vid.resolution}</span>
+          {/* 视频生产流水线 4 步 */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>视频生产流水线</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { id: "opening", icon: Film, label: "开场/结尾动画", desc: "序章和结局的标志性动画片段", count: 2,
+                  items: [
+                    { name: "序章·霓虹夜幕", duration: "01:24", status: "已渲染", statusColor: S.success },
+                    { name: "结局·幽灵归来", duration: "02:10", status: "待渲染", statusColor: S.text3 },
+                  ]},
+                { id: "transition", icon: ArrowRight, label: "转场动画", desc: "节点之间的过渡动画与镜头运动", count: assetCards.filter(a => !a.hasVideo).length,
+                  items: [
+                    { name: "N01→N02 淡入", duration: "00:04", status: "已渲染", statusColor: S.success },
+                    { name: "N03→N05 溶解", duration: "00:06", status: "渲染中", statusColor: S.warning },
+                    { name: "N07→N08 硬切", duration: "00:02", status: "待渲染", statusColor: S.text3 },
+                  ]},
+                { id: "qte", icon: Play, label: "QTE 动作片段", desc: "限时选择和快速反应的动作演出", count: 3,
+                  items: [
+                    { name: "N06 警卫追逐 QTE", duration: "00:48", status: "渲染中", statusColor: S.warning },
+                    { name: "N07 潜行判定 QTE", duration: "00:35", status: "待渲染", statusColor: S.text3 },
+                  ]},
+                { id: "cutscene", icon: Sparkles, label: "过场 CG", desc: "关键剧情的高品质 CG 动画", count: 4,
+                  items: [
+                    { name: "身份揭露 CG", duration: "00:22", status: "待渲染", statusColor: S.text3 },
+                    { name: "天台对峙 CG", duration: "00:30", status: "待渲染", statusColor: S.text3 },
+                  ]},
+              ].map(step => {
+                const doneCount = step.items.filter(i => i.statusColor === S.success).length;
+                return (
+                  <div key={step.id} className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    {/* Step header */}
+                    <div className="p-3" style={{ borderBottom: `1px solid ${S.border}` }}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${S.primary}10` }}>
+                          <step.icon size={14} style={{ color: S.primary }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10px] font-bold block" style={{ color: S.text }}>{step.label}</span>
+                          <span className="text-[8px]" style={{ color: S.text3 }}>{step.desc}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: S.s2 }}>
+                          <div className="h-full rounded-full" style={{
+                            background: doneCount === step.items.length ? S.success : S.primary,
+                            width: `${step.items.length > 0 ? (doneCount / step.items.length) * 100 : 0}%`,
+                          }} />
+                        </div>
+                        <span className="text-[8px] font-mono font-bold" style={{ color: doneCount === step.items.length ? S.success : S.text3 }}>
+                          {doneCount}/{step.items.length}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Items */}
+                    <div className="p-2 space-y-1.5">
+                      {step.items.map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: S.s2 }}>
+                          <div className="w-10 h-7 rounded flex items-center justify-center shrink-0"
+                            style={{ background: "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
+                            <Film size={10} style={{ color: "#ffffff40" }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[9px] font-bold block truncate" style={{ color: S.text }}>{item.name}</span>
+                            <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{item.duration}</span>
+                          </div>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded font-bold shrink-0"
+                            style={{ background: `${item.statusColor}12`, color: item.statusColor }}>
+                            {item.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Generate button */}
+                    {doneCount < step.items.length && (
+                      <div className="px-2 pb-2">
+                        <motion.button whileTap={{ scale: 0.97 }}
+                          className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
+                          style={{ background: `${S.primary}08`, border: `1px solid ${S.primary}20`, color: S.primary }}>
+                          <Sparkles size={10} /> 生成剩余 {step.items.length - doneCount} 个
+                        </motion.button>
+                      </div>
+                    )}
                   </div>
-                  <span className="inline-block text-[8px] px-1.5 py-0.5 rounded font-bold"
-                    style={{ background: `${vid.statusColor}15`, color: vid.statusColor }}>
-                    {vid.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
 
-          {/* Action button */}
-          <motion.button whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
-            style={{ background: `linear-gradient(135deg,${S.primary},#A78BFA)` }}>
-            <Sparkles size={12} /> AI 生成视频
-          </motion.button>
+          {/* 节点视频需求看板 */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>节点视频覆盖</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {assetCards.map(card => {
+                const node = storyNodes.find(n => n.id === card.nodeId);
+                return (
+                  <div key={card.nodeId} className="flex items-center gap-2 p-2.5 rounded-xl"
+                    style={{ background: S.card, border: `1px solid ${S.border}`, borderLeft: `3px solid ${card.hasVideo ? S.success : S.warning}` }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: card.hasVideo ? `${S.success}10` : `${S.warning}10` }}>
+                      {card.hasVideo
+                        ? <CheckCircle2 size={14} style={{ color: S.success }} />
+                        : <Film size={14} style={{ color: S.warning }} />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[9px] font-bold block truncate" style={{ color: S.text }}>
+                        {card.nodeId} · {node?.label || card.nodeId}
+                      </span>
+                      <span className="text-[8px]" style={{ color: card.hasVideo ? S.success : S.warning }}>
+                        {card.hasVideo ? "✓ 视频就绪" : "缺少视频"}
+                      </span>
+                    </div>
+                    {!card.hasVideo && (
+                      <motion.button whileTap={{ scale: 0.9 }}
+                        className="text-[8px] px-2 py-1 rounded font-bold shrink-0 focus:outline-none"
+                        style={{ background: `${S.primary}10`, color: S.primary }}>
+                        生成
+                      </motion.button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 导出格式 */}
+          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <span className="text-[9px] font-bold" style={{ color: S.text2 }}>导出格式</span>
+            {["MP4 (H.264)", "WebM (VP9)", "Lottie JSON"].map(fmt => (
+              <span key={fmt} className="text-[8px] px-2 py-1 rounded-lg font-medium"
+                style={{ background: S.s2, color: S.text3, border: `1px solid ${S.border}` }}>
+                {fmt}
+              </span>
+            ))}
+            <div className="flex-1" />
+            <motion.button whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
+              style={{ background: `linear-gradient(135deg,${S.primary},#A78BFA)` }}>
+              <Sparkles size={12} /> AI 批量生成视频
+            </motion.button>
+          </div>
         </div>
       </>)}
 
@@ -990,41 +1115,164 @@ export default function AssetsScreen() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${S.accent}12` }}>
               <Headphones size={20} style={{ color: S.accent }} />
             </div>
-            <div>
-              <h2 className="text-sm font-bold" style={{ color: S.text }}>音频资产管理</h2>
-              <p className="text-[10px]" style={{ color: S.text3 }}>管理 BGM、音效、配音等音频资产</p>
+            <div className="flex-1">
+              <h2 className="text-sm font-bold" style={{ color: S.text }}>音频素材管理</h2>
+              <p className="text-[10px]" style={{ color: S.text3 }}>BGM、音效、配音、环境音四大分类管理</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {[
+                { label: "有 BGM", value: assetCards.filter(a => a.hasBgm).length, total: assetCards.length, color: "#8B5CF6" },
+                { label: "有配音", value: assetCards.filter(a => a.hasVoice).length, total: assetCards.length, color: S.accent },
+              ].map(stat => (
+                <div key={stat.label} className="text-center px-3 py-1.5 rounded-lg" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <span className="text-xs font-bold font-mono block" style={{ color: stat.color }}>
+                    {stat.value}<span className="text-[9px] font-normal" style={{ color: S.text3 }}>/{stat.total}</span>
+                  </span>
+                  <span className="text-[8px]" style={{ color: S.text3 }}>{stat.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Mock audio assets grid */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* 4 分类筛选 + 内容 */}
+          <div className="flex items-center gap-2">
             {[
-              { name: "主题曲", duration: "03:22", format: "WAV", status: "已混音", statusColor: S.success },
-              { name: "紧张BGM", duration: "01:45", format: "MP3", status: "已就绪", statusColor: S.success },
-              { name: "战斗音效", duration: "00:32", format: "WAV", status: "已就绪", statusColor: S.success },
-              { name: "艾拉配音", duration: "12:08", format: "WAV", status: "录制中", statusColor: S.warning },
-              { name: "环境音·雨夜", duration: "05:00", format: "FLAC", status: "待录制", statusColor: S.text3 },
-              { name: "结局配乐", duration: "02:48", format: "WAV", status: "待混音", statusColor: S.text3 },
-            ].map(aud => (
-              <div key={aud.name} className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${S.accent}10` }}>
-                    <Music size={14} style={{ color: S.accent }} />
+              { id: "bgm", label: "BGM 背景音乐", icon: Music, color: "#8B5CF6", items: [
+                { name: "主题曲·霓虹追忆", duration: "03:22", mood: "史诗", status: "已混音", statusColor: S.success },
+                { name: "紧张 BGM·暗流", duration: "01:45", mood: "紧张", status: "已就绪", statusColor: S.success },
+                { name: "结局 BGM·黎明", duration: "02:48", mood: "温暖", status: "待混音", statusColor: S.text3 },
+              ]},
+              { id: "sfx", label: "SFX 音效", icon: Waves, color: "#F59E0B", items: [
+                { name: "战斗碰撞", duration: "00:03", mood: "打击", status: "已就绪", statusColor: S.success },
+                { name: "门锁开启", duration: "00:02", mood: "机关", status: "已就绪", statusColor: S.success },
+                { name: "警报蜂鸣", duration: "00:05", mood: "紧迫", status: "待制作", statusColor: S.text3 },
+                { name: "数据下载完成", duration: "00:01", mood: "电子", status: "待制作", statusColor: S.text3 },
+              ]},
+              { id: "voice", label: "Voice 配音", icon: Mic, color: S.accent, items: [
+                { name: "艾拉·全集配音", duration: "12:08", mood: "女主", status: "录制中", statusColor: S.warning },
+                { name: "线人·关键台词", duration: "02:15", mood: "NPC", status: "待录制", statusColor: S.text3 },
+              ]},
+              { id: "ambient", label: "Ambient 环境音", icon: Radio, color: "#06B6D4", items: [
+                { name: "雨夜都市", duration: "05:00", mood: "沉浸", status: "待录制", statusColor: S.text3 },
+                { name: "地下酒吧嘈杂", duration: "03:30", mood: "氛围", status: "已就绪", statusColor: S.success },
+                { name: "天台风声", duration: "02:00", mood: "空旷", status: "已就绪", statusColor: S.success },
+              ]},
+            ].map(cat => {
+              const doneCount = cat.items.filter(i => i.statusColor === S.success).length;
+              const CatIcon = cat.icon;
+              return (
+                <div key={cat.id} className="flex-1 rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  {/* Category header */}
+                  <div className="p-3" style={{ borderBottom: `1px solid ${S.border}`, background: `${cat.color}04` }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${cat.color}15` }}>
+                        <CatIcon size={12} style={{ color: cat.color }} />
+                      </div>
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{cat.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: S.s2 }}>
+                        <div className="h-full rounded-full" style={{
+                          background: doneCount === cat.items.length ? S.success : cat.color,
+                          width: `${cat.items.length > 0 ? (doneCount / cat.items.length) * 100 : 0}%`,
+                        }} />
+                      </div>
+                      <span className="text-[8px] font-mono font-bold" style={{ color: doneCount === cat.items.length ? S.success : S.text3 }}>
+                        {doneCount}/{cat.items.length}
+                      </span>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold truncate" style={{ color: S.text }}>{aud.name}</p>
-                    <p className="text-[8px]" style={{ color: S.text3 }}>{aud.duration} · {aud.format}</p>
+                  {/* Items */}
+                  <div className="p-2 space-y-1">
+                    {cat.items.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: S.s2 }}>
+                        <div className="w-6 h-6 rounded flex items-center justify-center shrink-0" style={{ background: `${cat.color}10` }}>
+                          <Music size={10} style={{ color: cat.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[9px] font-bold block truncate" style={{ color: S.text }}>{item.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[7px] font-mono" style={{ color: S.text3 }}>{item.duration}</span>
+                            <span className="text-[7px] px-1 py-px rounded" style={{ background: `${cat.color}08`, color: cat.color }}>{item.mood}</span>
+                          </div>
+                        </div>
+                        <span className="text-[7px] px-1.5 py-0.5 rounded font-bold shrink-0"
+                          style={{ background: `${item.statusColor}12`, color: item.statusColor }}>
+                          {item.status}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+                  {/* Batch generate */}
+                  {doneCount < cat.items.length && (
+                    <div className="px-2 pb-2">
+                      <motion.button whileTap={{ scale: 0.97 }}
+                        className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
+                        style={{ background: `${cat.color}08`, border: `1px solid ${cat.color}20`, color: cat.color }}>
+                        <Sparkles size={10} /> 生成剩余 {cat.items.length - doneCount} 个
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
-                <span className="inline-block text-[8px] px-1.5 py-0.5 rounded font-bold"
-                  style={{ background: `${aud.statusColor}15`, color: aud.statusColor }}>
-                  {aud.status}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Batch action buttons */}
+          {/* 节点音频覆盖看板 */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>节点音频覆盖</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {assetCards.map(card => {
+                const node = storyNodes.find(n => n.id === card.nodeId);
+                const bgmOk = card.hasBgm;
+                const voiceOk = card.hasVoice;
+                return (
+                  <div key={card.nodeId} className="p-2.5 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[9px] font-bold" style={{ color: S.text }}>{card.nodeId}</span>
+                      <span className="text-[8px] truncate" style={{ color: S.text3 }}>{node?.label || card.nodeId}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[7px] px-1.5 py-0.5 rounded font-bold"
+                        style={{ background: bgmOk ? `${S.success}12` : `${S.warning}10`, color: bgmOk ? S.success : S.warning }}>
+                        {bgmOk ? "✓ BGM" : "✗ BGM"}
+                      </span>
+                      <span className="text-[7px] px-1.5 py-0.5 rounded font-bold"
+                        style={{ background: voiceOk ? `${S.success}12` : `${S.warning}10`, color: voiceOk ? S.success : S.warning }}>
+                        {voiceOk ? "✓ 配音" : "✗ 配音"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 音量混合面板 */}
+          <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>音量混合预设</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: "BGM", level: 65, color: "#8B5CF6" },
+                { label: "SFX", level: 80, color: "#F59E0B" },
+                { label: "Voice", level: 100, color: S.accent },
+                { label: "Ambient", level: 40, color: "#06B6D4" },
+              ].map(ch => (
+                <div key={ch.label} className="text-center">
+                  <div className="h-20 rounded-lg flex items-end justify-center p-1.5 mb-1.5" style={{ background: S.s2 }}>
+                    <div className="w-full rounded-sm" style={{
+                      background: `linear-gradient(to top, ${ch.color}, ${ch.color}60)`,
+                      height: `${ch.level}%`,
+                    }} />
+                  </div>
+                  <span className="text-[9px] font-bold block" style={{ color: S.text }}>{ch.label}</span>
+                  <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{ch.level}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Batch actions */}
           <div className="flex items-center gap-2">
             <motion.button whileTap={{ scale: 0.97 }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
@@ -1036,6 +1284,125 @@ export default function AssetsScreen() {
               style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}30`, color: S.accent }}>
               <Mic size={12} /> 批量配音
             </motion.button>
+          </div>
+        </div>
+      </>)}
+
+      {/* ── 资产库 Tab ── */}
+      {activeTab === "library" && (<>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Header + Search */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${S.primary}12` }}>
+              <Library size={20} style={{ color: S.primary }} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-bold" style={{ color: S.text }}>统一资产库</h2>
+              <p className="text-[10px]" style={{ color: S.text3 }}>所有导入和生成的素材集中管理</p>
+            </div>
+          </div>
+
+          {/* Search + Filter */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl"
+              style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <Search size={14} style={{ color: S.text3 }} />
+              <input type="text" placeholder="搜索资产名称、标签..."
+                className="flex-1 text-xs bg-transparent outline-none"
+                style={{ color: S.text }} />
+            </div>
+          </div>
+
+          {/* Type filter pills */}
+          <div className="flex items-center gap-2">
+            {[
+              { id: "all", label: "全部", count: assetCards.length * 3, color: S.text2 },
+              { id: "image", label: "图片", count: assetCards.filter(a => a.hasImage).length, color: "#0EA5E9" },
+              { id: "video", label: "视频", count: assetCards.filter(a => a.hasVideo).length, color: S.primary },
+              { id: "audio", label: "音频", count: assetCards.filter(a => a.hasBgm || a.hasVoice).length, color: S.accent },
+            ].map(filter => (
+              <span key={filter.id} className="text-[9px] px-3 py-1.5 rounded-lg font-bold cursor-pointer"
+                style={{
+                  background: `${filter.color}10`, color: filter.color,
+                  border: `1px solid ${filter.color}25`,
+                }}>
+                {filter.label}
+                <span className="ml-1 font-mono">{filter.count}</span>
+              </span>
+            ))}
+            <div className="flex-1" />
+            <motion.button whileTap={{ scale: 0.97 }}
+              className="text-[9px] px-3 py-1.5 rounded-lg font-bold focus:outline-none"
+              style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}25` }}>
+              + 导入资产
+            </motion.button>
+          </div>
+
+          {/* Asset grid from store data */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>节点资产 ({assetCards.length})</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {assetCards.map(card => {
+                const node = storyNodes.find(n => n.id === card.nodeId);
+                const assets = [
+                  { type: "图片", has: card.hasImage, color: "#0EA5E9" },
+                  { type: "BGM", has: card.hasBgm, color: "#8B5CF6" },
+                  { type: "配音", has: card.hasVoice, color: S.accent },
+                  { type: "视频", has: card.hasVideo, color: S.primary },
+                ];
+                const readyCount = assets.filter(a => a.has).length;
+                return (
+                  <div key={card.nodeId} className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    {/* Thumbnail */}
+                    <div className="h-20 flex items-center justify-center relative"
+                      style={{ background: card.hasImage
+                        ? "linear-gradient(135deg,#667eea,#764ba2)"
+                        : "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
+                      {card.hasImage
+                        ? <Image size={24} style={{ color: "#ffffff60" }} />
+                        : <Package size={24} style={{ color: "#ffffff30" }} />
+                      }
+                      <span className="absolute top-2 right-2 text-[7px] px-1.5 py-0.5 rounded font-bold"
+                        style={{ background: "rgba(0,0,0,0.4)", color: "#fff" }}>
+                        {readyCount}/4 就绪
+                      </span>
+                    </div>
+                    {/* Info */}
+                    <div className="p-3 space-y-2">
+                      <div>
+                        <p className="text-[10px] font-bold" style={{ color: S.text }}>{node?.label || card.nodeId}</p>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>{card.nodeId} · {node?.type || "scene"}</p>
+                      </div>
+                      {/* Asset status row */}
+                      <div className="flex items-center gap-1.5">
+                        {assets.map(a => (
+                          <span key={a.type} className="text-[7px] px-1.5 py-0.5 rounded font-bold"
+                            style={{
+                              background: a.has ? `${a.color}15` : S.s2,
+                              color: a.has ? a.color : S.text3,
+                              border: `1px solid ${a.has ? `${a.color}30` : S.border}`,
+                            }}>
+                            {a.has ? "✓" : "✗"} {a.type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Storage usage */}
+          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <span className="text-[9px] font-bold" style={{ color: S.text2 }}>存储空间</span>
+            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: S.s2 }}>
+              <div className="h-full rounded-full" style={{
+                background: `linear-gradient(90deg, ${S.primary}, ${S.accent})`,
+                width: "34%",
+              }} />
+            </div>
+            <span className="text-[9px] font-mono" style={{ color: S.text3 }}>340 MB / 1 GB</span>
           </div>
         </div>
       </>)}

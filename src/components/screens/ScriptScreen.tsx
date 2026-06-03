@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles } from "lucide-react";
+import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns } from "lucide-react";
 import Link from "next/link";
 import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
 import { useNarrativeStore, useProjectStore, useCanvasAgentStore } from "@/store";
@@ -572,6 +572,30 @@ function ChapterPlanContent() {
               </div>
             </motion.button>
 
+            {/* 变体路线指示器 */}
+            {chapter.variants && chapter.variants.length > 0 && (
+              <div className="mx-3 mb-2 px-3 py-2 rounded-lg" style={{ background: "rgba(94,80,232,0.05)", border: "1px solid rgba(94,80,232,0.15)" }}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <GitBranch size={12} style={{ color: "#5E50E8" }} />
+                  <span className="text-xs font-semibold" style={{ color: "#5E50E8" }}>
+                    {chapter.variants.length} 个变体路线
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {chapter.variants.map(v => (
+                    <span
+                      key={v.id}
+                      className="text-xs px-2 py-0.5 rounded-full cursor-default"
+                      style={{ background: "rgba(94,80,232,0.10)", color: "#5E50E8" }}
+                      title={v.activationDescription}
+                    >
+                      {v.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 展开详情 */}
             <AnimatePresence>
               {isExpanded && (
@@ -690,6 +714,10 @@ export default function ScriptScreen() {
   const [editId, setEditId] = useState<string|null>(null);
   const [editVal, setEditVal] = useState("");
   const [activeLayer, setActiveLayer] = useState<LayerId>("interactive");
+  const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
+  const chapterPlans = useNarrativeStore(s => s.chapterPlans);
+  const [splitPreview, setSplitPreview] = useState(false);
+  const currentChapter = chapterPlans[0] ?? null;
 
   // AI 润色：打开全局 Agent 面板并发送消息
   const sendAi = (msg: string) => {
@@ -842,6 +870,22 @@ export default function ScriptScreen() {
             <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background:S.s2, color:S.text3 }}>
               {blocks.length} 段 · 约 {blocks.reduce((a,b) => a+b.content.length, 0)} 字
             </span>
+            {activeLayer === "linear" ? (
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                style={{ background:`${S.primary}10`, color:S.primary }}>
+                <BookOpen size={9} className="inline mr-0.5" style={{ verticalAlign: "-1px" }} />线性阅读
+              </span>
+            ) : (
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                style={{ background:`${S.accent}10`, color:S.accent }}>
+                <GitBranch size={9} className="inline mr-0.5" style={{ verticalAlign: "-1px" }} />互动分支
+                {blocks.filter(b => b.options && b.options.length > 0).length > 0 && (
+                  <span className="ml-1 font-mono">
+                    {blocks.filter(b => b.options && b.options.length > 0).length} 分支点
+                  </span>
+                )}
+              </span>
+            )}
           </div>
           <div className="flex gap-2">
             {/* AI润色按钮——真实可用 */}
@@ -851,16 +895,33 @@ export default function ScriptScreen() {
               style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
               ✨ AI润色本章
             </motion.button>
-            <Link href="/nodes">
-              <motion.button whileTap={{ scale:0.97 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
-                style={{ background:`${S.accent}12`, border:`1px solid ${S.accent}25`, color:S.accent }}>
-                <GitBranch size={11} /> 转为节点图
-              </motion.button>
-            </Link>
+            {activeLayer === "interactive" && (
+              <Link href="/nodes">
+                <motion.button whileTap={{ scale:0.97 }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
+                  style={{ background:`${S.accent}12`, border:`1px solid ${S.accent}25`, color:S.accent }}>
+                  <GitBranch size={11} /> 转为节点图
+                </motion.button>
+              </Link>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setSplitPreview(!splitPreview)}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors"
+              style={{
+                color: splitPreview ? S.primary : S.text3,
+                borderColor: splitPreview ? S.primary : S.border,
+                background: splitPreview ? `${S.primary}10` : "transparent",
+              }}
+            >
+              <Columns size={12} />
+              分屏预览
+            </motion.button>
           </div>
         </div>
-
+        {/* Split preview wrapper */}
+        <div className="flex flex-1 overflow-hidden">
+        <div style={{ flex: splitPreview ? '0 0 60%' : '1 1 100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* 剧本块列表（支持内联编辑）*/}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {blocks.map((block) => (
@@ -927,8 +988,25 @@ export default function ScriptScreen() {
                   </p>
                 )}
 
-                {/* 选项列表 */}
-                {block.options && !editId && (
+                {/* DSL 指令可视化 */}
+                {!editId && block.directives && block.directives.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5" style={{ opacity: activeLayer === "linear" ? 0.5 : 1 }}>
+                    {block.directives.map(d => {
+                      const typeLabel = d.type === 'bgm' ? '🎵' : d.type === 'bg_change' ? '🖼' : d.type === 'sfx' ? '🔊' : 
+                                        d.type === 'camera' ? '📷' : d.type === 'transition' ? '🎬' : d.type === 'hotspot' ? '👆' : '⚡';
+                      return (
+                        <span key={d.id} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-mono" 
+                              style={{ background: activeLayer === "linear" ? S.s2 : "#F0FDF4", color: activeLayer === "linear" ? S.text3 : "#166534", border: `1px solid ${activeLayer === "linear" ? S.border : "#BBF7D0"}` }}
+                              title={d.rawCommand}>
+                          {typeLabel} {d.rawCommand.substring(0, 30)}{d.rawCommand.length > 30 ? '…' : ''}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 选项列表（仅互动模式） */}
+                {activeLayer === "interactive" && block.options && !editId && (
                   <div className="mt-2 space-y-1">
                     {block.options.map((opt,j) => (
                       <div key={j} className="text-[10px] px-2 py-1 rounded flex items-center gap-1.5"
@@ -938,6 +1016,22 @@ export default function ScriptScreen() {
                     ))}
                   </div>
                 )}
+                {/* 对话树入口指示（仅互动模式） */}
+                {activeLayer === "interactive" && block.type === 'dialog' && !editId && (() => {
+                  const tree = dialogueTrees.find(t => t.parentNodeId === block.id);
+                  if (!tree) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1 px-2 py-1 rounded" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                      <MessageCircle size={11} style={{ color: "#8B5CF6" }} />
+                      <span className="text-xs" style={{ color: "#7C3AED" }}>
+                        对话树: {tree.name} ({tree.nodes.length} 节点)
+                      </span>
+                      <a href="/interaction" className="text-xs ml-auto" style={{ color: "#8B5CF6" }}>
+                        编辑 →
+                      </a>
+                    </div>
+                  );
+                })()}
               </div>
             </motion.div>
           ))}
@@ -957,6 +1051,29 @@ export default function ScriptScreen() {
           </motion.button>
 
           <div className="h-4" />
+        </div>
+        </div>
+        {splitPreview && (
+          <div className="flex-1 rounded-xl border p-4 overflow-y-auto m-2" style={{ borderColor: S.border, background: S.card }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: S.text }}>场景预览</h3>
+            {currentChapter && (
+              <div className="space-y-3">
+                {currentChapter.keyDialogue && (
+                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>关键对白</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.keyDialogue}</p></div>
+                )}
+                {currentChapter.characterStates && (
+                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>角色状态</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.characterStates}</p></div>
+                )}
+                {currentChapter.suspenseHook && (
+                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>悬念钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.warning, background: "rgba(245,158,11,0.08)" }}>{currentChapter.suspenseHook}</p></div>
+                )}
+                {currentChapter.chapterEndHook && (
+                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>章末钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.accent, background: "rgba(249,115,22,0.08)" }}>{currentChapter.chapterEndHook}</p></div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         </div>
       </div>
     </>

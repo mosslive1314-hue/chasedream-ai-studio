@@ -1,2 +1,4 @@
-import MyWorksScreen from "@/components/screens/MyWorksScreen";
-export default function MyWorksPage() { return <MyWorksScreen />; }
+import { redirect } from "next/navigation";
+export default function MyWorksPage() {
+  redirect("/");
+}

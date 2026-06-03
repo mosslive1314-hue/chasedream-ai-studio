@@ -75,6 +75,10 @@ export interface EntityRelation {
   strength: number;       // 0-100
   description: string;
   changesAtNodes?: string[];  // nodes where relationship changes
+  /** 关联的动态关系计量表 ID */
+  linkedMeterId?: string;
+  /** 运行时当前强度（从 EntityRelation.strength 初始化，游玩过程中动态变化） */
+  runtimeStrength?: number;
 }
 
 export interface CharacterSceneAppearance {

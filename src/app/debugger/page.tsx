@@ -1,2 +1,4 @@
-import DebuggerScreen from "@/components/screens/DebuggerScreen";
-export default function DebuggerPage() { return <DebuggerScreen />; }
+import { redirect } from "next/navigation";
+export default function DebuggerPage() {
+  redirect("/simulator");
+}

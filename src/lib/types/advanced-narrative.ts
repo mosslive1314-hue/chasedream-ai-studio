@@ -24,6 +24,10 @@ export interface CharacterTimeline {
   chapters: string[];          // which chapters this character appears in
   events: CharacterTimelineEvent[];
   relationships: { targetId: string; type: string; strength: number }[]; // -100 to 100
+  /** 角色死亡/退出时锁死的子图配置 ID */
+  subgraphLockId?: string;
+  /** 角色是否可被玩家操控 */
+  isPlayable?: boolean;
 }
 
 // Cross-character impact matrix

@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   Settings, Cpu, Download, Code2, History,
   ChevronDown, Save, CloudUpload, RotateCcw,
-  Sparkles, Globe, Shield,
+  Sparkles, Globe, Shield, Bot, Zap,
 } from "lucide-react";
 import { useSettingsStore } from "@/store";
 
@@ -293,6 +293,76 @@ export default function SettingsScreen() {
               ]}
             />
           </SettingRow>
+        </div>
+
+        {/* ── Agent 技能配置 ── */}
+        <div
+          className="rounded-xl p-5"
+          style={{ background: S.card, border: `1px solid ${S.border}` }}
+        >
+          <CardTitle icon={Bot} title="Agent 技能配置" subtitle="管理各环节 AI Agent 的技能模板与参数" />
+
+          <div className="space-y-3 mt-4">
+            {[
+              { icon: "⚙", iconBg: "rgba(94,80,232,0.15)", iconColor: S.primary,
+                title: "基础参数配置", desc: "项目整体风格、剧集时长、画面比例等全局参数",
+                tags: [{ label: "通用写实", color: S.text2 }, { label: "9:16", color: S.text2 }, { label: "自动", color: S.text2 }],
+                exclusive: false },
+              { icon: "≡", iconBg: "rgba(59,130,246,0.15)", iconColor: "#3B82F6",
+                title: "镜头提示词生成技能", desc: "按时长将剧本扩写为详细镜头提示词，支持景别与运镜描述",
+                tags: [{ label: "通用叙事拆解", color: "#3B82F6" }, { label: "Chat 5.2", color: "#3B82F6" }],
+                exclusive: false },
+              { icon: "▦", iconBg: "rgba(245,158,11,0.15)", iconColor: "#F59E0B",
+                title: "视频任务规划技能", desc: "将镜头编排为视频生成任务，自动拆分多宫格与拼接方案",
+                tags: [{ label: "按剧情连贯拆分", color: "#F59E0B" }, { label: "多宫格Pro", color: "#F59E0B" }],
+                exclusive: false },
+              { icon: "✦", iconBg: "rgba(0,169,157,0.15)", iconColor: S.accent,
+                title: "互动节点生成技能", desc: "识别关键决策点，生成选择分支与变量系统",
+                tags: [{ label: "互动改编", color: S.accent }, { label: "自动识别", color: S.accent }],
+                exclusive: true },
+              { icon: "≋", iconBg: "rgba(139,92,246,0.15)", iconColor: "#8B5CF6",
+                title: "单视频提示词润色技能", desc: "优化提示词表达，保证角色跨场景视觉一致性",
+                tags: [{ label: "通用模板", color: "#8B5CF6" }, { label: "Gem 3.0", color: "#8B5CF6" }],
+                exclusive: false },
+            ].map((skill, i) => (
+              <div key={i} className="flex items-center justify-between p-3.5 rounded-xl"
+                style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shrink-0"
+                    style={{ background: skill.iconBg }}>
+                    <span>{skill.icon}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold" style={{ color: S.text }}>{skill.title}</span>
+                      {skill.exclusive && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: "rgba(0,169,157,0.12)", color: S.accent }}>逐梦专属</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] mt-0.5 truncate" style={{ color: S.text3 }}>{skill.desc}</p>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 flex-wrap justify-end ml-3 shrink-0">
+                  {skill.tags.map((tag, j) => (
+                    <span key={j} className="text-[9px] px-2 py-0.5 rounded-lg"
+                      style={{ background: `${tag.color}08`, color: tag.color, border: `1px solid ${tag.color}15` }}>
+                      {tag.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: `1px solid ${S.border}` }}>
+            <span className="text-[10px]" style={{ color: S.text3 }}>5 个技能 · 1 个逐梦专属</span>
+            <motion.button whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+              style={{ background: S.primary10, color: S.primary }}>
+              <Zap size={11} /> 技能市场
+            </motion.button>
+          </div>
         </div>
 
         {/* ── 导出与备份 ── */}

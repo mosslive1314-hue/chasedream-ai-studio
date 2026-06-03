@@ -2,12 +2,12 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CheckCircle2, XCircle, Eye, Loader2, Send, ArrowRight, RotateCcw,
+  CheckCircle2, XCircle, Eye, Loader2, ArrowRight, RotateCcw,
   User, MapPin, Package, GitBranch, Sliders, FileText,
-  Network, CheckSquare, List, Rocket, Shield, AlertTriangle, Lightbulb
+  Network, CheckSquare, List, Rocket,
+  BookOpen, Settings, Terminal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { WorldRule, WorldRuleType } from "@/lib/studio-data";
 import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
 
 const S = {
@@ -40,15 +40,6 @@ const STEP_DESC: Record<number, string> = {
   10: '等待所有步骤完成',
 };
 
-// -- 世界规则类型配色 ----------------------------------------------------------
-const RULE_TYPE_CFG: Record<WorldRuleType, { color: string; label: string }> = {
-  setting:              { color: S.primary, label: '背景设定' },
-  character_constraint: { color: S.accent,  label: '角色约束' },
-  permanent_rule:       { color: S.warning, label: '永久规则' },
-  narrative_taboo:      { color: S.error,   label: '叙事禁忌' },
-  tension_check:        { color: '#6366F1', label: '张力校验' },
-};
-
 // -- 10步定义 -----------------------------------------------------------------
 const STEPS = [
   { n:1,  label:"提取故事大纲",     agent:"StoryAgent",   status:"done"    as const, icon: FileText   },
@@ -65,10 +56,6 @@ const STEPS = [
 
 // -- 各步骤产物数据 ----------------------------------------------------------
 type ArtifactItem = { label:string; value:string; sub?:string };
-
-// -- ARTIFACTS moved inside ParseScreen for dynamic projectName --
-
-// -- INIT_MSGS moved inside ParseScreen for dynamic projectName --
 
 // -- 右侧产物渲染 --------------------------------------------------------------
 function StepArtifact({ stepN, artifact, reviewItems, onApprove, onReject, reviewMode }: { 
@@ -233,13 +220,30 @@ function StepArtifact({ stepN, artifact, reviewItems, onApprove, onReject, revie
   );
 }
 
+// -- Agent 执行日志生成 --------------------------------------------------------
+function generateAgentLogs(stepIndex: number) {
+  const stepNames = ['故事解构', '角色提取', '场景识别', '道具梳理', '节点图谱', '选择设计', '结局规划', '逻辑校验', '资产清单', '发布检查'];
+  const stepName = stepNames[stepIndex] || '当前步骤';
+  const now = new Date();
+  const timeStr = (offset: number) => {
+    const t = new Date(now.getTime() - (5 - offset) * 1000);
+    return t.toTimeString().substring(0, 8);
+  };
+  return [
+    { time: timeStr(0), type: 'info', prefix: '[Init]', message: `启动 Agent: ${stepName}-agent v2.1` },
+    { time: timeStr(1), type: 'command', prefix: 'SHELL', message: `ls /narrative/chapters/ → 发现 8 个章节文件` },
+    { time: timeStr(2), type: 'info', prefix: '[SCAN]', message: `扫描原始文本... 共 12,847 字符` },
+    { time: timeStr(3), type: 'success', prefix: '✓', message: `前置检查通过 — 所有依赖数据已就绪` },
+    { time: timeStr(4), type: 'command', prefix: 'LLM', message: `调用 qwen-max 进行${stepName}分析...` },
+    { time: timeStr(5), type: 'success', prefix: '✓', message: `${stepName}完成 — 生成 ${3 + stepIndex} 个结构化产出物` },
+  ];
+}
+
 // -- 主组件 --------------------------------------------------------------------
 export default function ParseScreen() {
   const router = useRouter();
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const worldRules = useNarrativeStore(s => s.worldRules);
-  const characters = useNarrativeStore(s => s.characters);
-  const scenes = useNarrativeStore(s => s.scenes);
   const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);
   const addToast = useUIStore(s => s.addToast);
 
@@ -291,47 +295,27 @@ export default function ParseScreen() {
     10: { heading:"发布前完整校验", summary:"等待所有步骤完成后，PublishAgent 将执行最终校验。", items:[] },
   };
 
-  const INIT_MSGS = [
-    { role:"ai" as const,   text:`已分析剧本「${projectName}」，检测到 1章·8场·4角色·6场景·9道具。建议使用「互动改编」模式。` },
-    { role:"user" as const, text:"好的，按推荐流程开始" },
-    { role:"ai" as const,   text:"✓ 前两步已完成。正在执行第3步——提取场景设定，分析光线·色调·氛围特征，预计约30秒。" },
-  ];
-
-  const [mode, setMode]         = useState<"faithful"|"optimize"|"interactive">("interactive");
   const [viewStep, setViewStep] = useState(3);
-  const [msgs, setMsgs]         = useState(INIT_MSGS);
-  const [input, setInput]       = useState("");
-  const [agentModal, setAgentModal] = useState(false);
-  const [agentConfig, setAgentConfig] = useState(false);
   const [reviewItems, setReviewItems] = useState<Record<string, "approved" | "rejected" | "pending">>({});
   const [reviewMode, setReviewMode] = useState(false);
-  const [rightTab, setRightTab] = useState<"artifact"|"rules">("artifact");
-  const [rules, setRules] = useState<WorldRule[]>(worldRules);
-  const endRef                  = useRef<HTMLDivElement>(null);
+  const [showExecLog, setShowExecLog] = useState(false);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
+  const pipelineRef = useRef<HTMLDivElement>(null);
 
-  const send = () => {
-    if (!input.trim()) return;
-    const reply = { role:"ai" as const, text:`收到：「${input}」，正在分析并调整制作计划……` };
-    setMsgs(m => [...m, { role:"user" as const, text:input }, reply]);
-    setInput("");
-  };
+  useEffect(() => {
+    // scroll active step into view in pipeline bar
+    const el = pipelineRef.current?.querySelector(`[data-step="${viewStep}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [viewStep]);
 
   const doneCount = STEPS.filter(s => s.status === "done").length;
   const activeStep = STEPS.find(s => s.status === "running") ?? STEPS.find(s => s.status === "done" && s.n === doneCount);
-
-  const MODES = [
-    { id:"faithful"    as const, short:"忠实" },
-    { id:"optimize"    as const, short:"优化" },
-    { id:"interactive" as const, short:"互动" },
-  ];
 
 
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
 
-      {/* 顶部面包屑 */}
+      {/* ── 顶部面包屑 ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
         style={{ background: S.card, borderBottom:`1px solid ${S.border}` }}>
         <div className="flex items-center gap-2">
@@ -344,200 +328,120 @@ export default function ParseScreen() {
             style={{ background: S.s2, border:`1px solid ${S.border}`, color: S.text3 }}>
             {doneCount}/10 完成
           </span>
-          <motion.button whileTap={{ scale:0.97 }}
-            onClick={() => setAgentConfig(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none"
-            style={{ background:`${S.primary}10`, border:`1px solid ${S.primary}25`, color: S.primary }}>
-            ⚙ Agent配置
-          </motion.button>
-          <motion.button whileTap={{ scale:0.97 }}
-            onClick={() => setAgentModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none"
-            style={{ background:`${S.accent}10`, border:`1px solid ${S.accent}25`, color: S.accent }}>
-            🎬 镜头库
-          </motion.button>
         </div>
       </div>
 
-      {/* 主体：左右两栏 */}
-      <div className="flex-1 flex overflow-hidden">
-
-        {/* 左侧：AI项目导演对话 */}
-        <div className="w-[38%] min-w-0 flex flex-col border-r" style={{ borderColor: S.border, background: S.card }}>
-
-          {/* 文件信息 + 模式 */}
-          <div className="px-3 py-2 shrink-0" style={{ borderBottom:`1px solid ${S.border}`, background: S.s2 }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0"
-                  style={{ background:`${S.primary}15` }}>
-                  <span className="text-[7px] font-bold" style={{ color: S.primary }}>TXT</span>
-                </div>
-                <span className="text-[10px] font-bold truncate" style={{ color: S.text }}>{projectName}.txt</span>
-                <span className="text-[9px] shrink-0" style={{ color: S.accent }}>85KB</span>
-              </div>
-              <button className="text-[8px] font-bold px-1.5 py-0.5 rounded focus:outline-none"
-                style={{ color: S.primary, border:`1px solid ${S.primary}20` }}>更换</button>
-            </div>
-            <div className="flex gap-1 items-center">
-              {MODES.map(m => (
-                <motion.button key={m.id} whileTap={{ scale:0.97 }} onClick={() => setMode(m.id)}
-                  className="flex-1 py-1 rounded text-[9px] font-bold focus:outline-none"
-                  style={{
-                    background: mode===m.id ? S.primary : "transparent",
-                    color: mode===m.id ? "#fff" : S.text3,
-                    border: mode===m.id ? "none" : `1px solid ${S.border}`,
-                  }}>
-                  {m.short}
-                </motion.button>
-              ))}
-              <span className="text-[8px] shrink-0 px-1 py-0.5 rounded ml-1"
-                style={{ background:`${S.success}12`, color: S.success }}>已锁定</span>
-            </div>
+      {/* ── 放大管线进度条 ─────────────────────────────────────────────── */}
+      <div className="shrink-0 px-4 py-3 border-b" style={{ borderColor: S.border, background: S.card }}>
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: S.text3 }}>
+              制作进度
+            </span>
+            {activeStep && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full animate-pulse"
+                style={{ background: `${S.primary}12`, color: S.primary }}>
+                {activeStep.label} — 处理中
+              </span>
+            )}
           </div>
+          <span className="text-[10px] font-bold font-mono" style={{ color: S.primary }}>
+            {doneCount}/10
+          </span>
+        </div>
+        <div ref={pipelineRef} className="flex items-center gap-1 overflow-x-auto pb-1">
+          {STEPS.map((step, i) => {
+            const isDone = step.status === "done";
+            const isRun  = step.status === "running";
+            const isViewing = viewStep === step.n;
+            return (
+              <div key={i} className="flex items-center shrink-0" data-step={step.n}>
+                <motion.button
+                  whileTap={{ scale:0.95 }}
+                  onClick={() => setViewStep(step.n)}
+                  title={`${step.label} — ${STATUS_TEXT[step.status]}`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl focus:outline-none"
+                  style={{
+                    background: isViewing ? `${S.primary}12` : isDone ? `${S.success}06` : isRun ? `${S.primary}06` : "transparent",
+                    border: `1.5px solid ${isViewing ? S.primary : isDone ? `${S.success}40` : isRun ? `${S.primary}40` : S.border}`,
+                  }}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0 ${isRun ? "animate-pulse" : ""}`}
+                    style={{
+                      background: isViewing ? S.primary : isDone ? `${S.success}15` : isRun ? `${S.primary}15` : S.s2,
+                      color: isViewing ? "#fff" : isDone ? S.success : isRun ? S.primary : S.text3,
+                    }}>
+                    {isDone ? "✓" : step.n}
+                  </div>
+                  <span className="text-[9px] font-medium whitespace-nowrap"
+                    style={{ color: isViewing ? S.primary : isDone ? S.success : isRun ? S.primary : S.text3 }}>
+                    {step.label}
+                  </span>
+                </motion.button>
+                {i < STEPS.length - 1 && (
+                  <div className="w-3 h-px shrink-0 mx-0.5"
+                    style={{ background: isDone ? `${S.success}40` : S.border }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* AI对话主体 */}
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-            {msgs.map((msg, i) => (
-              <motion.div key={i} initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }}
-                className={`flex gap-2 ${msg.role==="user" ? "flex-row-reverse" : ""}`}>
-                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ background: msg.role==="ai" ? `${S.primary}15` : S.s2 }}>
-                  <span className="text-[7px] font-bold"
-                    style={{ color: msg.role==="ai" ? S.primary : S.text3 }}>
-                    {msg.role==="ai" ? "AI" : "我"}
+      {/* ── 执行日志切换按钮 ─────────────────────────────────────────────── */}
+      <div className="shrink-0 px-4 py-2 border-b" style={{ borderColor: S.border, background: S.card }}>
+        <button
+          onClick={() => setShowExecLog(!showExecLog)}
+          className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors"
+          style={{
+            color: showExecLog ? "#5E50E8" : "#8892B0",
+            borderColor: showExecLog ? "#5E50E8" : "#E2E5F0",
+            background: showExecLog ? "rgba(94,80,232,0.08)" : "transparent",
+          }}
+        >
+          <Terminal size={12} />
+          执行日志
+        </button>
+      </div>
+
+      {/* ── 执行日志面板 ─────────────────────────────────────────────────── */}
+      {showExecLog && (
+        <div className="shrink-0 px-4 py-3 border-b" style={{ borderColor: S.border, background: S.card }}>
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#1E293B", background: "#0F172A" }}>
+            <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "#1E293B" }}>
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#EF4444" }} />
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#F59E0B" }} />
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#10B981" }} />
+              </div>
+              <span className="text-xs font-mono" style={{ color: "#94A3B8" }}>Agent 执行日志</span>
+              <button onClick={() => setShowExecLog(false)} className="ml-auto text-xs" style={{ color: "#64748B" }}>✕</button>
+            </div>
+            <div className="p-3 max-h-[300px] overflow-y-auto font-mono text-xs space-y-1" style={{ color: "#E2E8F0" }}>
+              {generateAgentLogs(activeStep?.n ?? viewStep).map((log, i) => (
+                <div key={i} className="flex gap-2">
+                  <span style={{ color: "#64748B" }}>{log.time}</span>
+                  <span style={{ color: log.type === 'success' ? '#10B981' : log.type === 'error' ? '#EF4444' : log.type === 'command' ? '#60A5FA' : '#E2E8F0' }}>
+                    {log.prefix && <span className="font-bold">{log.prefix} </span>}
+                    {log.message}
                   </span>
                 </div>
-                <div className="max-w-[80%] px-2.5 py-2 rounded-xl text-[10px] leading-relaxed"
-                  style={{
-                    background: msg.role==="ai" ? S.s2 : `${S.primary}10`,
-                    color: S.text2,
-                    border:`1px solid ${msg.role==="ai" ? S.border : `${S.primary}20`}`,
-                  }}>
-                  {msg.text}
-                </div>
-              </motion.div>
-            ))}
-            <div className="flex gap-2">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center"
-                style={{ background:`${S.primary}15` }}>
-                <span className="text-[7px] font-bold" style={{ color: S.primary }}>AI</span>
-              </div>
-              <div className="px-3 py-2 rounded-xl flex items-center gap-1"
-                style={{ background: S.s2, border:`1px solid ${S.border}` }}>
-                {[0,1,2].map(j => (
-                  <motion.div key={j} className="w-1 h-1 rounded-full" style={{ background: S.primary }}
-                    animate={{ opacity:[0.3,1,0.3] }}
-                    transition={{ duration:1, repeat:Infinity, delay:j*0.2 }} />
-                ))}
-              </div>
-            </div>
-            <div ref={endRef} />
-          </div>
-
-          {/* 输入框 */}
-          <div className="shrink-0 px-3 py-2.5 border-t" style={{ borderColor: S.border }}>
-            <div className="flex gap-2 items-center rounded-xl px-3 py-2"
-              style={{ background: S.s2, border:`1.5px solid ${input ? S.primary : S.border}` }}>
-              <input value={input} onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key==="Enter" && send()}
-                placeholder="向 AI 导演提问或下指令…"
-                className="flex-1 text-xs bg-transparent focus:outline-none" style={{ color: S.text }} />
-              <motion.button whileTap={{ scale:0.9 }} onClick={send} className="focus:outline-none">
-                <Send size={12} color={input ? S.primary : S.text3} />
-              </motion.button>
+              ))}
             </div>
           </div>
         </div>
+      )}
 
-        {/* 右侧：进度轨道 + 动态产物 */}
+      {/* ── 主体：主内容 + 上下文侧栏 ──────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* ── 主内容区 (~70%) ──────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0" style={{ background: S.s2 }}>
-
-          {/* 10步进度轨道 */}
-          <div className="shrink-0 px-4 py-3 border-b" style={{ borderColor: S.border, background: S.card }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] uppercase tracking-wider font-bold" style={{ color: S.text3 }}>
-                制作进度
-              </span>
-              <div className="flex items-center gap-1">
-                <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={() => setRightTab("artifact")}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold focus:outline-none"
-                  style={{
-                    background: rightTab === "artifact" ? `${S.primary}12` : "transparent",
-                    color: rightTab === "artifact" ? S.primary : S.text3,
-                    border: `1px solid ${rightTab === "artifact" ? `${S.primary}25` : "transparent"}`,
-                  }}>
-                  <FileText size={9} /> 步骤产物
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={() => setRightTab("rules")}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold focus:outline-none"
-                  style={{
-                    background: rightTab === "rules" ? `${S.primary}12` : "transparent",
-                    color: rightTab === "rules" ? S.primary : S.text3,
-                    border: `1px solid ${rightTab === "rules" ? `${S.primary}25` : "transparent"}`,
-                  }}>
-                  <Shield size={9} /> 世界规则
-                </motion.button>
-              </div>
-            </div>
-            <div className="flex items-center gap-0.5 overflow-x-auto">
-              {STEPS.map((step, i) => {
-                const isDone = step.status === "done";
-                const isRun  = step.status === "running";
-                const isViewing = viewStep === step.n;
-                return (
-                  <div key={i} className="flex items-center shrink-0">
-                    <div className="relative">
-                      <motion.button
-                        whileTap={{ scale:0.9 }}
-                        onClick={() => { setViewStep(step.n); setRightTab("artifact"); }}
-                        title={`${step.label} — ${STATUS_TEXT[step.status]}`}
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold focus:outline-none ${isRun ? "animate-pulse":""}`}
-                        style={{
-                          background: isViewing ? S.primary : isDone ? `${S.success}15` : isRun ? `${S.primary}15` : S.s2,
-                          border:`1.5px solid ${isViewing ? S.primary : isDone ? S.success : isRun ? S.primary : S.border2}`,
-                          color: isViewing ? "#fff" : isDone ? S.success : isRun ? S.primary : S.text3,
-                        }}>
-                        {isDone ? "✓" : step.n}
-                      </motion.button>
-                      {reviewMode && rightTab === "artifact" && isDone && (
-                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full flex items-center justify-center"
-                          style={{ background: S.accent }}>
-                          <span className="text-[5px] text-white font-bold">!</span>
-                        </div>
-                      )}
-                      {isRun && (
-                        <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                          <span className="text-[6px] font-bold" style={{ color: S.primary }}>处理中</span>
-                        </div>
-                      )}
-                    </div>
-                    {i < STEPS.length-1 && (
-                      <div className="w-1.5 h-px shrink-0"
-                        style={{ background: isDone ? `${S.success}40` : S.border }} />
-                    )}
-                  </div>
-                );
-              })}
-              <span className="text-[9px] ml-1 shrink-0" style={{ color: S.text3 }}>{doneCount}/10</span>
-            </div>
-            <p className="text-[9px] mt-1" style={{ color: S.text3 }}>
-              点击数字查看步骤产物 ·
-              <span style={{ color: S.primary }} className="ml-0.5">
-                {STEPS.find(s=>s.n===viewStep)?.label}
-              </span>
-            </p>
-          </div>
-
-          {/* 动态产物区 / 世界规则面板 */}
           <AnimatePresence mode="wait">
-            {rightTab === "artifact" ? (
-            <motion.div key={`step-${viewStep}`} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
+            <motion.div key={`step-${viewStep}`}
+              initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
               exit={{ opacity:0 }} transition={{ duration:0.15 }}
               className="flex-1 overflow-hidden flex flex-col">
-              <StepArtifact stepN={viewStep} 
+              <StepArtifact stepN={viewStep}
                 artifact={ARTIFACTS[viewStep]}
                 reviewItems={reviewItems}
                 onApprove={(key) => setReviewItems(prev => ({ ...prev, [key]: "approved" }))}
@@ -545,130 +449,17 @@ export default function ParseScreen() {
                 reviewMode={reviewMode}
               />
             </motion.div>
-            ) : (
-            <motion.div key="world-rules" initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
-              exit={{ opacity:0 }} transition={{ duration:0.15 }}
-              className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Header */}
-              <div className="p-3 rounded-xl flex items-center justify-between"
-                style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
-                <div className="flex items-center gap-2.5">
-                  <Shield size={15} color={S.primary} className="shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold" style={{ color: S.text }}>世界观与叙事规则</p>
-                    <p className="text-[9px]" style={{ color: S.text3 }}>
-                      共 {rules.length} 条规则 · {rules.filter(r => r.validated).length} 条已校验
-                    </p>
-                  </div>
-                </div>
-                <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setRules(prev => prev.map(r => ({ ...r, validated: true })));
-                    worldRules.forEach(r => updateWorldRule(r.id, { validated: true }));
-                    addToast({ type: "success", title: "校验完成", message: `已校验全部 ${worldRules.length} 条规则` });
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
-                  style={{ background: `${S.primary}12`, color: S.primary, border: `1px solid ${S.primary}25` }}>
-                  <CheckCircle2 size={10} /> 校验全部
-                </motion.button>
-              </div>
-
-              {/* Rules grouped by type */}
-              {(() => {
-                const groups: WorldRuleType[] = ['setting', 'character_constraint', 'permanent_rule', 'narrative_taboo', 'tension_check'];
-                const grouped = groups.map(type => ({
-                  type,
-                  cfg: RULE_TYPE_CFG[type],
-                  rules: rules.filter(r => r.type === type),
-                })).filter(g => g.rules.length > 0);
-
-                return grouped.map(group => (
-                  <div key={group.type}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2.5 h-2.5 rounded-sm" style={{ background: group.cfg.color }} />
-                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{group.cfg.label}</span>
-                      <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
-                        {group.rules.length}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      {group.rules.map(rule => (
-                        <motion.div key={rule.id} layout
-                          className="p-3 rounded-xl"
-                          style={{
-                            background: S.card,
-                            border: `1px solid ${rule.validated ? S.border : `${S.warning}40`}`,
-                            opacity: rule.validated ? 1 : 0.85,
-                          }}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{rule.title}</span>
-                                <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
-                                  style={{
-                                    background: rule.severity === 'hard' ? `${S.error}12` : rule.severity === 'soft' ? `${S.warning}12` : `${S.primary}12`,
-                                    color: rule.severity === 'hard' ? S.error : rule.severity === 'soft' ? S.warning : S.primary,
-                                  }}>
-                                  {rule.severity === 'hard' ? '强制' : rule.severity === 'soft' ? '建议' : '可选'}
-                                </span>
-                              </div>
-                              <p className="text-[9px] mt-1 leading-relaxed" style={{ color: S.text2 }}>{rule.description}</p>
-                            </div>
-                            <div className="shrink-0 flex items-center gap-1">
-                              {rule.validated ? (
-                                <span className="flex items-center gap-0.5 text-[8px] font-bold" style={{ color: S.success }}>
-                                  <CheckCircle2 size={9} /> 已校验
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-0.5 text-[8px] font-bold" style={{ color: S.warning }}>
-                                  <AlertTriangle size={9} /> 未校验
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Relations */}
-                          {(rule.relatedCharacters?.length || rule.relatedScenes?.length) && (
-                            <div className="flex gap-1.5 mt-2 flex-wrap">
-                              {rule.relatedCharacters?.map(cId => {
-                                const ch = characters.find(c => c.id === cId);
-                                return ch ? (
-                                  <span key={cId} className="text-[8px] px-1.5 py-0.5 rounded"
-                                    style={{ background: `${ch.color}10`, color: ch.color, border: `1px solid ${ch.color}25` }}>
-                                    {ch.name}
-                                  </span>
-                                ) : null;
-                              })}
-                              {rule.relatedScenes?.map(sId => {
-                                const sc = scenes.find(s => s.id === sId);
-                                return sc ? (
-                                  <span key={sId} className="text-[8px] px-1.5 py-0.5 rounded"
-                                    style={{ background: `${S.accent}10`, color: S.accent, border: `1px solid ${S.accent}25` }}>
-                                    {sc.name}
-                                  </span>
-                                ) : null;
-                              })}
-                            </div>
-                          )}
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                ));
-              })()}
-            </motion.div>
-            )}
           </AnimatePresence>
 
-          {/* 底部操作栏 */}
+          {/* ── 底部操作栏 ──────────────────────────────────────────── */}
           <div className="shrink-0 px-4 py-3 border-t flex items-center gap-2"
             style={{ borderColor: S.border, background: S.card }}>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => setReviewMode(!reviewMode)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold focus:outline-none"
-              style={{ 
-                background: reviewMode ? `${S.accent}15` : S.s2, 
-                border: `1px solid ${reviewMode ? `${S.accent}30` : S.border}`, 
-                color: reviewMode ? S.accent : S.text2 
+              style={{
+                background: reviewMode ? `${S.accent}15` : S.s2,
+                border: `1px solid ${reviewMode ? `${S.accent}30` : S.border}`,
+                color: reviewMode ? S.accent : S.text2
               }}>
               <Eye size={11} /> {reviewMode ? "退出审核" : "审核产出"}
             </motion.button>
@@ -685,8 +476,7 @@ export default function ParseScreen() {
             <div className="flex-1" />
             <motion.button whileTap={{ scale:0.97 }}
               onClick={() => {
-                // Flush local state to store before navigating
-                rules.forEach(r => {
+                worldRules.forEach(r => {
                   if (r.validated) updateWorldRule(r.id, { validated: true });
                 });
                 addToast({ type: "success", title: "已应用到工作台", message: "解构结果已保存，可在剧本编辑中继续使用" });
@@ -698,181 +488,48 @@ export default function ParseScreen() {
             </motion.button>
           </div>
         </div>
+
+        {/* ── 上下文侧栏 (~30%) ──────────────────────────────────────── */}
+        <div className="w-[280px] shrink-0 flex flex-col border-l overflow-y-auto"
+          style={{ borderColor: S.border, background: S.card }}>
+
+          {/* ── 文件信息 ────────────────────────────────────────────── */}
+          <div className="p-3 border-b" style={{ borderColor: S.border }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Settings size={12} style={{ color: S.text3 }} />
+              <span className="text-[10px] font-bold" style={{ color: S.text }}>项目信息</span>
+            </div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="w-5 h-5 rounded flex items-center justify-center shrink-0"
+                style={{ background: `${S.primary}15` }}>
+                <span className="text-[7px] font-bold" style={{ color: S.primary }}>TXT</span>
+              </div>
+              <span className="text-[10px] font-bold truncate" style={{ color: S.text }}>{projectName}.txt</span>
+              <span className="text-[9px] shrink-0" style={{ color: S.accent }}>85KB</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] px-1.5 py-0.5 rounded"
+                style={{ background: `${S.primary}10`, color: S.primary }}>互动改编</span>
+              <span className="text-[8px] px-1.5 py-0.5 rounded"
+                style={{ background: `${S.success}12`, color: S.success }}>已锁定</span>
+            </div>
+          </div>
+
+          {/* ── 当前步骤信息 ────────────────────────────────────────── */}
+          <div className="p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <BookOpen size={12} style={{ color: S.primary }} />
+              <span className="text-[10px] font-bold" style={{ color: S.text }}>当前查看</span>
+            </div>
+            <p className="text-[10px] font-bold" style={{ color: S.primary }}>
+              第 {viewStep} 步 · {STEPS.find(s => s.n === viewStep)?.label}
+            </p>
+            <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>
+              {STATUS_TEXT[STEPS.find(s => s.n === viewStep)?.status ?? "pending"]}
+            </p>
+          </div>
+        </div>
       </div>
-
-      {/* Agent技能配置弹窗 */}
-      <AnimatePresence>
-        {agentConfig && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background:"rgba(0,0,0,0.5)" }}
-            onClick={() => setAgentConfig(false)}>
-            <motion.div initial={{ scale:0.96, opacity:0 }} animate={{ scale:1, opacity:1 }}
-              exit={{ scale:0.96, opacity:0 }}
-              className="w-full max-w-2xl rounded-2xl overflow-hidden max-h-[80vh] flex flex-col"
-              style={{ background:"#1A1D2E", border:"1px solid rgba(255,255,255,0.08)" }}
-              onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b"
-                style={{ borderColor:"rgba(255,255,255,0.08)" }}>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Agent 技能配置</h3>
-                  <p className="text-[10px] mt-0.5" style={{ color:"rgba(255,255,255,0.45)" }}>
-                    应用于后续各环节生成任务
-                  </p>
-                </div>
-                <motion.button whileTap={{ scale:0.9 }} onClick={() => setAgentConfig(false)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center focus:outline-none text-sm"
-                  style={{ background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.5)" }}>
-                  x
-                </motion.button>
-              </div>
-              <div className="overflow-y-auto p-5 space-y-3">
-                {[
-                  { icon:"⚙", iconBg:"rgba(94,80,232,0.3)",  title:"基础参数配置",       desc:"项目整体风格、剧集时长、比例等",                 tags:[{label:"通用写实"},{label:"9:16"},{label:"自动"}] },
-                  { icon:"≡", iconBg:"rgba(59,130,246,0.4)",  title:"镜头提示词生成技能",  desc:"按时长将剧本扩写为详细镜头提示词",               tags:[{label:"通用叙事拆解"},{label:"Chat 5.2"}] },
-                  { icon:"▦", iconBg:"rgba(245,158,11,0.4)",  title:"视频任务规划技能",    desc:"将镜头编排为视频生成任务",                       tags:[{label:"按剧情连贯拆分"},{label:"多宫格Pro"}] },
-                  { icon:"✦", iconBg:"rgba(16,185,129,0.35)", title:"互动节点生成技能",    desc:"识别关键决策点，生成选择分支与变量系统",          tags:[{label:"互动改编"},{label:"自动识别"}], extra:true },
-                  { icon:"≋", iconBg:"rgba(0,169,157,0.35)",  title:"单视频提示词润色技能", desc:"优化提示词，保证角色跨场景一致性",                tags:[{label:"通用模板"},{label:"Gem 3.0"}] },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-3.5 rounded-xl"
-                    style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)" }}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shrink-0"
-                        style={{ background: item.iconBg }}>
-                        <span className="text-white">{item.icon}</span>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{item.title}</span>
-                          {item.extra && (
-                            <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
-                              style={{ background:"rgba(0,169,157,0.3)", color:"#00A99D" }}>逐梦专属</span>
-                          )}
-                        </div>
-                        <p className="text-[10px] mt-0.5" style={{ color:"rgba(255,255,255,0.4)" }}>{item.desc}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap justify-end ml-3">
-                      {item.tags.map((tag, j) => (
-                        <span key={j} className="text-[9px] px-2 py-0.5 rounded-lg"
-                          style={{ background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.6)" }}>
-                          {tag.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="px-5 pb-5 flex justify-end border-t pt-4"
-                style={{ borderColor:"rgba(255,255,255,0.08)" }}>
-                <motion.button whileTap={{ scale:0.97 }} onClick={() => setAgentConfig(false)}
-                  className="px-6 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
-                  style={{ background: S.primary }}>
-                  保存
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 智能镜头库弹窗 */}
-      <AnimatePresence>
-        {agentModal && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background:"rgba(0,0,0,0.6)" }}
-            onClick={() => setAgentModal(false)}>
-            <motion.div initial={{ y:20, opacity:0 }} animate={{ y:0, opacity:1 }}
-              exit={{ y:20, opacity:0 }}
-              className="w-full max-w-2xl rounded-2xl overflow-hidden max-h-[80vh] flex flex-col"
-              style={{ background:"#16182A", border:"1px solid rgba(255,255,255,0.08)" }}
-              onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b"
-                style={{ borderColor:"rgba(255,255,255,0.08)" }}>
-                <div>
-                  <h3 className="text-sm font-bold text-white">智能镜头库</h3>
-                  <p className="text-[10px] mt-0.5" style={{ color:"rgba(255,255,255,0.4)" }}>
-                    锁定角色外貌提示词，保持跨节点视觉一致性
-                  </p>
-                </div>
-                <motion.button whileTap={{ scale:0.9 }} onClick={() => setAgentModal(false)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center focus:outline-none text-sm"
-                  style={{ background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.5)" }}>
-                  x
-                </motion.button>
-              </div>
-              <div className="overflow-y-auto p-5 space-y-3">
-                {[
-                  { name:"艾拉", role:"女主角·侦探", locked:true, nodes:11,
-                    prompt:"cyberpunk female detective, black short hair, silver eye, black trench coat",
-                    frames:["默认","愤怒","受伤","沉默"] },
-                  { name:"线人", role:"关键NPC", locked:true, nodes:4,
-                    prompt:"mysterious middle-aged man, worn jacket, shadowy face",
-                    frames:["默认","警惕"] },
-                  { name:"反派主管", role:"反派", locked:false, nodes:3,
-                    prompt:"", frames:["默认"] },
-                ].map((char, i) => (
-                  <div key={i} className="rounded-xl overflow-hidden"
-                    style={{ border:"1px solid rgba(255,255,255,0.08)", background:"rgba(255,255,255,0.03)" }}>
-                    <div className="flex items-center justify-between px-4 py-3 border-b"
-                      style={{ borderColor:"rgba(255,255,255,0.06)" }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                          style={{ background:"rgba(94,80,232,0.3)" }}>
-                          <span className="text-white text-sm">{char.name[0]}</span>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-white">{char.name}</p>
-                          <p className="text-[9px]" style={{ color:"rgba(255,255,255,0.4)" }}>
-                            {char.role} · 出现 {char.nodes} 节点
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[9px] px-2 py-0.5 rounded-full"
-                        style={{ background: char.locked ? "rgba(0,169,157,0.2)" : "rgba(245,158,11,0.15)",
-                          color: char.locked ? "#00A99D" : "#F59E0B" }}>
-                        {char.locked ? "✓ 已锁定" : "未锁定"}
-                      </span>
-                    </div>
-                    <div className="px-4 py-3">
-                      <p className="text-[9px] mb-1.5" style={{ color:"rgba(255,255,255,0.35)" }}>外貌提示词</p>
-                      {char.locked
-                        ? <p className="text-[10px]" style={{ color:"rgba(255,255,255,0.65)" }}>{char.prompt}</p>
-                        : <p className="text-[10px] italic" style={{ color:"rgba(255,255,255,0.25)" }}>尚未设置</p>}
-                      <div className="flex gap-1.5 mt-2">
-                        {char.frames.map((f,j) => (
-                          <span key={j} className="text-[8px] px-1.5 py-0.5 rounded"
-                            style={{ background: j===0 ? "rgba(94,80,232,0.25)" : "rgba(255,255,255,0.06)",
-                              color: j===0 ? "#A78BFA" : "rgba(255,255,255,0.4)" }}>
-                            {f}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-between px-5 py-4 border-t"
-                style={{ borderColor:"rgba(255,255,255,0.08)" }}>
-                <span className="text-[10px]" style={{ color:"rgba(255,255,255,0.3)" }}>3 个角色 · 2 个已锁定</span>
-                <div className="flex gap-2">
-                  <motion.button whileTap={{ scale:0.97 }} onClick={() => setAgentModal(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-medium focus:outline-none"
-                    style={{ background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.6)" }}>
-                    关闭
-                  </motion.button>
-                  <motion.button whileTap={{ scale:0.97 }} onClick={() => setAgentModal(false)}
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
-                    style={{ background: S.primary }}>
-                    应用外貌锁定
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

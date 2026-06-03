@@ -11,11 +11,14 @@ import {
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings,
   Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
-  Users, Clock
+  Users, Clock, Lock
 } from "lucide-react";
 import Link from "next/link";
 import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
+import { usePathname } from "next/navigation";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 
 const S = {
   bg:      "#F5F6FA",
@@ -41,7 +44,7 @@ const TABS: { id:TabId; label:string; icon:any }[] = [
   { id:"heatmap",   label:"热力图", icon:Flame     },
   { id:"ui",        label:"用户界面", icon:Monitor },
   { id:"variables", label:"变量",   icon:BarChart3 },
-  { id:"timeline",  label:"角色线", icon:Users     },
+  { id:"timeline",  label:"角色系统", icon:Users     },
 ];
 
 // ── 节点类型配色（对齐原站颜色风格）────────────────────────────────────────
@@ -227,7 +230,7 @@ function HeatmapContent() {
 }
 
 // ── 诊断视图类型 ──────────────────────────────────────────────────────────────
-type DiagView = 'all' | 'mainline' | 'branch' | 'ending' | 'problem' | 'variable' | 'character';
+type DiagView = 'all' | 'mainline' | 'branch' | 'ending' | 'problem' | 'variable' | 'character' | 'dependency';
 
 // ── 主节点画布（对齐原站 React Flow 风格）──────────────────────────────────
 function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null; setSel:(id:string|null)=>void; nodeFilter:string; diagView:DiagView }) {
@@ -235,6 +238,10 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
   const nodeEdges = useNarrativeStore(state => state.nodeEdges);
   const variables = useNarrativeStore(state => state.variables);
   const characters = useNarrativeStore(state => state.characters);
+  const narrativeIntents = useNarrativeStore(state => state.narrativeIntents);
+  const subgraphLocks = useNarrativeStore(state => state.subgraphLocks);
+  const chapterVariants = useNarrativeStore(state => state.chapterVariants);
+  const narrativeStates = useNarrativeStore(state => state.narrativeStates);
   const addNode = useNarrativeStore(state => state.addNode);
   const removeNode = useNarrativeStore(state => state.removeNode);
   const updateNode = useNarrativeStore(state => state.updateNode);
@@ -274,6 +281,27 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
       case 'character': {
         const ids = new Set<string>();
         characters.forEach(c => c.appearNodes.forEach(id => ids.add(id)));
+        return ids;
+      }
+      case 'dependency': {
+        const ids = new Set<string>();
+        narrativeStates.forEach(ns => {
+          if (ns.dependsOn && ns.dependsOn.length > 0) {
+            ids.add(ns.id);
+            ns.dependsOn.forEach(depId => ids.add(depId));
+          }
+        });
+        // Also add nodes that modify states with dependencies
+        narrativeStates.forEach(ns => {
+          if (ns.dependsOn && ns.dependsOn.length > 0) {
+            variables.forEach(v => {
+              if (v.name === ns.name || v.id === ns.id) {
+                v.modifiedBy.forEach(id => ids.add(id));
+                v.readBy.forEach(id => ids.add(id));
+              }
+            });
+          }
+        });
         return ids;
       }
       default:
@@ -421,6 +449,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
             {diagView === 'problem' && '⚠️ 问题视图'}
             {diagView === 'variable' && '📊 变量视图'}
             {diagView === 'character' && '👤 角色视图'}
+            {diagView === 'dependency' && '🔗 依赖视图'}
           </p>
           {diagView === 'mainline' && (
             <div className="space-y-1">
@@ -515,6 +544,43 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {diagView === 'dependency' && (
+            <div className="space-y-2">
+              {/* Independent states */}
+              {narrativeStates.filter(ns => !ns.dependsOn || ns.dependsOn.length === 0).length > 0 && (
+                <div>
+                  <p className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>独立状态（无依赖）</p>
+                  <div className="flex flex-wrap gap-0.5">
+                    {narrativeStates.filter(ns => !ns.dependsOn || ns.dependsOn.length === 0).map(ns => (
+                      <span key={ns.id} className="text-[8px] px-1.5 py-0.5 rounded-full" style={{ background: `${S.accent}15`, color: S.accent }}>{ns.name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Dependent states */}
+              {narrativeStates.filter(ns => ns.dependsOn && ns.dependsOn.length > 0).map(ns => (
+                <div key={ns.id} className="p-1.5 rounded-lg" style={{ background: S.s2 }}>
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span className="text-[9px] font-bold" style={{ color: S.primary }}>{ns.name}</span>
+                    <span className="text-[7px] px-1 py-0.5 rounded" style={{ background: `${S.warning}15`, color: S.warning }}>有依赖</span>
+                  </div>
+                  <div className="flex items-center gap-0.5 flex-wrap">
+                    {ns.dependsOn!.map(depId => {
+                      const depState = narrativeStates.find(s => s.id === depId);
+                      return (
+                        <span key={depId} className="text-[8px] font-mono px-1 py-0.5 rounded" style={{ background: `${S.error}10`, color: S.error }}>
+                          ← {depState?.name || depId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {narrativeStates.filter(ns => ns.dependsOn && ns.dependsOn.length > 0).length === 0 && (
+                <p className="text-[8px]" style={{ color: S.text3 }}>暂无状态依赖关系</p>
+              )}
             </div>
           )}
         </div>
@@ -647,7 +713,8 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
           const cfg = NODE_TYPE[node.type] ?? NODE_TYPE.scene;
           const isSelected = sel===node.id;
           const isHighlighted = highlightedNodeIds.has(node.id);
-          const nodeOpacity = (diagView !== 'all' && !isHighlighted) ? 0.3 : 1;
+          const isLocked = subgraphLocks.some(lock => lock.lockedNodeIds.includes(node.id));
+          const nodeOpacity = isLocked ? 0.35 : (diagView !== 'all' && !isHighlighted) ? 0.3 : 1;
           const isDragging = dragState?.nodeId === node.id;
           return (
             <motion.div key={node.id}
@@ -680,11 +747,40 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                     目 {cfg.label}
                   </span>
                   {(node as any).hasError && <AlertTriangle size={9} style={{ color:S.error }} />}
+                  {(node as any).povCharacterId && (() => {
+                    const povChar = characters.find(c => c.id === (node as any).povCharacterId);
+                    return povChar ? (
+                      <span
+                        className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                        style={{ background: `${povChar.color}20`, color: povChar.color }}
+                        title={`POV: ${povChar.name}`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: povChar.color }} />
+                        {povChar.name}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <p className="text-[11px] font-bold truncate" style={{ color:S.text }}>{node.label}</p>
                 {(node as any).errorMsg && (
                   <p className="text-[9px] mt-0.5 truncate" style={{ color:S.error }}>{(node as any).errorMsg}</p>
                 )}
+                {/* Subgraph lock indicator */}
+                {isLocked && (
+                  <div className="flex items-center gap-0.5 mt-1">
+                    <Lock size={8} style={{ color: "#F59E0B" }} />
+                    <span className="text-[8px]" style={{ color: "#D97706" }}>已锁定</span>
+                  </div>
+                )}
+                {/* Chapter variant indicator */}
+                {chapterVariants.length > 0 && (() => {
+                  return (
+                    <div className="flex items-center gap-0.5 mt-1" title={`${chapterVariants.length} 个章节变体已配置`}>
+                      <GitBranch size={8} style={{ color: "#8B5CF6" }} />
+                      <span className="text-[8px]" style={{ color: "#7C3AED" }}>{chapterVariants.length} 变体</span>
+                    </div>
+                  );
+                })()}
               </motion.button>
               {/* Connection point at bottom */}
               <motion.div
@@ -760,6 +856,33 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                 </select>
               </div>
 
+              {/* POV Character (Detroit: Become Human style) */}
+              <div>
+                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>
+                  POV 视角角色
+                </label>
+                <select
+                  value={(selectedNode as any).povCharacterId ?? ""}
+                  onChange={(e) => updateNode(selectedNode.id, { povCharacterId: e.target.value || undefined } as any)}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium focus:outline-none appearance-none"
+                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                  <option value="">无 (None)</option>
+                  {characters.map(c => (
+                    <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                  ))}
+                </select>
+                {(selectedNode as any).povCharacterId && (() => {
+                  const povChar = characters.find(c => c.id === (selectedNode as any).povCharacterId);
+                  return povChar ? (
+                    <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-lg" style={{ background: `${povChar.color}10` }}>
+                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: povChar.color }} />
+                      <span className="text-[10px] font-medium" style={{ color: povChar.color }}>{povChar.name}</span>
+                      <span className="text-[9px]" style={{ color: S.text3 }}>— {povChar.role}</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
               {/* Position */}
               <div>
                 <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>
@@ -827,6 +950,71 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                   </div>
                 )}
               </div>
+
+              {/* ── 叙事设计意图 ── */}
+              {sel && (() => {
+                const intent = narrativeIntents.find(ni => ni.nodeId === sel);
+                const nodeVars = variables.filter(v => v.modifiedBy.includes(sel) || v.readBy.includes(sel));
+                if (!intent && nodeVars.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: S.primary }}>✦ 叙事设计意图</span>
+                    </div>
+                    {intent && (
+                      <div className="p-2.5 rounded-xl space-y-1.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                            style={{ background: `${S.primary}12`, color: S.primary }}>
+                            {intent.purposeLabel}
+                          </span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded"
+                            style={{ background: intent.emotionValue >= 7 ? "rgba(239,68,68,0.1)" : intent.emotionValue >= 5 ? "rgba(245,158,11,0.1)" : S.s2,
+                              color: intent.emotionValue >= 7 ? S.error : intent.emotionValue >= 5 ? S.warning : S.text3 }}>
+                            张力 {intent.emotionValue}/10
+                          </span>
+                        </div>
+                        {intent.choiceImpact && (
+                          <div>
+                            <span className="text-[8px] font-medium" style={{ color: S.text3 }}>选择影响: </span>
+                            <span className="text-[8px]" style={{ color: S.text2 }}>{intent.choiceImpact}</span>
+                          </div>
+                        )}
+                        {intent.failFeedback && (
+                          <div className="flex items-start gap-1">
+                            <span className="text-[8px]" style={{ color: S.warning }}>⚠</span>
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{intent.failFeedback}</span>
+                          </div>
+                        )}
+                        {intent.variableChanges && intent.variableChanges.length > 0 && (
+                          <div>
+                            <span className="text-[8px] font-medium block mb-0.5" style={{ color: S.text3 }}>变量变化:</span>
+                            {intent.variableChanges.map((vc, i) => (
+                              <span key={i} className="text-[8px] font-mono px-1 py-0.5 rounded mr-1"
+                                style={{ background: `${S.accent}10`, color: S.accent }}>
+                                {vc.variable} {vc.operation}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {nodeVars.length > 0 && (
+                      <div>
+                        <p className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>关联变量</p>
+                        {nodeVars.map(v => (
+                          <div key={v.id} className="flex items-center justify-between py-0.5">
+                            <span className="text-[8px]" style={{ color: S.text2 }}>{v.label}</span>
+                            <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
+                              {v.modifiedBy.includes(sel) ? "修改" : "读取"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Link to script */}
               <Link href="/script"
@@ -2045,6 +2233,126 @@ function CharacterTimelineContent() {
           })}
         </div>
       </div>
+
+      {/* ── 关系网络 ── */}
+      <RelationshipMeterSection />
+
+      {/* ── 道德罗盘 ── */}
+      <MoralCompassSection />
+    </div>
+  );
+}
+
+// ── Relationship Meter Section (inline for 角色系统) ──────────────────────
+function RelationshipMeterSection() {
+  const relationshipMeters = useNarrativeStore(s => s.relationshipMeters);
+  const characters = useNarrativeStore(s => s.characters);
+  const getCharName = (id: string) => characters.find(c => c.id === id)?.name || id;
+  const getCharColor = (id: string) => characters.find(c => c.id === id)?.color || S.text3;
+
+  if (relationshipMeters.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+      <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}` }}>
+        <span className="text-sm">💕</span>
+        <h2 className="text-sm font-bold" style={{ color: S.text }}>关系网络</h2>
+        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: S.s2, color: S.text3 }}>
+          {relationshipMeters.length} 组关系
+        </span>
+      </div>
+      <div className="p-5 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+        {relationshipMeters.map(meter => {
+          const pct = Math.round(((meter.currentValue - meter.minValue) / (meter.maxValue - meter.minValue)) * 100);
+          const currentZone = meter.thresholds?.find(t => meter.currentValue >= t.value - 10 && meter.currentValue <= t.value + 10);
+          return (
+            <div key={meter.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: getCharColor(meter.characterAId) }} />
+                <span className="text-[10px] font-bold" style={{ color: S.text }}>{getCharName(meter.characterAId)}</span>
+                <span className="text-[9px]" style={{ color: S.text3 }}>↔</span>
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: getCharColor(meter.characterBId) }} />
+                <span className="text-[10px] font-bold" style={{ color: S.text }}>{getCharName(meter.characterBId)}</span>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "#E2E5F0" }}>
+                  <div className="h-full rounded-full transition-all" style={{
+                    width: `${pct}%`,
+                    background: `linear-gradient(90deg, #EF4444, #F59E0B, #10B981)`,
+                  }} />
+                </div>
+                <span className="text-[10px] font-bold tabular-nums w-8 text-right" style={{ color: S.primary }}>{meter.currentValue}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {meter.relationshipLabel && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>{meter.relationshipLabel}</span>
+                )}
+                {currentZone && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>{currentZone.label}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Moral Compass Section (inline for 角色系统) ───────────────────────────
+function MoralCompassSection() {
+  const moralAxes = useNarrativeStore(s => s.moralAxes);
+
+  if (moralAxes.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+      <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}` }}>
+        <span className="text-sm">🧭</span>
+        <h2 className="text-sm font-bold" style={{ color: S.text }}>道德罗盘</h2>
+        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: S.s2, color: S.text3 }}>
+          {moralAxes.length} 条轴线
+        </span>
+        {moralAxes.filter(a => Math.abs(a.currentValue) > 70).length > 0 && (
+          <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: "rgba(239,68,68,0.08)", color: S.error }}>
+            ⚠ {moralAxes.filter(a => Math.abs(a.currentValue) > 70).length} 极端
+          </span>
+        )}
+      </div>
+      <div className="p-5 space-y-4">
+        {moralAxes.map(axis => {
+          const pct = Math.round(((axis.currentValue + 100) / 200) * 100);
+          const isExtreme = Math.abs(axis.currentValue) > 70;
+          const currentZone = axis.zones?.find(z => axis.currentValue >= z.min && axis.currentValue <= z.max);
+          return (
+            <div key={axis.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${isExtreme ? "rgba(239,68,68,0.3)" : S.border}` }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold" style={{ color: S.text }}>{axis.name}</span>
+                {isExtreme && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.1)", color: S.error }}>极端区域</span>}
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[9px] w-12 text-right shrink-0" style={{ color: S.text3 }}>{axis.negativeLabel}</span>
+                <div className="flex-1 h-2.5 rounded-full overflow-hidden relative" style={{ background: `linear-gradient(90deg, ${axis.gradientColors[0]}, #F5F5F5, ${axis.gradientColors[1]})` }}>
+                  <div className="absolute top-0 bottom-0 w-2.5 rounded-full" style={{
+                    left: `${pct}%`,
+                    transform: "translateX(-50%)",
+                    background: S.text,
+                    border: "2px solid white",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                  }} />
+                </div>
+                <span className="text-[9px] w-12 shrink-0" style={{ color: S.text3 }}>{axis.positiveLabel}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold tabular-nums" style={{ color: S.primary }}>{axis.currentValue}</span>
+                {currentZone && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>{currentZone.label}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2097,9 +2405,7 @@ function VariablesContent() {
     stateCategoryFilter === 'all' || ns.category === stateCategoryFilter
   );
 
-  // Build dependency map for visualization
-  const statesWithDeps = narrativeStates.filter(ns => ns.dependsOn && ns.dependsOn.length > 0);
-  const statesWithoutDeps = narrativeStates.filter(ns => !ns.dependsOn || ns.dependsOn.length === 0);
+  // Build dependency map for state card display
   const getStateName = (id: string) => narrativeStates.find(ns => ns.id === id)?.name || id;
 
   return (
@@ -2303,67 +2609,6 @@ function VariablesContent() {
           })}
         </div>
 
-        {/* ── State dependency visualization ── */}
-        {statesWithDeps.length > 0 && (
-          <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-            <h4 className="text-[10px] font-bold mb-3 flex items-center gap-1.5" style={{ color: S.text }}>
-              <GitBranch size={12} style={{ color: S.primary }} />
-              状态依赖关系图
-            </h4>
-            {/* Independent states at top */}
-            <div className="mb-3">
-              <span className="text-[8px] font-bold block mb-1.5" style={{ color: S.text3 }}>
-                独立状态 (无依赖)
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {statesWithoutDeps.map(ns => {
-                  const catConf = categoryConfig[ns.category];
-                  return (
-                    <span key={ns.id} className="text-[8px] px-2 py-1 rounded-lg font-medium"
-                      style={{ background: catConf.bg, color: catConf.color, border: `1px solid ${catConf.color}25` }}>
-                      {ns.name}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Dependent states with arrows */}
-            <div className="space-y-2">
-              {statesWithDeps.map(ns => {
-                const catConf = categoryConfig[ns.category];
-                return (
-                  <div key={ns.id} className="flex items-start gap-2">
-                    {/* Dependencies */}
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {ns.dependsOn?.map(depId => {
-                        const depState = narrativeStates.find(s => s.id === depId);
-                        const depCatConf = depState ? categoryConfig[depState.category] : { color: S.text3, bg: S.s2 };
-                        return (
-                          <span key={depId} className="text-[8px] px-1.5 py-0.5 rounded"
-                            style={{ background: depCatConf.bg, color: depCatConf.color }}>
-                            {getStateName(depId)}
-                          </span>
-                        );
-                      })}
-                    </div>
-                    {/* Arrow */}
-                    <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
-                      <div className="w-4 h-px" style={{ background: S.text3 }} />
-                      <div className="w-0 h-0 border-t-[3px] border-b-[3px] border-l-[4px] border-transparent"
-                        style={{ borderLeftColor: S.text3 }} />
-                    </div>
-                    {/* Target state */}
-                    <span className="text-[8px] px-2 py-0.5 rounded font-bold"
-                      style={{ background: catConf.bg, color: catConf.color, border: `1px solid ${catConf.color}30` }}>
-                      {ns.name}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* ── 原有变量卡片 (Legacy Variables) ── */}
         <div>
           <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text3 }}>
@@ -2465,11 +2710,14 @@ function VariablesContent() {
 
 // ── 主编辑器页面 ──────────────────────────────────────────────────────────
 export default function NodesScreen() {
+  const pathname = usePathname();
   const storyNodes = useNarrativeStore(state => state.storyNodes);
   const narrativeIntents = useNarrativeStore(state => state.narrativeIntents);
   const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
   const narrativeStates = useNarrativeStore(state => state.narrativeStates);
   const variables = useNarrativeStore(state => state.variables);
+  const characters = useNarrativeStore(state => state.characters);
+  const consequenceChains = useNarrativeStore(state => state.consequenceChains);
   const addNode = useNarrativeStore(state => state.addNode);
   const removeNode = useNarrativeStore(state => state.removeNode);
   const updateNode = useNarrativeStore(state => state.updateNode);
@@ -2482,6 +2730,12 @@ export default function NodesScreen() {
   const [aiInput, setAiInput] = useState("");
   const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [diagView, setDiagView] = useState<DiagView>('all');
+
+  // ── Tension curve for emotion rhythm bar ──
+  const tensionCurve = useMemo(() => calculateTensionCurve({
+    storyNodes, narrativeIntents, consequenceChains, variables,
+  }), [storyNodes, narrativeIntents, consequenceChains, variables]);
+  const tensionStats = useMemo(() => getTensionStats(tensionCurve), [tensionCurve]);
 
   const NODE_FILTERS = [
     { id: "all", label: "全部", icon: Layers },
@@ -2520,6 +2774,7 @@ export default function NodesScreen() {
 
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── 5个Tab（保留独特功能：画布/热力图/用户界面/变量/角色线）── */}
       <div className="flex items-center border-b shrink-0"
@@ -2540,9 +2795,9 @@ export default function NodesScreen() {
         ))}
       </div>
 
-      {/* ── 节点筛选栏（仅画布 Tab 显示）── */}
+      {/* ── 筛选 + 诊断视图合并行（仅画布 Tab 显示）── */}
       {activeTab === "canvas" && (
-        <div className="flex items-center gap-1 px-4 py-1.5 border-b"
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b flex-wrap"
           style={{ background: S.card, borderColor: S.border }}>
           <span className="text-[9px] font-medium mr-1" style={{ color: S.text3 }}>筛选:</span>
           {NODE_FILTERS.map(f => (
@@ -2558,20 +2813,15 @@ export default function NodesScreen() {
               {f.label}
             </motion.button>
           ))}
-          <span className="ml-auto text-[8px]" style={{ color: S.text3 }}>
+          <span className="text-[8px] mx-2" style={{ color: S.text3 }}>
             {nodeFilter === "all" ? storyNodes.length : nodeFilter === "error"
               ? storyNodes.filter(n => (n as any).hasError).length
               : storyNodes.filter(n => n.type === nodeFilter || (nodeFilter === "ending" && (n.type === "ending_good" || n.type === "ending_bad"))).length
             } 个节点
           </span>
-        </div>
-      )}
-
-      {/* ── 诊断视图选择器（仅画布 Tab 显示）── */}
-      {activeTab === "canvas" && (
-        <div className="flex items-center gap-1 px-4 py-1 border-b"
-          style={{ background: `${S.primary}03`, borderColor: S.border }}>
-          <span className="text-[9px] font-medium mr-1" style={{ color: S.text3 }}>诊断视图:</span>
+          {/* Separator */}
+          <div className="w-px h-4 mx-1" style={{ background: S.border }} />
+          <span className="text-[9px] font-medium mr-1" style={{ color: S.text3 }}>诊断:</span>
           {([
             { id: 'all' as DiagView, label: '全部' },
             { id: 'mainline' as DiagView, label: '主线' },
@@ -2580,6 +2830,7 @@ export default function NodesScreen() {
             { id: 'problem' as DiagView, label: '问题' },
             { id: 'variable' as DiagView, label: '变量' },
             { id: 'character' as DiagView, label: '角色' },
+            { id: 'dependency' as DiagView, label: '依赖' },
           ]).map(v => (
             <motion.button key={v.id} whileTap={{ scale: 0.96 }}
               onClick={() => setDiagView(v.id)}
@@ -2595,137 +2846,61 @@ export default function NodesScreen() {
         </div>
       )}
 
-      {/* ── 三栏主体 ── */}
-      <div className="flex-1 flex overflow-hidden">
-
-        {/* 左侧面板（情绪曲线 + 章节节点列表 + 叙事设计意图）*/}
-        <div className="w-[190px] shrink-0 border-r overflow-y-auto"
-          style={{ borderColor:S.border, background:S.card }}>
-
-          {/* 情绪曲线 (P0-3) */}
-          <div className="px-3 py-2 border-b" style={{ borderColor: S.border }}>
-            <p className="text-[9px] font-bold mb-1.5" style={{ color: S.text3 }}>叙事情绪曲线</p>
-            <div className="flex items-end gap-0.5 h-8">
-              {narrativeIntents.map((ni, i) => (
-                <div key={ni.nodeId} className="flex-1 flex flex-col items-center gap-0.5">
-                  <div className="w-full rounded-t-sm transition-all"
-                    style={{
-                      height: `${(ni.emotionValue / 10) * 100}%`,
-                      background: ni.emotionValue >= 8 ? S.error : ni.emotionValue >= 6 ? S.warning : S.primary,
-                      opacity: sel === ni.nodeId ? 1 : 0.5,
-                    }}
-                  />
-                  <span className="text-[6px] font-mono" style={{ color: sel === ni.nodeId ? S.primary : S.text3 }}>
-                    {ni.nodeId.replace("N0","")}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 章节节点列表（对齐截图底部：第一章：渗透行动）*/}
-          <div className="px-3 py-2" style={{ borderTop:`1px solid ${S.border}` }}>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold" style={{ color:S.text }}>第一章：渗透行动</p>
-              <p className="text-[9px]" style={{ color:S.text3 }}>{filteredSidebarNodes.length} 节点</p>
-            </div>
-            <div className="mb-1.5">
-              <p className="text-[9px] font-medium mb-1" style={{ color:S.text3 }}>节点列表</p>
-              <motion.button whileTap={{ scale:0.97 }}
-                onClick={() => {
-                  const newNode = {
-                    id: `N${String(storyNodes.length + 1).padStart(2, '0')}`,
-                    label: `新节点 ${storyNodes.length + 1}`,
-                    type: 'scene' as const,
-                    x: 400 + Math.random() * 100,
-                    y: 300 + Math.random() * 100,
-                  };
-                  addNode(newNode);
-                  setSel(newNode.id);
-                }}
-                className="flex items-center gap-1 w-full py-1 focus:outline-none cursor-pointer hover:opacity-80"
-                style={{ color:S.text3 }}>
-                <Plus size={10} />
-                <span className="text-[9px]">添加节点</span>
-              </motion.button>
-            </div>
-            <div className="space-y-0.5">
-              {filteredSidebarNodes.slice(0,6).map(node => (
-                <motion.button key={node.id} whileTap={{ scale:0.97 }}
-                  onClick={() => setSel(node.id===sel?null:node.id)}
-                  className="w-full text-left px-2 py-1 rounded text-[9px] truncate focus:outline-none"
+      {/* ── 情绪节奏条 (仅画布 Tab) ── */}
+      {activeTab === "canvas" && tensionCurve.length > 0 && (
+        <div className="flex items-center gap-2.5 px-4 py-1.5 border-b"
+          style={{ background: S.card, borderColor: S.border }}>
+          <span className="text-[9px] font-bold shrink-0 flex items-center gap-1" style={{ color: S.text2 }}>
+            <Flame size={10} style={{ color: S.primary }} />
+            情绪节奏
+          </span>
+          <div className="flex items-end gap-0.5 flex-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {tensionCurve.map((tp) => (
+              <div key={tp.nodeId} className="flex flex-col items-center gap-0.5 shrink-0 group relative">
+                <div className="w-5 rounded-sm transition-all"
                   style={{
-                    background: sel===node.id ? `${S.primary}10` : "transparent",
-                    color: sel===node.id ? S.primary : S.text3 }}>
-                  {node.label}
-                </motion.button>
-              ))}
-            </div>
-          </div>
-
-          {/* 叙事设计意图面板 (P0-3) */}
-          {sel && (() => {
-            const intent = narrativeIntents.find(ni => ni.nodeId === sel);
-            const nodeVars = variables.filter(v => v.modifiedBy.includes(sel) || v.readBy.includes(sel));
-            if (intent) return (
-              <div className="px-3 py-2" style={{ borderTop: `1px solid ${S.border}` }}>
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: S.primary }}>
-                  ✦ 叙事设计意图
-                </p>
-                <div className="p-2.5 rounded-xl space-y-1.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
-                      style={{ background: `${S.primary}12`, color: S.primary }}>
-                      {intent.purposeLabel}
-                    </span>
-                    <span className="text-[8px] px-1.5 py-0.5 rounded"
-                      style={{ background: intent.emotionValue >= 7 ? "rgba(239,68,68,0.1)" : intent.emotionValue >= 5 ? "rgba(245,158,11,0.1)" : S.s2,
-                        color: intent.emotionValue >= 7 ? S.error : intent.emotionValue >= 5 ? S.warning : S.text3 }}>
-                      张力 {intent.emotionValue}/10
-                    </span>
+                    height: Math.max(3, tp.tension * 2.8),
+                    background: TENSION_COLORS[tp.category],
+                    opacity: 0.85,
+                  }} />
+                <span className="text-[6px] font-mono" style={{ color: S.text3 }}>{tp.nodeId.replace('N','')}</span>
+                {/* Tooltip on hover */}
+                <div className="absolute bottom-full mb-1 hidden group-hover:block z-50 pointer-events-none">
+                  <div className="px-1.5 py-1 rounded-lg whitespace-nowrap" style={{ background: '#1A1D2E', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                    <p className="text-[8px] font-bold text-white">{tp.nodeLabel}</p>
+                    <p className="text-[7px] text-gray-400">张力 {tp.tension} · {
+                      tp.category === 'calm' ? '平缓' : tp.category === 'building' ? '渐进' : tp.category === 'tense' ? '紧张' : tp.category === 'climax' ? '高潮' : '收束'
+                    }</p>
                   </div>
-                  {intent.choiceImpact && (
-                    <div>
-                      <span className="text-[8px] font-medium" style={{ color: S.text3 }}>选择影响: </span>
-                      <span className="text-[8px]" style={{ color: S.text2 }}>{intent.choiceImpact}</span>
-                    </div>
-                  )}
-                  {intent.failFeedback && (
-                    <div className="flex items-start gap-1">
-                      <span className="text-[8px]" style={{ color: S.warning }}>⚠</span>
-                      <span className="text-[8px]" style={{ color: S.text3 }}>{intent.failFeedback}</span>
-                    </div>
-                  )}
-                  {intent.variableChanges && intent.variableChanges.length > 0 && (
-                    <div>
-                      <span className="text-[8px] font-medium block mb-0.5" style={{ color: S.text3 }}>变量变化:</span>
-                      {intent.variableChanges.map((vc, i) => (
-                        <span key={i} className="text-[8px] font-mono px-1 py-0.5 rounded mr-1"
-                          style={{ background: `${S.accent}10`, color: S.accent }}>
-                          {vc.variable} {vc.operation}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
-                {nodeVars.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>关联变量</p>
-                    {nodeVars.map(v => (
-                      <div key={v.id} className="flex items-center justify-between py-0.5">
-                        <span className="text-[8px]" style={{ color: S.text2 }}>{v.label}</span>
-                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
-                          {v.modifiedBy.includes(sel) ? "修改" : "读取"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
-            );
-            return null;
-          })()}
+            ))}
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {[
+              { label: '平缓', color: TENSION_COLORS.calm },
+              { label: '渐进', color: TENSION_COLORS.building },
+              { label: '紧张', color: TENSION_COLORS.tense },
+              { label: '高潮', color: TENSION_COLORS.climax },
+              { label: '收束', color: TENSION_COLORS.resolution },
+            ].map(item => (
+              <div key={item.label} className="flex items-center gap-0.5">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />
+                <span className="text-[7px]" style={{ color: S.text3 }}>{item.label}</span>
+              </div>
+            ))}
+            <div className="w-px h-3" style={{ background: S.border }} />
+            <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
+              峰 <span style={{ color: S.error }}>{tensionStats.max}</span>
+              <span className="mx-0.5">·</span>
+              均 <span style={{ color: S.text2 }}>{tensionStats.avg}</span>
+            </span>
+          </div>
         </div>
+      )}
+
+      {/* ── 主体工作区 ── */}
+      <div className="flex-1 flex overflow-hidden">
 
         {/* 中央主工作区 */}
         <div className="flex-1 overflow-hidden min-w-0">

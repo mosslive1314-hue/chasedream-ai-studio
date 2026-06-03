@@ -8,7 +8,7 @@ import {
   Scissors, FileText, GitBranch, MousePointer,
   Network, Play, Activity, Rocket, Users, Film,
   Settings, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
-  Package, GitCompare, LogOut, UserRound, Sparkles,
+  Package, GitCompare, LogOut, UserRound,
   Image as ImageIcon, Video, Music, Database,
 } from "lucide-react";
 import { INDUSTRY_LABELS, type IndustryType } from "@/lib/studio-data";

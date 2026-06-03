@@ -1,14 +1,14 @@
 "use client";
-import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { motion } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, Copy, ExternalLink,
-  ChevronRight, Camera, GitCompareArrows,
-  Clock, Plus, Minus, Pencil, Rocket,
-  History, ArrowLeftRight, Layers, Download,
-  Upload, Globe, Package, GitBranch,
+  ChevronRight, Rocket,
+  Download, Upload, Globe, Package, Layers,
 } from "lucide-react";
 import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
+import { usePathname } from "next/navigation";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -20,13 +20,6 @@ const S = {
   success: "#059669", success10: "rgba(5,150,105,0.10)",
   warning: "#D97706", warning10: "rgba(217,119,6,0.10)",
   error: "#DC2626", error10: "rgba(220,38,38,0.10)",
-};
-
-// ── 快照状态配置 ─────────────────────────────────────────────────────────
-const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  current:   { label: "当前", bg: `${S.primary}12`, color: S.primary },
-  published: { label: "已发布", bg: `${S.success}12`, color: S.success },
-  draft:     { label: "草稿", bg: `${S.warning}12`, color: S.warning },
 };
 
 // ── 多端导出格式 ─────────────────────────────────────────────────────────
@@ -119,23 +112,13 @@ const INDUSTRY_FORMATS: Record<string, { id: string; name: string; description: 
   ],
 };
 
-// ── 操作类型图标 ─────────────────────────────────────────────────────────
-const ACTION_ICONS: Record<string, typeof Pencil> = {
-  edit: Pencil,
-  add: Plus,
-  delete: Minus,
-  publish: Rocket,
-};
-
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function PublishScreen() {
+  const pathname = usePathname();
   // ── Store selectors ──
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const engineExportConfigs = useNarrativeStore(s => s.engineExportConfigs);
-  const collabTasks = useNarrativeStore(s => s.collabTasks);
-  const collabComments = useNarrativeStore(s => s.collabComments);
-  const versionDiffs = useNarrativeStore(s => s.versionDiffs);
   const addToast = useUIStore(s => s.addToast);
 
   // ── Tab 状态 ──
@@ -151,33 +134,10 @@ export default function PublishScreen() {
   const [engineExportStates, setEngineExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
   const [industryTab, setIndustryTab] = useState(0);
 
-  // ── 快照状态 ──
-  const [compareMode, setCompareMode] = useState(false);
-  const [selectedSnapshots, setSelectedSnapshots] = useState<string[]>([]);
-  const [snapshotToast, setSnapshotToast] = useState(false);
-
   // ── Handlers ──
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const toggleSnapshotSelect = (version: string) => {
-    setSelectedSnapshots((prev) => {
-      if (prev.includes(version)) return prev.filter((v) => v !== version);
-      if (prev.length >= 2) return [prev[1], version];
-      return [...prev, version];
-    });
-  };
-
-  const exitCompareMode = () => {
-    setCompareMode(false);
-    setSelectedSnapshots([]);
-  };
-
-  const handleCreateSnapshot = () => {
-    setSnapshotToast(true);
-    setTimeout(() => setSnapshotToast(false), 2500);
   };
 
   const handleExport = (formatId: string) => {
@@ -196,86 +156,16 @@ export default function PublishScreen() {
     }, 2500);
   };
 
-  // ── 动态数据：版本快照（from versionDiffs）──
-  const snapshots = useMemo(() => {
-    if (versionDiffs.length === 0) return [];
-    const now = new Date();
-    return versionDiffs.map((d, i) => ({
-      version: d.toVersion,
-      status: i === versionDiffs.length - 1 ? 'current' as const : 'published' as const,
-      date: `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate() - (versionDiffs.length - 1 - i)).padStart(2, '0')}`,
-      changes: d.nodesAdded + d.nodesModified + d.nodesRemoved + d.variablesChanged + d.assetsUpdated + d.scriptChanges,
-      summary: d.summary,
-    }));
-  }, [versionDiffs]);
-
-  // ── 动态数据：变更记录（from collabTasks + collabComments）──
-  const changeLog = useMemo(() => {
-    const taskActionMap: Record<string, { action: string; actionLabel: string; color: string }> = {
-      '节点编辑': { action: 'edit', actionLabel: '编辑', color: S.primary },
-      '资产制作': { action: 'add', actionLabel: '新增', color: S.accent },
-      '剧本编写': { action: 'edit', actionLabel: '编写', color: S.primary },
-      '质检修复': { action: 'edit', actionLabel: '修复', color: S.warning },
-      'UI设计':   { action: 'edit', actionLabel: '设计', color: S.primary },
-      '互动设计': { action: 'edit', actionLabel: '设计', color: S.accent },
-    };
-    const taskEntries = collabTasks.map(t => {
-      const cfg = taskActionMap[t.category] ?? { action: 'edit', actionLabel: '编辑', color: S.text2 };
-      return {
-        time: t.dueDate ? t.dueDate.slice(5) : '—',
-        action: cfg.action,
-        actionLabel: cfg.actionLabel,
-        target: t.title,
-        user: t.assignee,
-        detail: t.description,
-        color: cfg.color,
-      };
-    });
-    const commentEntries = collabComments.map(c => ({
-      time: c.timestamp.slice(5, 16),
-      action: 'edit' as const,
-      actionLabel: '评论',
-      target: c.taskId ? `任务 ${c.taskId}` : `节点 ${c.nodeId}`,
-      user: c.author,
-      detail: c.content.slice(0, 50),
-      color: S.text3,
-    }));
-    return [...taskEntries, ...commentEntries];
-  }, [collabTasks, collabComments]);
-
-  // ── 快照对比数据 ──
-  const comparePair = useMemo(() => {
-    if (selectedSnapshots.length !== 2) return null;
-    const a = snapshots.find((s) => s.version === selectedSnapshots[0]);
-    const b = snapshots.find((s) => s.version === selectedSnapshots[1]);
-    if (!a || !b) return null;
-    return a.changes <= b.changes ? { newer: b, older: a } : { newer: a, older: b };
-  }, [selectedSnapshots, snapshots]);
-
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
-
-      {/* ── Toast 通知 ── */}
-      <AnimatePresence>
-        {snapshotToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-xs font-bold text-white"
-            style={{ background: S.primary, boxShadow: `0 4px 16px ${S.primary}40` }}
-          >
-            快照 v1.2.4 已创建
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── Tab Bar ── */}
       <div className="flex items-center gap-2 px-4 pt-3">
         {[
-          { label: "发布状态", icon: Rocket },
+          { label: "发布设置", icon: Rocket },
+          { label: "发布检查", icon: CheckCircle2 },
           { label: "导出配置", icon: Package },
-          { label: "快照与记录", icon: GitBranch },
         ].map((tab, i) => {
           const TabIcon = tab.icon;
           return (
@@ -298,19 +188,21 @@ export default function PublishScreen() {
       <div className="p-3">
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 0: 发布状态
+            TAB 0: 发布设置 (merged: 发布状态 + 发布设置)
            ════════════════════════════════════════════════════════════════ */}
         {activeTab === 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-            {/* ── 发布状态卡片 ── */}
-            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="flex items-center justify-between mb-2">
+          <div className="max-w-lg space-y-3">
+            {/* ── 发布 URL ── */}
+            <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                    <ExternalLink size={13} style={{ color: S.primary }} />
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <ExternalLink size={14} style={{ color: S.primary }} />
                   </div>
-                  <h3 className="text-xs font-bold" style={{ color: S.text }}>发布状态</h3>
+                  <div>
+                    <h3 className="text-xs font-bold" style={{ color: S.text }}>发布状态</h3>
+                    <p className="text-[9px]" style={{ color: S.text3 }}>在线访问地址与版本信息</p>
+                  </div>
                 </div>
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded"
                   style={{ background: `${S.success}12`, color: S.success }}>
@@ -332,72 +224,95 @@ export default function PublishScreen() {
                   {copied ? "已复制" : <><Copy size={9} className="inline mr-0.5" />复制</>}
                 </motion.button>
               </div>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className="w-full mt-2 py-2 rounded-lg text-xs font-bold text-white focus:outline-none"
-                style={{ background: `linear-gradient(135deg,${S.primary},#7B6EF5)` }}
-              >
-                <Rocket size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
-                更新发布
-              </motion.button>
             </div>
 
-            {/* ── 发布检查清单 ── */}
-            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="flex items-center justify-between mb-2">
+            {/* ── 发布设置 ── */}
+            <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <Layers size={14} style={{ color: S.primary }} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>发布设置</h3>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>配置作品的发布参数与展示信息</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {([
+                  ["作品类型", "互动 H5", "选择作品的发布形态"],
+                  ["画幅", "移动端竖屏 9:16", "作品的显示比例"],
+                  ["分享标题", projectName, "在社交平台分享时显示的标题"],
+                  ["付费模式", "免费试玩", "设置作品的付费与试看策略"],
+                ] as const).map(([k, v, desc]) => (
+                  <div key={k} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] font-bold" style={{ color: S.text3 }}>{k}</span>
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>编辑</span>
+                    </div>
+                    <span className="text-[11px] font-medium block" style={{ color: S.text }}>{v}</span>
+                    {desc && <span className="text-[8px] block mt-1" style={{ color: S.text3 }}>{desc}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── 更新发布 ── */}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              className="w-full py-2.5 rounded-lg text-xs font-bold text-white focus:outline-none"
+              style={{ background: `linear-gradient(135deg,${S.primary},#7B6EF5)` }}
+            >
+              <Rocket size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
+              更新发布
+            </motion.button>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 1: 发布检查
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 1 && (
+          <div className="max-w-2xl">
+            <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                    <CheckCircle2 size={13} style={{ color: S.primary }} />
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <CheckCircle2 size={14} style={{ color: S.primary }} />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold" style={{ color: S.text }}>发布检查</h3>
+                    <h3 className="text-xs font-bold" style={{ color: S.text }}>发布检查清单</h3>
                     <p className="text-[9px]" style={{ color: S.text3 }}>{pass}/{qualityChecks.length} 项通过</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-20 rounded-full overflow-hidden" style={{ background: S.s3 }}>
                     <div className="h-full rounded-full" style={{
                       width: `${Math.round((pass / qualityChecks.length) * 100)}%`,
                       background: pass === qualityChecks.length ? S.success : S.warning,
                     }} />
                   </div>
-                  <span className="text-[9px] font-mono font-bold" style={{
+                  <span className="text-[10px] font-mono font-bold" style={{
                     color: pass === qualityChecks.length ? S.success : S.warning,
                   }}>
                     {Math.round((pass / qualityChecks.length) * 100)}%
                   </span>
                 </div>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {qualityChecks.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2">
+                  <div key={c.id} className="flex items-center gap-2.5 p-2 rounded-lg" style={{ background: S.s2 }}>
                     {c.status === 'ok'
-                      ? <CheckCircle2 size={13} color={S.success} className="shrink-0" />
-                      : <AlertTriangle size={13} color={S.warning} className="shrink-0" />}
-                    <span className="text-[10px]" style={{ color: c.status === 'ok' ? S.text2 : S.warning }}>{c.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── 发布设置 ── */}
-            <div className="rounded-xl p-3 lg:col-span-2" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                  <Layers size={13} style={{ color: S.primary }} />
-                </div>
-                <h3 className="text-xs font-bold" style={{ color: S.text }}>发布设置</h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {([
-                  ["作品类型", "互动 H5"],
-                  ["画幅", "移动端竖屏 9:16"],
-                  ["分享标题", projectName],
-                  ["付费模式", "免费试玩"],
-                ] as const).map(([k, v]) => (
-                  <div key={k} className="p-2 rounded-lg" style={{ background: S.s2 }}>
-                    <span className="text-[9px] block" style={{ color: S.text3 }}>{k}</span>
-                    <span className="text-[10px] font-medium block mt-0.5" style={{ color: S.text }}>{v}</span>
+                      ? <CheckCircle2 size={14} color={S.success} className="shrink-0" />
+                      : <AlertTriangle size={14} color={S.warning} className="shrink-0" />}
+                    <div className="flex-1">
+                      <span className="text-[10px] font-bold" style={{ color: c.status === 'ok' ? S.text : S.warning }}>{c.label}</span>
+                    </div>
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
+                      background: c.status === 'ok' ? `${S.success}12` : `${S.warning}12`,
+                      color: c.status === 'ok' ? S.success : S.warning,
+                    }}>
+                      {c.status === 'ok' ? '通过' : '待处理'}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -406,9 +321,9 @@ export default function PublishScreen() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            TAB 1: 导出配置
+            TAB 2: 导出配置
            ════════════════════════════════════════════════════════════════ */}
-        {activeTab === 1 && (
+        {activeTab === 2 && (
           <div className="space-y-3">
 
             {/* ── 多端导出 ── */}
@@ -707,248 +622,6 @@ export default function PublishScreen() {
                         )}
                       </motion.button>
                     </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ════════════════════════════════════════════════════════════════
-            TAB 2: 快照与记录
-           ════════════════════════════════════════════════════════════════ */}
-        {activeTab === 2 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-            {/* ── 版本快照 ── */}
-            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                    <Camera size={13} style={{ color: S.primary }} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold" style={{ color: S.text }}>版本快照</h3>
-                    <p className="text-[9px]" style={{ color: S.text3 }}>当前 {snapshots[0]?.version ?? '—'} | {snapshots.length} 个版本</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {compareMode ? (
-                    <>
-                      <span className="text-[9px]" style={{ color: S.text3 }}>
-                        已选 {selectedSnapshots.length}/2
-                      </span>
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={exitCompareMode}
-                        className="text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                        style={{ background: `${S.error}12`, color: S.error }}
-                      >
-                        取消
-                      </motion.button>
-                    </>
-                  ) : (
-                    <>
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setCompareMode(true)}
-                        className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                        style={{ background: `${S.accent}12`, color: S.accent }}
-                      >
-                        <GitCompareArrows size={10} /> 对比
-                      </motion.button>
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleCreateSnapshot}
-                        className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                        style={{ background: `${S.primary}12`, color: S.primary }}
-                      >
-                        <Camera size={10} /> 新建
-                      </motion.button>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                {snapshots.map((snap) => {
-                  const cfg = STATUS_CFG[snap.status];
-                  const isSelected = selectedSnapshots.includes(snap.version);
-                  return (
-                    <motion.button
-                      key={snap.version}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        if (compareMode) toggleSnapshotSelect(snap.version);
-                      }}
-                      className="w-full text-left p-2.5 rounded-xl focus:outline-none"
-                      style={{
-                        background: isSelected ? `${S.accent}08` : S.s2,
-                        border: `1px solid ${isSelected ? S.accent : S.border}`,
-                        cursor: compareMode ? "pointer" : "default",
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-0.5">
-                        <div className="flex items-center gap-2">
-                          {compareMode && (
-                            <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
-                              style={{
-                                background: isSelected ? S.accent : S.s3,
-                                border: `1.5px solid ${isSelected ? S.accent : S.border2}`,
-                              }}>
-                              {isSelected && <CheckCircle2 size={10} color="#fff" />}
-                            </div>
-                          )}
-                          <span className="text-[11px] font-bold font-mono" style={{ color: S.text }}>
-                            {snap.version}
-                          </span>
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: cfg.bg, color: cfg.color }}>
-                            {cfg.label}
-                          </span>
-                        </div>
-                        <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{snap.date}</span>
-                      </div>
-                      <p className="text-[10px]" style={{ color: S.text2 }}>{snap.summary}</p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Layers size={9} style={{ color: S.text3 }} />
-                        <span className="text-[8px]" style={{ color: S.text3 }}>{snap.changes} 项变更</span>
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-
-              {/* 快照对比面板 */}
-              <AnimatePresence>
-                {compareMode && comparePair && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-2 p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.accent}30` }}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <ArrowLeftRight size={12} style={{ color: S.accent }} />
-                        <span className="text-[10px] font-bold" style={{ color: S.text }}>
-                          版本对比
-                        </span>
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                          style={{ background: `${S.accent}12`, color: S.accent }}>
-                          {comparePair.older.version} → {comparePair.newer.version}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {/* 旧版本 */}
-                        <div className="p-2 rounded-lg" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[10px] font-bold font-mono" style={{ color: S.text3 }}>
-                              {comparePair.older.version}
-                            </span>
-                            <span className="text-[8px] px-1 py-0.5 rounded"
-                              style={{ background: `${S.text3}15`, color: S.text3 }}>
-                              旧
-                            </span>
-                          </div>
-                          <p className="text-[9px] mb-0.5" style={{ color: S.text2 }}>{comparePair.older.summary}</p>
-                          <div className="flex items-center gap-1">
-                            <Clock size={8} style={{ color: S.text3 }} />
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.older.date}</span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Minus size={8} style={{ color: S.error }} />
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.older.changes} 项变更</span>
-                          </div>
-                        </div>
-                        {/* 新版本 */}
-                        <div className="p-2 rounded-lg" style={{ background: S.card, border: `1px solid ${S.accent}30` }}>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>
-                              {comparePair.newer.version}
-                            </span>
-                            <span className="text-[8px] px-1 py-0.5 rounded"
-                              style={{ background: `${S.accent}12`, color: S.accent }}>
-                              新
-                            </span>
-                          </div>
-                          <p className="text-[9px] mb-0.5" style={{ color: S.text2 }}>{comparePair.newer.summary}</p>
-                          <div className="flex items-center gap-1">
-                            <Clock size={8} style={{ color: S.text3 }} />
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.newer.date}</span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Plus size={8} style={{ color: S.success }} />
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.newer.changes} 项变更</span>
-                          </div>
-                        </div>
-                      </div>
-                      {/* 差异摘要 */}
-                      <div className="mt-2 p-1.5 rounded-lg" style={{ background: `${S.accent}06`, border: `1px solid ${S.accent}15` }}>
-                        <p className="text-[9px]" style={{ color: S.text2 }}>
-                          净增 <span className="font-bold font-mono" style={{ color: S.accent }}>
-                            {Math.abs(comparePair.newer.changes - comparePair.older.changes)}
-                          </span> 项变更
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {compareMode && selectedSnapshots.length < 2 && (
-                <p className="text-[9px] text-center mt-2" style={{ color: S.text3 }}>
-                  请选择两个版本进行对比
-                </p>
-              )}
-            </div>
-
-            {/* ── 变更记录 ── */}
-            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                  <History size={13} style={{ color: S.primary }} />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold" style={{ color: S.text }}>变更记录</h3>
-                  <p className="text-[9px]" style={{ color: S.text3 }}>今日 {changeLog.length} 条编辑</p>
-                </div>
-              </div>
-              <div className="space-y-0.5 max-h-[400px] overflow-y-auto">
-                {changeLog.map((log, i) => {
-                  const ActionIcon = ACTION_ICONS[log.action] ?? Pencil;
-                  return (
-                    <div key={i} className="flex items-start gap-2 py-1.5 border-b last:border-0"
-                      style={{ borderColor: S.border }}>
-                      {/* 时间 */}
-                      <div className="shrink-0 w-10 text-right pt-0.5">
-                        <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{log.time}</span>
-                      </div>
-                      {/* 时间线圆点 */}
-                      <div className="flex flex-col items-center shrink-0 pt-0.5">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center"
-                          style={{ background: `${log.color}12` }}>
-                          <ActionIcon size={10} style={{ color: log.color }} />
-                        </div>
-                      </div>
-                      {/* 内容 */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: `${log.color}12`, color: log.color }}>
-                            {log.actionLabel}
-                          </span>
-                          <span className="text-[10px] font-bold truncate" style={{ color: S.text }}>
-                            {log.target}
-                          </span>
-                          <span className="text-[8px] px-1 py-0.5 rounded shrink-0"
-                            style={{ background: S.s2, color: S.text3 }}>
-                            {log.user}
-                          </span>
-                        </div>
-                        <p className="text-[9px]" style={{ color: S.text3 }}>{log.detail}</p>
-                      </div>
-                    </div>
                   );
                 })}
               </div>

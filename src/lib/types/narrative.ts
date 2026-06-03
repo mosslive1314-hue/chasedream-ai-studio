@@ -17,6 +17,10 @@ export interface StoryNode {
   y: number;
   hasError?: boolean;
   errorMsg?: string;
+  /** POV 视角角色 ID（Detroit 多主角系统） */
+  povCharacterId?: string;
+  /** POV 叙事风格 */
+  povStyle?: 'first_person' | 'third_person' | 'over_shoulder';
 }
 
 export interface NodeEdge {
@@ -90,6 +94,8 @@ export interface ScriptBlock {
   content: string;
   options?: string[];
   color: string;
+  /** 内嵌演出指令（脚本 DSL） */
+  directives?: import('./detroit-features').ScriptDirective[];
 }
 
 // ── 热力图模拟数据（P2-13）─────────────────────────────────────────────
@@ -128,6 +134,8 @@ export interface ChapterPlan {
   suspenseHook?: string;
   chapterEndHook?: string;
   estimatedDuration: string;
+  /** 章节变体（根据前置选择激活不同版本） */
+  variants?: import('./detroit-features').ChapterVariant[];
 }
 
 // ── 世界规则数据（P3-4）─────────────────────────────────────────────
@@ -171,6 +179,8 @@ export interface InteractionPoint {
   tested: boolean;
   visibleCondition?: string;
   interactionType?: InteractionType;  // exploration | dialogue | decision | confrontation
+  /** 限时选择配置（Detroit 限时决策系统） */
+  timedDecision?: import('./detroit-features').TimedDecisionConfig;
 }
 
 // ── 制作管线阶段数据（P3-1）─────────────────────────────────────────────

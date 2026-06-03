@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import {
   X, Send, AlertCircle, Loader2, CheckCircle2, XCircle,
@@ -105,6 +106,10 @@ export function AgentPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  // 只在客户端渲染后挂载 portal
+  useEffect(() => { setMounted(true); }, []);
 
   // Store selectors
   const panelOpen         = useCanvasAgentStore(s => s.panelOpen);
@@ -220,22 +225,30 @@ export function AgentPanel() {
   const quickActions = getQuickActions(pathname);
   const statusCfg = STATUS_CONFIG[runStatus];
 
-  // ─── Render ───────────────────────────────────────────────
-  return (
-    <AnimatePresence>
+  // ─── Render (createPortal 脱离 EazoProvider 层叠上下文) ──────────────
+  if (!mounted) return null;
+  return createPortal(
+    <>
       {panelOpen && (
         <>
-          {/* Panel */}
-          <motion.aside
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "tween", duration: 250, ease: [0.4, 0, 0.2, 1] }}
-            className="fixed right-0 top-0 bottom-0 z-50 flex flex-col shadow-2xl"
+          {/* 半透明遮罩 — 纯视觉蒙版，不拦截任何点击事件 */}
+          <div
+            className="fixed inset-0"
             style={{
+              zIndex: 9998,
+              background: "rgba(0,0,0,0.08)",
+              pointerEvents: "none",
+            }}
+          />
+          {/* Panel — 纯 CSS 定位，不依赖 framer-motion 动画 */}
+          <aside
+            className="fixed right-0 top-0 bottom-0 flex flex-col shadow-2xl"
+            style={{
+              zIndex: 10000,
               width: 360,
               background: S.card,
               borderLeft: `1px solid ${S.border}`,
+              pointerEvents: "auto",
             }}
           >
             {/* ── Header ─────────────────────────────────────── */}
@@ -499,10 +512,11 @@ export function AgentPanel() {
                 </span>
               </div>
             </div>
-          </motion.aside>
+          </aside>
         </>
       )}
-    </AnimatePresence>
+    </>,
+    document.body
   );
 }
 
