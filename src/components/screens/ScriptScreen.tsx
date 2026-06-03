@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { GitBranch, Send, Bot, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
-import { useNarrativeStore } from "@/store";
+import { useNarrativeStore, useProjectStore } from "@/store";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -53,7 +53,7 @@ const NARRATIVE_TEMPLATES: NarrativeTemplate[] = [
       { act: '第三幕：解决', purpose: '高潮、解决、新常态', suggestedChapters: 2, suggestedEvents: 4, tensionRange: '7-10' },
     ],
     bestFor: ['冒险', '悬疑', '爱情', '成长'],
-    examples: '《幽灵协议》当前结构接近三幕式',
+    examples: '《__PROJECT_NAME__》当前结构接近三幕式',
   },
   {
     id: 'hero-journey',
@@ -117,6 +117,7 @@ const NARRATIVE_TEMPLATES: NarrativeTemplate[] = [
 
 // ── 章节规划内容组件（P3-2）──
 function ChapterPlanContent() {
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const chapterPlans = useNarrativeStore(state => state.chapterPlans);
   const [expandedChapter, setExpandedChapter] = useState<string | null>(chapterPlans[0]?.id ?? null);
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
@@ -420,7 +421,7 @@ function ChapterPlanContent() {
                               经典案例
                             </p>
                             <p className="text-[10px]" style={{ color: S.text2 }}>
-                              {tpl.examples}
+                              {tpl.examples.replace('__PROJECT_NAME__', projectName)}
                             </p>
                           </div>
 
@@ -677,6 +678,10 @@ function ChapterPlanContent() {
 }
 
 export default function ScriptScreen() {
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const narrativeTemplates = NARRATIVE_TEMPLATES.map(t =>
+    t.id === 'three-act' ? { ...t, examples: `《${projectName}》当前结构接近三幕式` } : t
+  );
   const scriptBlocks = useNarrativeStore(state => state.scriptBlocks);
   const aiSuggestions = useNarrativeStore(state => state.aiSuggestions);
   const [blocks, setBlocks] = useState<ScriptBlock[]>(scriptBlocks);

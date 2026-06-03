@@ -92,15 +92,44 @@ const NODE_TYPE_LABELS: Record<string, string> = {
   qte: "QTE", ending_good: "好结局", ending_bad: "坏结局",
 };
 
+// ── Section tab definitions ──────────────────────────────────────────────
+type SectionTabId = "camera" | "performance" | "pacing" | "audio" | "timeline";
+const SECTION_TABS: { id: SectionTabId; label: string; icon: typeof Camera; color: string }[] = [
+  { id: "camera",      label: "镜头设计",   icon: Camera, color: "#0EA5E9" },
+  { id: "performance", label: "表演指导",   icon: Users,  color: "#8B5CF6" },
+  { id: "pacing",      label: "节奏与转场", icon: Zap,    color: "#F59E0B" },
+  { id: "audio",       label: "音频设计",   icon: Music,  color: "#00A99D" },
+  { id: "timeline",    label: "节点时间线", icon: Film,   color: "#8B5CF6" },
+];
+
+// ── Chapter filter options ─────────────────────────────────────────────
+type ChapterFilter = "all" | "ch0" | "ch1" | "ch2";
+const CHAPTER_FILTERS: { id: ChapterFilter; label: string }[] = [
+  { id: "all", label: "全部" },
+  { id: "ch0", label: "序章" },
+  { id: "ch1", label: "第一章" },
+  { id: "ch2", label: "第二章" },
+];
+
+// ── Chapter → nodeId mapping (derived from story structure) ────────────
+const CHAPTER_NODE_MAP: Record<string, string[]> = {
+  ch0: ["N01"],
+  ch1: ["N02", "N03"],
+  ch2: ["N04", "N05", "N06", "N07", "N08", "N09", "N10", "N11"],
+};
+
 // ══════════════════════════════════════════════════════════════════════════
 export default function CinematicEditorScreen() {
   // ── Store selectors ──
   const cinematicDirections = useNarrativeStore(s => s.cinematicDirections);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const characters = useNarrativeStore(s => s.characters);
+  const chapterPlans = useNarrativeStore(s => s.chapterPlans);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string>(cinematicDirections[0]?.nodeId ?? "N01");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [sectionTab, setSectionTab] = useState<SectionTabId>("camera");
+  const [chapterFilter, setChapterFilter] = useState<ChapterFilter>("all");
 
   // Map nodeId to its cinematic direction
   const directionMap = useMemo(() => {
@@ -116,6 +145,13 @@ export default function CinematicEditorScreen() {
     return m;
   }, [storyNodes]);
 
+  // Filter directions by selected chapter
+  const filteredDirections = useMemo(() => {
+    if (chapterFilter === "all") return cinematicDirections;
+    const nodeIds = new Set(CHAPTER_NODE_MAP[chapterFilter] ?? []);
+    return cinematicDirections.filter((d) => nodeIds.has(d.nodeId));
+  }, [cinematicDirections, chapterFilter]);
+
   const currentDirection = directionMap.get(selectedNodeId);
   const currentNode = nodeMap.get(selectedNodeId);
 
@@ -124,19 +160,20 @@ export default function CinematicEditorScreen() {
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
         {/* ── A. Header ─────────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: S.purple10 }}>
-              <Film size={20} style={{ color: S.purple }} />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: S.purple10 }}>
+                <Film size={20} style={{ color: S.purple }} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold" style={{ color: S.text }}>电影化演出设计器</h1>
+                <p className="text-xs" style={{ color: S.text3 }}>配置镜头、表演、音频与节奏转场</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold" style={{ color: S.text }}>电影化演出设计器</h1>
-              <p className="text-xs" style={{ color: S.text3 }}>配置镜头、表演、音频与节奏转场</p>
-            </div>
-          </div>
 
-          {/* Node selector dropdown */}
-          <div className="relative">
+            {/* Node selector dropdown */}
+            <div className="relative">
             <button
               onClick={() => setDropdownOpen((v) => !v)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all focus:outline-none"
@@ -169,7 +206,7 @@ export default function CinematicEditorScreen() {
                   className="absolute right-0 top-full mt-2 z-50 py-1 rounded-xl shadow-lg min-w-[220px]"
                   style={{ background: S.card, border: `1px solid ${S.border}` }}
                 >
-                  {cinematicDirections.map((d) => {
+                  {filteredDirections.map((d) => {
                     const node = nodeMap.get(d.nodeId);
                     const isSelected = d.nodeId === selectedNodeId;
                     return (
@@ -191,61 +228,144 @@ export default function CinematicEditorScreen() {
               )}
             </AnimatePresence>
           </div>
+          </div>
+
+          {/* Chapter/scene filter pills */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-medium mr-1" style={{ color: S.text3 }}>章节:</span>
+            {CHAPTER_FILTERS.map((cf) => {
+              const isActive = chapterFilter === cf.id;
+              const chapterNodeCount = cf.id === "all"
+                ? cinematicDirections.length
+                : cinematicDirections.filter((d) => (CHAPTER_NODE_MAP[cf.id] ?? []).includes(d.nodeId)).length;
+              return (
+                <motion.button
+                  key={cf.id}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setChapterFilter(cf.id)}
+                  className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors focus:outline-none"
+                  style={{
+                    background: isActive ? S.purple10 : "transparent",
+                    color: isActive ? S.purple : S.text3,
+                    border: `1px solid ${isActive ? S.purple + "40" : "transparent"}`,
+                  }}
+                >
+                  {cf.label}
+                  <span className="text-[10px]" style={{ color: isActive ? S.purple : S.text3, opacity: 0.7 }}>
+                    {chapterNodeCount}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* ── B. Main Content ────────────────────────────────────────────── */}
-        {currentDirection && (
+        {/* ── B. Section Tabs ───────────────────────────────────────────── */}
+        <div className="flex items-center" style={{ borderBottom: `2px solid ${S.border}` }}>
+          {SECTION_TABS.map((tab) => {
+            const TabIcon = tab.icon;
+            const isActive = sectionTab === tab.id;
+            return (
+              <motion.button
+                key={tab.id}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setSectionTab(tab.id)}
+                className="relative flex items-center gap-1.5 px-4 py-3 text-xs font-medium focus:outline-none transition-colors"
+                style={{ color: isActive ? S.primary : S.text3 }}
+              >
+                <TabIcon size={13} style={{ color: isActive ? tab.color : S.text3 }} />
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="cinematic-tab-underline"
+                    className="absolute bottom-0 inset-x-0 h-0.5 rounded-full"
+                    style={{ background: S.primary }}
+                  />
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* ── C. Tab Content ────────────────────────────────────────────── */}
+        {currentDirection ? (
           <AnimatePresence mode="wait">
             <motion.div
-              key={selectedNodeId}
+              key={`${selectedNodeId}-${sectionTab}`}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.22 }}
-              className="space-y-5"
             >
-              {/* 4-section grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {sectionTab === "camera" && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}`, background: "rgba(14,165,233,0.06)" }}>
+                    <Camera size={15} style={{ color: "#0EA5E9" }} />
+                    <h2 className="text-sm font-bold" style={{ color: S.text }}>镜头设计</h2>
+                    <div className="flex-1 h-px" />
+                  </div>
+                  <div className="p-5">
+                    <CameraSection direction={currentDirection} />
+                  </div>
+                </div>
+              )}
 
-                {/* ── Section 1: Camera ───────────────────────────────────── */}
-                <SectionCard icon={<Camera size={15} />} title="镜头设计" color="#0EA5E9" bg="rgba(14,165,233,0.06)">
-                  <CameraSection direction={currentDirection} />
-                </SectionCard>
+              {sectionTab === "performance" && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}`, background: "rgba(139,92,246,0.06)" }}>
+                    <Users size={15} style={{ color: "#8B5CF6" }} />
+                    <h2 className="text-sm font-bold" style={{ color: S.text }}>表演指导</h2>
+                    <div className="flex-1 h-px" />
+                  </div>
+                  <div className="p-5">
+                    <PerformanceSection direction={currentDirection} />
+                  </div>
+                </div>
+              )}
 
-                {/* ── Section 2: Performance ─────────────────────────────── */}
-                <SectionCard icon={<Users size={15} />} title="表演指导" color="#8B5CF6" bg="rgba(139,92,246,0.06)">
-                  <PerformanceSection direction={currentDirection} />
-                </SectionCard>
+              {sectionTab === "pacing" && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}`, background: "rgba(245,158,11,0.06)" }}>
+                    <Zap size={15} style={{ color: "#F59E0B" }} />
+                    <h2 className="text-sm font-bold" style={{ color: S.text }}>节奏与转场</h2>
+                    <div className="flex-1 h-px" />
+                  </div>
+                  <div className="p-5">
+                    <PacingSection direction={currentDirection} />
+                  </div>
+                </div>
+              )}
 
-                {/* ── Section 3: Audio ───────────────────────────────────── */}
-                <SectionCard icon={<Music size={15} />} title="音频设计" color="#00A99D" bg="rgba(0,169,157,0.06)">
-                  <AudioSection direction={currentDirection} />
-                </SectionCard>
+              {sectionTab === "audio" && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}`, background: "rgba(0,169,157,0.06)" }}>
+                    <Music size={15} style={{ color: "#00A99D" }} />
+                    <h2 className="text-sm font-bold" style={{ color: S.text }}>音频设计</h2>
+                    <div className="flex-1 h-px" />
+                  </div>
+                  <div className="p-5">
+                    <AudioSection direction={currentDirection} />
+                  </div>
+                </div>
+              )}
 
-                {/* ── Section 4: Pacing & Transition ─────────────────────── */}
-                <SectionCard icon={<Zap size={15} />} title="节奏与转场" color="#F59E0B" bg="rgba(245,158,11,0.06)">
-                  <PacingSection direction={currentDirection} />
-                </SectionCard>
-              </div>
+              {sectionTab === "timeline" && (
+                <NodeTimeline
+                  directions={filteredDirections}
+                  nodeMap={nodeMap}
+                  selectedNodeId={selectedNodeId}
+                  onSelect={setSelectedNodeId}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
-        )}
-
-        {!currentDirection && (
+        ) : (
           <div className="rounded-2xl p-16 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
             <Film size={40} className="mx-auto mb-4" style={{ color: S.text3 }} />
             <p className="text-sm font-bold" style={{ color: S.text2 }}>该节点尚未配置电影化演出</p>
             <p className="text-xs mt-1" style={{ color: S.text3 }}>选择一个已配置的节点开始编辑</p>
           </div>
         )}
-
-        {/* ── C. Node Timeline ───────────────────────────────────────────── */}
-        <NodeTimeline
-          directions={cinematicDirections}
-          nodeMap={nodeMap}
-          selectedNodeId={selectedNodeId}
-          onSelect={setSelectedNodeId}
-        />
       </div>
     </div>
   );

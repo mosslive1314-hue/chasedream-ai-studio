@@ -12,7 +12,7 @@ import {
 import {
   type PlayableNode, type PathTestResult, type PlayerExplorationMap,
 } from "@/lib/studio-data";
-import { useNarrativeStore } from "@/store";
+import { useNarrativeStore, useProjectStore } from "@/store";
 
 const S = {
   primary: "#6355D8",
@@ -110,6 +110,7 @@ export default function SimulatorScreen() {
   const router = useRouter();
 
   // ── Store selectors ──
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const playableGraph = useNarrativeStore(s => s.playableGraph);
   const initVariables = useNarrativeStore(s => s.initVariables);
   const pathTestResults = useNarrativeStore(s => s.pathTestResults);
@@ -363,7 +364,7 @@ export default function SimulatorScreen() {
               <ChevronLeft size={16} />
             </motion.button>
             <span className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-              幽灵协议 · {mainTab === "play" ? "试玩模式" : mainTab === "test" ? "自动测试" : "探索图"}
+              {projectName} · {mainTab === "play" ? "试玩模式" : mainTab === "test" ? "自动测试" : "探索图"}
             </span>
           </div>
 

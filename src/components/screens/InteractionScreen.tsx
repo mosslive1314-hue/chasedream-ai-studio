@@ -34,7 +34,7 @@ function emotionColor(v: number): { color: string; bg: string; label: string } {
 }
 
 // ── Tab types ────────────────────────────────────────────────────────────
-type ViewTab = "interactions" | "consequences";
+type ViewTab = "interactions" | "consequences" | "suggestions";
 
 // ── Timing color helpers ─────────────────────────────────────────────────
 function timingColor(t: ConsequenceTiming): { color: string; bg: string; label: string } {
@@ -181,6 +181,7 @@ export default function InteractionScreen() {
         <div className="flex items-center gap-1" style={{ borderBottom: `2px solid ${S.border}` }}>
           <TabButton active={activeTab === "interactions"} onClick={() => setActiveTab("interactions")} label="互动点设计" icon={<Zap size={14} />} />
           <TabButton active={activeTab === "consequences"} onClick={() => setActiveTab("consequences")} label="后果追踪" icon={<GitBranch size={14} />} badge={conseqStats.unresolved.length > 0 ? conseqStats.unresolved.length : undefined} />
+          <TabButton active={activeTab === "suggestions"} onClick={() => setActiveTab("suggestions")} label="设计建议" icon={<Sparkles size={14} />} />
         </div>
 
         {/* ════════════ TAB: Interaction Points ════════════ */}
@@ -370,116 +371,6 @@ export default function InteractionScreen() {
                   </div>
                 )}
               </div>
-
-              {/* ── D. Design Suggestions Panel ────────────────────────── */}
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="rounded-2xl p-6 space-y-5"
-                style={{ background: S.card, border: `1px solid ${S.border}` }}
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} style={{ color: S.primary }} />
-                  <h2 className="text-sm font-bold" style={{ color: S.text }}>设计建议</h2>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Untested interactions */}
-                  <SuggestionCard
-                    icon={<FlaskConical size={14} />}
-                    title="未测试的互动点"
-                    color={S.warning}
-                    bg="rgba(217,119,6,0.06)"
-                    border="rgba(217,119,6,0.2)"
-                  >
-                    {stats.untestedList.length === 0 ? (
-                      <p className="text-xs" style={{ color: S.success }}>所有互动点均已测试</p>
-                    ) : (
-                      <ul className="space-y-1.5">
-                        {stats.untestedList.map((ip) => (
-                          <li key={ip.id} className="flex items-center gap-2 text-xs" style={{ color: S.text2 }}>
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: S.warning }} />
-                            <span className="font-medium">{ip.name}</span>
-                            <span style={{ color: S.text3 }}>({ip.nodeId})</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </SuggestionCard>
-
-                  {/* Missing failure feedback */}
-                  <SuggestionCard
-                    icon={<ShieldAlert size={14} />}
-                    title="缺少失败反馈"
-                    color={S.error}
-                    bg="rgba(220,38,38,0.06)"
-                    border="rgba(220,38,38,0.2)"
-                  >
-                    {stats.missingFailFeedback.length === 0 ? (
-                      <p className="text-xs" style={{ color: S.success }}>所有互动点均有失败反馈</p>
-                    ) : (
-                      <ul className="space-y-1.5">
-                        {stats.missingFailFeedback.map((ip) => (
-                          <li key={ip.id} className="flex items-center gap-2 text-xs" style={{ color: S.text2 }}>
-                            <AlertTriangle size={11} className="shrink-0" style={{ color: S.error }} />
-                            <span className="font-medium">{ip.name}</span>
-                            <span style={{ color: S.text3 }}>({ip.nodeId})</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </SuggestionCard>
-
-                  {/* Emotion intensity summary */}
-                  <SuggestionCard
-                    icon={<BarChart3 size={14} />}
-                    title="情绪强度分布"
-                    color={S.primary}
-                    bg={S.primary10}
-                    border="rgba(94,80,232,0.2)"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1" style={{ color: S.text3 }}>
-                          <TrendingUp size={11} /> 最高
-                        </span>
-                        <span className="font-bold" style={{ color: emotionColor(stats.maxIntensity).color }}>{stats.maxIntensity}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1" style={{ color: S.text3 }}>
-                          <TrendingDown size={11} /> 最低
-                        </span>
-                        <span className="font-bold" style={{ color: emotionColor(stats.minIntensity).color }}>{stats.minIntensity}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1" style={{ color: S.text3 }}>
-                          <Minus size={11} /> 平均
-                        </span>
-                        <span className="font-bold" style={{ color: S.text }}>{stats.avgIntensity.toFixed(1)}</span>
-                      </div>
-                      {/* Mini bar chart */}
-                      <div className="flex items-end gap-1 pt-2 h-12">
-                        {interactionPoints.map((ip) => {
-                          const ec = emotionColor(ip.emotionIntensity);
-                          return (
-                            <div key={ip.id} className="flex-1 flex flex-col items-center gap-0.5">
-                              <motion.div
-                                initial={{ height: 0 }}
-                                animate={{ height: `${ip.emotionIntensity * 10}%` }}
-                                transition={{ duration: 0.4, delay: 0.3 }}
-                                className="w-full rounded-t-sm"
-                                style={{ background: ec.color, minHeight: 4, maxHeight: 40 }}
-                              />
-                              <span className="text-[8px]" style={{ color: S.text3 }}>{ip.id.replace("ip-", "")}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </SuggestionCard>
-                </div>
-              </motion.div>
             </motion.div>
           )}
 
@@ -740,6 +631,142 @@ export default function InteractionScreen() {
                   <p className="text-xs mt-1" style={{ color: S.text3 }}>没有未解决的后果悬念</p>
                 </div>
               )}
+
+            </motion.div>
+          )}
+
+          {/* ════════════ TAB: Design Suggestions ════════════ */}
+          {activeTab === "suggestions" && (
+            <motion.div key="suggestions" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.2 }} className="space-y-6">
+
+              {/* Summary stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-xl p-4 text-center" style={{ background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.2)" }}>
+                  <FlaskConical size={18} className="mx-auto mb-2" style={{ color: S.warning }} />
+                  <p className="text-lg font-bold" style={{ color: S.warning }}>{stats.untested}</p>
+                  <p className="text-[10px] font-medium" style={{ color: S.text3 }}>未测试互动点</p>
+                </div>
+                <div className="rounded-xl p-4 text-center" style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)" }}>
+                  <ShieldAlert size={18} className="mx-auto mb-2" style={{ color: S.error }} />
+                  <p className="text-lg font-bold" style={{ color: S.error }}>{stats.missingFailFeedback.length}</p>
+                  <p className="text-[10px] font-medium" style={{ color: S.text3 }}>缺少失败反馈</p>
+                </div>
+                <div className="rounded-xl p-4 text-center" style={{ background: S.primary10, border: "1px solid rgba(94,80,232,0.2)" }}>
+                  <BarChart3 size={18} className="mx-auto mb-2" style={{ color: S.primary }} />
+                  <p className="text-lg font-bold" style={{ color: S.primary }}>{stats.avgIntensity.toFixed(1)}</p>
+                  <p className="text-[10px] font-medium" style={{ color: S.text3 }}>平均情绪强度</p>
+                </div>
+              </div>
+
+              {/* Detailed suggestions */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Untested interactions */}
+                <div className="rounded-2xl p-5 space-y-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <div className="flex items-center gap-2">
+                    <FlaskConical size={14} style={{ color: S.warning }} />
+                    <h3 className="text-sm font-bold" style={{ color: S.text }}>未测试的互动点</h3>
+                  </div>
+                  {stats.untestedList.length === 0 ? (
+                    <div className="text-center py-6">
+                      <CheckCircle2 size={24} className="mx-auto mb-2" style={{ color: S.success }} />
+                      <p className="text-xs font-medium" style={{ color: S.success }}>所有互动点均已测试</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {stats.untestedList.map((ip) => {
+                        const emo = emotionColor(ip.emotionIntensity);
+                        return (
+                          <li key={ip.id} className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: S.s2 }}>
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: S.warning }} />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-bold block" style={{ color: S.text }}>{ip.name}</span>
+                              <span className="text-[10px]" style={{ color: S.text3 }}>{ip.nodeId} · {chapterLabels[ip.chapterId] ?? ip.chapterId}</span>
+                            </div>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium" style={{ background: emo.bg, color: emo.color }}>
+                              {ip.emotionIntensity}/10
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Missing failure feedback */}
+                <div className="rounded-2xl p-5 space-y-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert size={14} style={{ color: S.error }} />
+                    <h3 className="text-sm font-bold" style={{ color: S.text }}>缺少失败反馈</h3>
+                  </div>
+                  {stats.missingFailFeedback.length === 0 ? (
+                    <div className="text-center py-6">
+                      <CheckCircle2 size={24} className="mx-auto mb-2" style={{ color: S.success }} />
+                      <p className="text-xs font-medium" style={{ color: S.success }}>所有互动点均有失败反馈</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {stats.missingFailFeedback.map((ip) => (
+                        <li key={ip.id} className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: "rgba(220,38,38,0.04)" }}>
+                          <AlertTriangle size={12} className="shrink-0" style={{ color: S.error }} />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold block" style={{ color: S.text }}>{ip.name}</span>
+                            <span className="text-[10px]" style={{ color: S.text3 }}>{ip.nodeId}</span>
+                          </div>
+                          <Link href={`/interaction`} className="text-[9px] font-bold px-2 py-1 rounded-lg" style={{ background: "rgba(220,38,38,0.10)", color: S.error }}>
+                            补充
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Emotion intensity distribution */}
+                <div className="rounded-2xl p-5 space-y-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={14} style={{ color: S.primary }} />
+                    <h3 className="text-sm font-bold" style={{ color: S.text }}>情绪强度分布</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1" style={{ color: S.text3 }}>
+                        <TrendingUp size={11} /> 最高
+                      </span>
+                      <span className="font-bold" style={{ color: emotionColor(stats.maxIntensity).color }}>{stats.maxIntensity}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1" style={{ color: S.text3 }}>
+                        <TrendingDown size={11} /> 最低
+                      </span>
+                      <span className="font-bold" style={{ color: emotionColor(stats.minIntensity).color }}>{stats.minIntensity}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1" style={{ color: S.text3 }}>
+                        <Minus size={11} /> 平均
+                      </span>
+                      <span className="font-bold" style={{ color: S.text }}>{stats.avgIntensity.toFixed(1)}</span>
+                    </div>
+                  </div>
+                  {/* Bar chart */}
+                  <div className="flex items-end gap-1 pt-2 h-16">
+                    {interactionPoints.map((ip) => {
+                      const ec = emotionColor(ip.emotionIntensity);
+                      return (
+                        <div key={ip.id} className="flex-1 flex flex-col items-center gap-0.5">
+                          <motion.div
+                            initial={{ height: 0 }}
+                            animate={{ height: `${ip.emotionIntensity * 10}%` }}
+                            transition={{ duration: 0.4, delay: 0.1 }}
+                            className="w-full rounded-t-sm"
+                            style={{ background: ec.color, minHeight: 4, maxHeight: 56 }}
+                          />
+                          <span className="text-[8px]" style={{ color: S.text3 }}>{ip.id.replace("ip-", "")}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
 
             </motion.div>
           )}

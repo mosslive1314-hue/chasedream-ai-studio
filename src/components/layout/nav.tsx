@@ -1,15 +1,20 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, Scissors, FileText, GitBranch, MousePointer,
-  Network, Package, Play, Activity, Rocket, Users, Film,
-  Settings, ChevronLeft, ChevronRight, ChevronDown,
+  Scissors, FileText, GitBranch, MousePointer,
+  Network, Play, Activity, Rocket, Users, Film,
+  Settings, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
+  Package, GitCompare, LogOut, UserRound,
 } from "lucide-react";
 import { INDUSTRY_LABELS, type IndustryType } from "@/lib/studio-data";
 import { useUIStore } from "@/store";
+import { useNarrativeStore } from "@/store";
+import { auth } from "@eazo/sdk";
+import { useEazo } from "@eazo/sdk/react";
 
 const W_OPEN = 200;
 const W_CLOSED = 56;
@@ -23,59 +28,61 @@ const INDUSTRY_ICONS: { type: IndustryType; icon: string }[] = [
 
 type NavItem = {
   href: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof Scissors;
   label: string;
   labelKey?: string;
   disabled?: boolean;
 };
 
 const NAV: NavItem[] = [
-  { href: "/",           icon: LayoutDashboard, label: "\u5DE5\u4F5C\u53F0" },
-  { href: "/pipeline",   icon: GitBranch,       label: "\u5236\u4F5C\u7BA1\u7EBF", labelKey: "pipeline" },
-  { href: "/parse",      icon: Scissors,        label: "\u5267\u672C\u89E3\u6784", labelKey: "parse" },
-  { href: "/script",     icon: FileText,        label: "\u5267\u672C\u7F16\u8F91", labelKey: "script" },
-  { href: "/interaction",icon: MousePointer,    label: "\u4E92\u52A8\u8BBE\u8BA1", labelKey: "interaction" },
-  { href: "/nodes",      icon: Network,         label: "\u8282\u70B9\u56FE\u8C31", labelKey: "node" },
-  { href: "/assets",     icon: Package,         label: "\u8D44\u4EA7\u5E93",   labelKey: "asset" },
-  { href: "/simulator",  icon: Play,            label: "\u6F14\u51FA\u9884\u89C8", labelKey: "simulator" },
-  { href: "/cinematic",  icon: Film,            label: "\u6F14\u51FA\u8BBE\u8BA1", labelKey: "cinematic" },
-  { href: "/overview",   icon: Activity,        label: "\u8D28\u68C0\u603B\u89C8", labelKey: "overview" },
-  { href: "/publish",    icon: Rocket,          label: "\u53D1\u5E03",     labelKey: "publish" },
-  { href: "/collab",     icon: Users,           label: "\u534F\u4F5C", disabled: true },
+  // \u521B\u4F5C (indices 0-2)
+  { href: "/story-overview", icon: BookOpen,     label: "\u5267\u672C\u603B\u89C8", labelKey: "storyOverview" },  // 0
+  { href: "/parse",          icon: Scissors,     label: "\u5267\u672C\u89E3\u6784", labelKey: "parse" },          // 1
+  { href: "/script",         icon: FileText,     label: "\u5267\u672C\u7F16\u8F91", labelKey: "script" },         // 2
+  // \u8BBE\u8BA1 (indices 3-5)
+  { href: "/interaction",    icon: MousePointer, label: "\u4E92\u52A8\u8BBE\u8BA1", labelKey: "interaction" },    // 3
+  { href: "/cinematic",      icon: Film,         label: "\u6F14\u51FA\u8BBE\u8BA1", labelKey: "cinematic" },      // 4
+  { href: "/nodes",          icon: Network,      label: "\u8282\u70B9\u56FE\u8C31", labelKey: "node" },           // 5
+  // \u4EA4\u4ED8 (indices 6-8)
+  { href: "/overview",       icon: Activity,     label: "\u8D28\u68C0\u603B\u89C8", labelKey: "overview" },       // 6
+  { href: "/simulator",      icon: Play,         label: "\u6F14\u51FA\u9884\u89C8", labelKey: "simulator" },      // 7
+  { href: "/publish",        icon: Rocket,       label: "\u53D1\u5E03",     labelKey: "publish" },        // 8
 ];
 
 // ── P10-8: Navigation Groups ────────────────────────────────────────────
-// Reorganize flat NAV into 4 collapsible groups.
+// Reorganize flat NAV into 3 collapsible groups.
 // Group labels adapt to industry (game / tourism / education / derivative).
 type NavGroup = {
   label: string;
   labelKey: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof Scissors;
   items: NavItem[];
   industryLabels: Record<IndustryType, string>;
 };
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "\u5185\u5BB9", labelKey: "content", icon: LayoutDashboard,
-    industryLabels: { game: "\u5185\u5BB9", tourism: "\u5185\u5BB9", education: "\u5185\u5BB9", derivative: "\u5185\u5BB9" },
-    items: [NAV[0], NAV[1]],
-  },
-  {
     label: "\u521B\u4F5C", labelKey: "creation", icon: FileText,
     industryLabels: { game: "\u521B\u4F5C", tourism: "\u4F53\u9A8C\u8BBE\u8BA1", education: "\u8BFE\u7A0B\u8BBE\u8BA1", derivative: "\u5267\u60C5\u8BBE\u8BA1" },
-    items: [NAV[2], NAV[3], NAV[4]],
+    items: [NAV[0], NAV[1], NAV[2]],
   },
   {
     label: "\u8BBE\u8BA1", labelKey: "design", icon: Network,
     industryLabels: { game: "\u8BBE\u8BA1", tourism: "\u8DEF\u7EBF\u8BBE\u8BA1", education: "\u7D20\u6750\u8BBE\u8BA1", derivative: "\u6F14\u51FA\u8BBE\u8BA1" },
-    items: [NAV[5], NAV[6], NAV[7], NAV[8]],
+    items: [NAV[3], NAV[4], NAV[5]],
   },
   {
     label: "\u4EA4\u4ED8", labelKey: "delivery", icon: Rocket,
     industryLabels: { game: "\u4EA4\u4ED8", tourism: "\u4EA4\u4ED8", education: "\u4EA4\u4ED8", derivative: "\u4EA4\u4ED8" },
-    items: [NAV[9], NAV[10], NAV[11]],
+    items: [NAV[6], NAV[7], NAV[8]],
   },
+];
+
+// ── Bottom utility tools (below main nav groups) ────────────────────────
+const BOTTOM_TOOLS: NavItem[] = [
+  { href: "/assets",  icon: Package,     label: "资产库" },
+  { href: "/collab",  icon: Users,       label: "\u534F\u4F5C" },
+  { href: "/version", icon: GitCompare, label: "\u7248\u672C\u7BA1\u7406" },
 ];
 
 // ── P10-13: Orphan Page Integration ─────────────────────────────────────
@@ -107,6 +114,31 @@ function getLabel(item: NavItem, industry: IndustryType): string {
 
 function getGroupLabel(group: NavGroup, industry: IndustryType): string {
   return group.industryLabels[industry] || group.label;
+}
+
+/* ── Pipeline progress helpers ──────────────────────────────────────────── */
+
+// Map sidebar nav group keys → pipeline stage linkedPage routes
+const GROUP_STAGE_ROUTES: Record<string, string[]> = {
+  creation: ["/settings", "/parse", "/script", "/story-overview"],
+  design:   ["/interaction", "/cinematic", "/nodes"],
+  delivery: ["/assets", "/simulator", "/overview", "/publish"],
+};
+
+type GroupProgress = { pct: number; status: "done" | "active" | "upcoming" };
+
+function calcGroupProgress(
+  stages: { linkedPage?: string; status: string; progress: number }[],
+  groupKey: string,
+): GroupProgress {
+  const routes = GROUP_STAGE_ROUTES[groupKey];
+  if (!routes) return { pct: 0, status: "upcoming" };
+  const matched = stages.filter(s => s.linkedPage && routes.includes(s.linkedPage));
+  if (matched.length === 0) return { pct: 0, status: "upcoming" };
+  const avgPct = Math.round(matched.reduce((sum, s) => sum + s.progress, 0) / matched.length);
+  const hasActive = matched.some(s => s.status === "active");
+  const allDone = matched.every(s => s.status === "completed");
+  return { pct: avgPct, status: allDone ? "done" : hasActive ? "active" : "upcoming" };
 }
 
 /* ── Mobile Bottom Nav (P10-14) ─────────────────────────────────────────── */
@@ -212,7 +244,7 @@ export function BottomNav() {
         )}
       </AnimatePresence>
 
-      {/* 4 group icon tabs */}
+      {/* 3 group icon tabs */}
       <nav
         className="flex"
         style={{
@@ -276,6 +308,7 @@ export function SideNav() {
   const path = usePathname();
   const { sidebarCollapsed, toggleSidebar, industry, setIndustry } =
     useUIStore();
+  const pipelineStages = useNarrativeStore(s => s.pipelineStages);
   const open = !sidebarCollapsed;
 
   const [tooltip, setTooltip] = useState<string | null>(null);
@@ -357,6 +390,23 @@ export function SideNav() {
               </motion.span>
             )}
           </AnimatePresence>
+          {/* Alternative collapse button in header */}
+          <AnimatePresence>
+            {open && (
+              <motion.button
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.18 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={toggleSidebar}
+                className="ml-auto shrink-0 w-6 h-6 rounded-lg flex items-center justify-center focus:outline-none transition-colors hover:bg-gray-100 overflow-hidden"
+                title="收起侧边栏"
+              >
+                <ChevronLeft size={14} style={{ color: "#9198B5" }} />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Navigation groups */}
@@ -394,6 +444,27 @@ export function SideNav() {
                     >
                       {getGroupLabel(group, industry)}
                     </span>
+                    {/* Pipeline micro progress */}
+                    {(() => {
+                      const gp = calcGroupProgress(pipelineStages, group.labelKey);
+                      const barColor = gp.status === "done" ? "#059669" : gp.status === "active" ? "#5E50E8" : "#CBD0E5";
+                      return (
+                        <div className="flex items-center gap-1 shrink-0" title={`进度 ${gp.pct}%`}>
+                          <div className="w-8 h-[3px] rounded-full overflow-hidden" style={{ background: "#E2E5F0" }}>
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${gp.pct}%` }}
+                              transition={{ duration: 0.4, ease: "easeOut" }}
+                              className="h-full rounded-full"
+                              style={{ background: barColor }}
+                            />
+                          </div>
+                          <span className="text-[8px] font-bold tabular-nums" style={{ color: barColor, minWidth: 18, textAlign: "right" }}>
+                            {gp.pct}%
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <motion.div
                       animate={{ rotate: isExpanded ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
@@ -600,18 +671,141 @@ export function SideNav() {
                         color: hasActiveItem ? "#5E50E8" : "#9198B5",
                       }}
                     />
+                    {/* Collapsed pipeline progress dot */}
+                    {(() => {
+                      const gp = calcGroupProgress(pipelineStages, group.labelKey);
+                      const dotColor = gp.status === "done" ? "#059669" : gp.status === "active" ? "#5E50E8" : "transparent";
+                      if (gp.status === "upcoming") return null;
+                      return (
+                        <div className="w-1.5 h-1.5 rounded-full mt-0.5" style={{ background: dotColor }} />
+                      );
+                    })()}
                   </motion.button>
                 )}
               </div>
             );
           })}
+
+          {/* Collapsed bottom tools */}
+          {!open && (
+            <div className="flex flex-col gap-1 mt-2 pt-2" style={{ borderTop: "1px solid #E2E5F0" }}>
+              {BOTTOM_TOOLS.map((item) => (
+                <motion.button
+                  key={item.href}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    if (!item.disabled) {
+                      window.location.href = item.href;
+                    } else {
+                      setTooltip(tooltip === item.href ? null : item.href);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center py-2 rounded-xl cursor-pointer transition-colors focus:outline-none relative"
+                  style={{
+                    background: "transparent",
+                    opacity: item.disabled ? 0.5 : 1,
+                  }}
+                  title={item.label}
+                >
+                  <item.icon size={14} strokeWidth={1.8} style={{ color: "#9198B5" }} />
+                  {tooltip === item.href && item.disabled && (
+                    <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 px-2 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap shadow-md"
+                      style={{ background: "#1A1D2E", color: "#fff" }}>
+                      {"\u5373\u5C06\u4E0A\u7EBF"}
+                    </div>
+                  )}
+                </motion.button>
+              ))}
+            </div>
+          )}
         </nav>
 
-        {/* Settings */}
+        {/* Bottom tools + Settings */}
         <div
-          className="px-2 py-2 border-t shrink-0"
+          className="px-2 py-2 border-t shrink-0 space-y-0.5"
           style={{ borderColor: "#E2E5F0" }}
         >
+          {/* Bottom utility tools */}
+          {BOTTOM_TOOLS.map((item) => {
+            const active = isActive(item.href, path);
+            const displayLabel = getLabel(item, industry);
+
+            if (item.disabled) {
+              return (
+                <div key={item.href} className="relative">
+                  <motion.div
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setTooltip(tooltip === item.href ? null : item.href)}
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors"
+                    style={{ background: "transparent", border: "1px solid transparent", opacity: 0.5 }}
+                  >
+                    <item.icon size={14} strokeWidth={1.8} style={{ color: "#9198B5", flexShrink: 0 }} />
+                    <AnimatePresence>
+                      {open && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.16 }}
+                          className="text-[11px] font-medium truncate overflow-hidden whitespace-nowrap"
+                          style={{ color: "#9198B5" }}
+                        >
+                          {displayLabel}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                  {tooltip === item.href && (
+                    <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 px-2 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap shadow-md"
+                      style={{ background: "#1A1D2E", color: "#fff" }}>
+                      {"\u5373\u5C06\u4E0A\u7EBF"}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <Link key={item.href} href={item.href} title={displayLabel} className="block">
+                <motion.div
+                  whileTap={{ scale: 0.97 }}
+                  className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors"
+                  style={{
+                    background: active ? "rgba(94,80,232,0.1)" : "transparent",
+                    border: active ? "1px solid rgba(94,80,232,0.2)" : "1px solid transparent",
+                  }}
+                >
+                  <item.icon size={14} strokeWidth={active ? 2.5 : 1.8}
+                    style={{ color: active ? "#5E50E8" : "#9198B5", flexShrink: 0 }} />
+                  <AnimatePresence>
+                    {open && (
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={`${item.labelKey || item.label}-${industry}`}
+                          initial={{ opacity: 0, x: -4 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 4 }}
+                          transition={{ duration: 0.16 }}
+                          className="text-[11px] font-medium truncate overflow-hidden whitespace-nowrap"
+                          style={{ color: active ? "#5E50E8" : "#1A1D2E" }}
+                        >
+                          {displayLabel}
+                        </motion.span>
+                      </AnimatePresence>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </Link>
+            );
+          })}
+
+          {/* Separator */}
+          <div className="my-1.5 mx-2" style={{ height: 1, background: "#E2E5F0" }} />
+
+          {/* User profile */}
+          <SidebarUserProfile open={open} />
+
+          {/* Settings link (original) */}
           <Link href="/settings" title={"\u8BBE\u7F6E"}>
             <motion.div
               whileTap={{ scale: 0.97 }}
@@ -751,16 +945,128 @@ export function SideNav() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={toggleSidebar}
-          className="absolute bottom-16 right-[-12px] w-6 h-6 rounded-full flex items-center justify-center focus:outline-none z-40 shadow-sm"
-          style={{ background: "#fff", border: "1px solid #E2E5F0" }}
+          className="group absolute bottom-16 right-[-14px] w-7 h-7 rounded-full flex items-center justify-center focus:outline-none z-40 shadow-md hover:shadow-lg transition-shadow"
+          style={{ background: "#fff", border: "1.5px solid #D0D4E4" }}
+          title={open ? "收起侧边栏" : "展开侧边栏"}
         >
           {open ? (
-            <ChevronLeft size={12} style={{ color: "#9198B5" }} />
+            <ChevronLeft size={16} strokeWidth={2.5} style={{ color: "#7C7FA0" }} />
           ) : (
-            <ChevronRight size={12} style={{ color: "#9198B5" }} />
+            <ChevronRight size={16} strokeWidth={2.5} style={{ color: "#7C7FA0" }} />
+          )}
+          {/* Hover tooltip */}
+          {open && (
+            <span className="absolute left-full ml-2 px-2 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md"
+              style={{ background: "#1A1D2E", color: "#fff" }}>
+              收起侧边栏
+            </span>
           )}
         </motion.button>
       </motion.aside>
     </>
+  );
+}
+
+/* ── Sidebar User Profile (compact) ───────────────────────────────────── */
+
+function SidebarUserProfile({ open }: { open: boolean }) {
+  const user = useEazo((s) => s.auth.user);
+  const loading = useEazo((s) => s.auth.loading);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-2">
+        <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#E2E5F0", borderTopColor: "#5E50E8" }} />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => auth.login().catch(() => undefined)}
+        className="flex items-center gap-2 px-2.5 py-2 rounded-xl w-full transition-colors hover:bg-gray-50"
+      >
+        <UserRound size={14} style={{ color: "#9198B5" }} />
+        <AnimatePresence>
+          {open && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }} exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.16 }}
+              className="text-[11px] font-medium overflow-hidden whitespace-nowrap"
+              style={{ color: "#9198B5" }}
+            >
+              登录
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.button>
+    );
+  }
+
+  const displayName = user.name ?? user.email ?? user.id;
+  const initial = (displayName ?? "?")[0].toUpperCase();
+  const avatarSrc = user.avatarUrl
+    ? user.avatarUrl.startsWith("//") ? `https:${user.avatarUrl}` : user.avatarUrl
+    : null;
+
+  return (
+    <div className="relative">
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => open && setMenuOpen(o => !o)}
+        className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer w-full transition-colors hover:bg-gray-50"
+      >
+        {avatarSrc ? (
+          <Image src={avatarSrc} alt={displayName ?? "avatar"} width={20} height={20}
+            className="rounded-full object-cover shrink-0" style={{ width: 20, height: 20 }} />
+        ) : (
+          <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(94,80,232,0.15)" }}>
+            <span className="text-[9px] font-bold" style={{ color: "#5E50E8" }}>{initial}</span>
+          </div>
+        )}
+        <AnimatePresence>
+          {open && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }} exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.16 }}
+              className="text-[11px] font-medium truncate overflow-hidden whitespace-nowrap flex-1 text-left"
+              style={{ color: "#1A1D2E" }}
+            >
+              {displayName}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.button>
+
+      {/* User dropdown menu */}
+      <AnimatePresence>
+        {menuOpen && open && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-0 bottom-full mb-1 z-50 p-1 rounded-xl shadow-lg w-[180px]"
+            style={{ background: "#fff", border: "1px solid #E2E5F0" }}
+          >
+            <div className="px-2.5 py-2 border-b" style={{ borderColor: "#E2E5F0" }}>
+              <p className="text-xs font-semibold truncate" style={{ color: "#1A1D2E" }}>{user.name ?? "—"}</p>
+              {user.email && <p className="text-[10px] truncate mt-0.5" style={{ color: "#8892B0" }}>{user.email}</p>}
+            </div>
+            <button
+              onClick={() => { auth.logout(); setMenuOpen(false); }}
+              className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-left transition-colors hover:bg-gray-50"
+            >
+              <LogOut size={12} style={{ color: "#9198B5" }} />
+              <span className="text-[11px] font-medium" style={{ color: "#4A5068" }}>退出登录</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

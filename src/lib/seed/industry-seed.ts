@@ -98,6 +98,7 @@ export const INDUSTRY_LABELS: IndustryLabelMap = {
   interaction: { game: '互动设计', tourism: '互动点设计', education: '学习互动', derivative: '分支设计' },
   script: { game: '剧本编辑', tourism: '体验文案', education: '学习内容', derivative: '剧情编辑' },
   parse: { game: '剧本解构', tourism: '资料解构', education: '课程解构', derivative: '素材解构' },
+  storyOverview: { game: '剧本总览', tourism: '体验总览', education: '课程总览', derivative: '剧情总览' },
 };
 
 // ── 行业模板（P6-1）─────────────────────────────────────────────

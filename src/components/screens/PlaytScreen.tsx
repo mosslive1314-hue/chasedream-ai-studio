@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { SkipBack, RefreshCw, ChevronRight } from "lucide-react";
+import { useProjectStore } from "@/store";
 
 const S = {
   card:"#FFFFFF", s2:"#F4F6FC", border:"#E2E5F0",
@@ -22,6 +23,7 @@ const NODES: Record<string,{text:string;char:string;choices?:{label:string;next:
 const INIT = { stealth_score:55, alert_level:30, trust_lineman:20, truth:0 };
 
 export default function PlaytScreen() {
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const [nodeId, setNodeId] = useState("N01");
   const [vars, setVars] = useState({...INIT});
   const [path, setPath] = useState(["N01"]);
@@ -46,7 +48,7 @@ export default function PlaytScreen() {
               style={{ color: node.isEnding ? (node.endingType==="good"?"#4ade80":"#f87171") : "#a78bfa" }}>
               {node.isEnding ? (node.endingType==="good"?"✦ 结局A":"✕ 结局B") : `节点 ${nodeId}`}
             </span>
-            <span className="text-[8px] font-mono" style={{ color:"rgba(255,255,255,0.3)" }}>幽灵协议</span>
+            <span className="text-[8px] font-mono" style={{ color:"rgba(255,255,255,0.3)" }}>{projectName}</span>
           </div>
           <div className="flex justify-center py-4">
             <div className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl"

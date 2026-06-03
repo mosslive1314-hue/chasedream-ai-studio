@@ -5,7 +5,9 @@ import { EazoProvider } from "@eazo/sdk/react";
 import { cn } from "@/utils/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { UserSyncEffect } from "@/components/user-profile/user-sync-effect";
-import { BottomNav, SideNav } from "@/components/layout/nav";
+import { SideNav } from "@/components/layout/nav";
+import { WorkbenchHeader } from "@/components/layout/WorkbenchHeader";
+import { EmbeddedAdapter } from "@/components/layout/EmbeddedAdapter";
 import { ToastContainer } from "@/components/ui/ToastContainer";
 import { OnboardingGate } from "@/components/ui/OnboardingGate";
 import { UndoRedoListener } from "@/components/ui/UndoRedoListener";
@@ -63,7 +65,9 @@ export default function RootLayout({
           {/* Desktop sidebar — hidden on mobile */}
           <SideNav />
           {/* Main content — offset on desktop for sidebar */}
-          <main className="flex-1 flex flex-col md:ml-[200px] pb-16 md:pb-0" style={{ transition:"margin-left 220ms ease" }}>
+          <main className="flex-1 flex flex-col md:ml-[200px]" style={{ transition:"margin-left 220ms ease" }}>
+            {/* Global workstation header — hidden when embedded in Eazo platform */}
+            <EmbeddedAdapter header={<WorkbenchHeader />}>
             {/* P13: Top bar with breadcrumb + save indicator */}
             <div className="flex items-center justify-between">
               <Breadcrumb />
@@ -72,9 +76,8 @@ export default function RootLayout({
               </div>
             </div>
             {children}
+            </EmbeddedAdapter>
           </main>
-          {/* Mobile bottom nav — hidden on desktop */}
-          <BottomNav />
           <Toaster />
           <ToastContainer />
           <OnboardingGate />

@@ -139,6 +139,18 @@
   animation: shimmer 1.4s infinite;
 }
 
+/* ── Hide Eazo platform handoff banners ── */
+.eazo-handoff-root {
+  display: none !important;
+}
+html.eazo-host-web {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+html.eazo-host-web .eazo-app-area {
+  inset: 0 !important;
+}
+
 /* ── Sidebar dynamic offset ── */
 .sidebar-main-offset {
   transition: margin-left 200ms ease;

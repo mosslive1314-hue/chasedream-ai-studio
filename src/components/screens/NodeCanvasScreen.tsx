@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import AgentPanel from "@/components/ui/AgentPanel";
 
 const S = {
   surface: "#080910", card: "#0F1017", border: "#1C1E2E",
@@ -14,7 +15,7 @@ export default function NodeCanvasScreen() {
   const [selected, setSelected] = useState("n03");
 
   return (
-    <div className="flex flex-col h-svh overflow-hidden" style={{ background: S.surface }}>
+    <div className="flex flex-col min-h-svh" style={{ background: S.surface }}>
 
       {/* top bar */}
       <div className="flex items-center justify-between px-4 py-2 shrink-0"
@@ -43,6 +44,7 @@ export default function NodeCanvasScreen() {
           background: "#0A0B11",
           backgroundImage: "linear-gradient(#1A1B2510 1px,transparent 1px),linear-gradient(90deg,#1A1B2510 1px,transparent 1px)",
           backgroundSize: "24px 24px",
+          minHeight: 400,
         }}>
 
         {/* legend badges */}
@@ -191,6 +193,9 @@ export default function NodeCanvasScreen() {
           </motion.button>
         </Link>
       </div>
+
+      {/* 画布原生 Agent 面板 */}
+      <AgentPanel nodeId={selected} />
     </div>
   );
 }

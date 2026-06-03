@@ -3,12 +3,12 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, Copy, ExternalLink,
-  ChevronDown, ChevronRight, Camera, GitCompareArrows,
-  Clock, User, Plus, Minus, Pencil, Trash2, Rocket,
-  History, ArrowLeftRight, X, Layers, Download, UserPlus,
-  Shield, Upload, Eye, Globe, MessageCircle, GitCompare, LayoutGrid,
+  ChevronRight, Camera, GitCompareArrows,
+  Clock, Plus, Minus, Pencil, Rocket,
+  History, ArrowLeftRight, Layers, Download,
+  Upload, Globe, Package, GitBranch,
 } from "lucide-react";
-import { useNarrativeStore, useUIStore } from "@/store";
+import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -21,12 +21,6 @@ const S = {
   warning: "#D97706", warning10: "rgba(217,119,6,0.10)",
   error: "#DC2626", error10: "rgba(220,38,38,0.10)",
 };
-
-// ── 发布检查 — now sourced from store ────────────────────────────────────
-
-// ── 版本快照数据 — now derived from store (versionDiffs) ──────────────
-
-// ── 变更记录数据 — now derived from store (collabTasks + collabComments) ─
 
 // ── 快照状态配置 ─────────────────────────────────────────────────────────
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
@@ -93,67 +87,7 @@ const EXPORT_FORMATS = [
   },
 ];
 
-// ── 团队协作数据 — now derived from store (collabTasks + collabComments) ─
-
-// ── 协作动态数据 — now derived from store (collabComments) ──────────────
-
-const PERMISSION_LEVELS = [
-  { role: '项目负责人', permissions: ['全部权限', '发布管理', '成员管理', '版本回滚'] },
-  { role: '剧本编辑', permissions: ['编辑剧本', '编辑对白', '审核 AI 产出'] },
-  { role: '资产制作', permissions: ['上传资产', '编辑资产', '审核资产'] },
-  { role: '互动设计', permissions: ['编辑节点图', '配置变量', '设计 QTE'] },
-  { role: '审阅者', permissions: ['只读查看', '添加评论', '审核内容'] },
-];
-
-// ── 协作动态类型图标 ─────────────────────────────────────────────────────
-const COLLAB_TYPE_ICONS: Record<string, typeof Pencil> = {
-  edit: Pencil,
-  upload: Upload,
-  publish: Rocket,
-  design: Layers,
-  review: Eye,
-};
-
-// ── 操作类型图标 ─────────────────────────────────────────────────────────
-const ACTION_ICONS: Record<string, typeof Pencil> = {
-  edit: Pencil,
-  add: Plus,
-  delete: Trash2,
-  publish: Rocket,
-};
-
-// ── 展开/收起 Hook ───────────────────────────────────────────────────────
-function useSectionToggle(init = true) {
-  const [open, setOpen] = useState(init);
-  return { open, toggle: () => setOpen((o) => !o) };
-}
-
-// ── 区块标题组件 ─────────────────────────────────────────────────────────
-function SectionHeader({ icon: Icon, title, subtitle, open, onToggle, action }: {
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
-  title: string; subtitle?: string; open: boolean; onToggle: () => void;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <button onClick={onToggle} className="flex items-center gap-2 focus:outline-none">
-        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-          <Icon size={13} style={{ color: S.primary }} />
-        </div>
-        <div>
-          <h3 className="text-xs font-bold" style={{ color: S.text }}>{title}</h3>
-          {subtitle && <p className="text-[9px]" style={{ color: S.text3 }}>{subtitle}</p>}
-        </div>
-        <motion.div animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.15 }}>
-          <ChevronDown size={12} style={{ color: S.text3 }} />
-        </motion.div>
-      </button>
-      {action}
-    </div>
-  );
-}
-
-// ── 行业发布格式（P8-14）────────────────────────────────────────────────
+// ── 行业发布格式 ─────────────────────────────────────────────────────────
 const INDUSTRY_TABS = ['游戏', '文旅', '教育', '衍生'];
 const INDUSTRY_FORMATS: Record<string, { id: string; name: string; description: string; status: string; estimatedSize: string }[]> = {
   '游戏': [
@@ -185,92 +119,44 @@ const INDUSTRY_FORMATS: Record<string, { id: string; name: string; description: 
   ],
 };
 
-// ── 审核阶段配置 ─────────────────────────────────────────────────────────
-const REVIEW_STAGES: { key: string; label: string }[] = [
-  { key: 'draft', label: '草稿' },
-  { key: 'submitted', label: '已提交' },
-  { key: 'editor_review', label: '编辑审核' },
-  { key: 'director_approved', label: '主管批准' },
-  { key: 'published', label: '已发布' },
-];
-
-// ── 优先级配置 ───────────────────────────────────────────────────────────
-const PRIORITY_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  urgent: { label: '紧急', bg: `${S.error}12`, color: S.error },
-  high:   { label: '高', bg: `${S.warning}12`, color: S.warning },
-  normal: { label: '普通', bg: `${S.primary}12`, color: S.primary },
-  low:    { label: '低', bg: `${S.text3}12`, color: S.text3 },
+// ── 操作类型图标 ─────────────────────────────────────────────────────────
+const ACTION_ICONS: Record<string, typeof Pencil> = {
+  edit: Pencil,
+  add: Plus,
+  delete: Minus,
+  publish: Rocket,
 };
-
-// ── 审核类型图标 ─────────────────────────────────────────────────────────
-const REVIEW_TYPE_ICONS: Record<string, typeof Pencil> = {
-  script: Pencil, asset: Layers, node_graph: LayoutGrid, interaction: Rocket, full_build: Shield,
-};
-
-// ── 提及高亮辅助函数 ─────────────────────────────────────────────────────
-function renderWithMentions(text: string, mentions?: string[]) {
-  if (!mentions || mentions.length === 0) return text;
-  const parts: React.ReactNode[] = [];
-  let remaining = text;
-  let keyIdx = 0;
-  for (const mention of mentions) {
-    const pattern = `@${mention}`;
-    const idx = remaining.indexOf(pattern);
-    if (idx >= 0) {
-      if (idx > 0) parts.push(<span key={`t${keyIdx++}`}>{remaining.slice(0, idx)}</span>);
-      parts.push(<span key={`m${keyIdx++}`} style={{ color: S.primary, fontWeight: 600 }}>{pattern}</span>);
-      remaining = remaining.slice(idx + pattern.length);
-    }
-  }
-  if (remaining) parts.push(<span key={`t${keyIdx++}`}>{remaining}</span>);
-  return <>{parts}</>;
-}
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function PublishScreen() {
   // ── Store selectors ──
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const engineExportConfigs = useNarrativeStore(s => s.engineExportConfigs);
   const collabTasks = useNarrativeStore(s => s.collabTasks);
   const collabComments = useNarrativeStore(s => s.collabComments);
-  const reviewItems = useNarrativeStore(s => s.reviewItems);
   const versionDiffs = useNarrativeStore(s => s.versionDiffs);
   const addToast = useUIStore(s => s.addToast);
 
+  // ── Tab 状态 ──
+  const [activeTab, setActiveTab] = useState(0);
+
+  // ── 通用状态 ──
   const [copied, setCopied] = useState(false);
   const url = "https://play.zhuomeng.ai/ghost-protocol-v1";
   const pass = qualityChecks.filter((c) => c.status === 'ok').length;
 
-  // 区块折叠状态
-  const secStatus = useSectionToggle(true);
-  const secChecks = useSectionToggle(true);
-  const secSnapshots = useSectionToggle(true);
-  const secChangelog = useSectionToggle(true);
-  const secSettings = useSectionToggle(true);
-  const secExport = useSectionToggle(true);
-  const secCollab = useSectionToggle(true);
-  const secEngineExport = useSectionToggle(true);
-  const secIndustry = useSectionToggle(true);
-  const secTaskBoard = useSectionToggle(true);
-  const secCommentsFeed = useSectionToggle(true);
-  const secReviewWorkflow = useSectionToggle(true);
-  const secVersionDiff = useSectionToggle(true);
-  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  // ── 导出状态 ──
+  const [exportStates, setExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
   const [engineExportStates, setEngineExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
   const [industryTab, setIndustryTab] = useState(0);
-  const [diffFromIdx, setDiffFromIdx] = useState(0);
-  const [diffToIdx, setDiffToIdx] = useState(1);
 
-  // 导出状态
-  const [exportStates, setExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
-
-  // 快照对比状态
+  // ── 快照状态 ──
   const [compareMode, setCompareMode] = useState(false);
   const [selectedSnapshots, setSelectedSnapshots] = useState<string[]>([]);
-
-  // 快照创建提示
   const [snapshotToast, setSnapshotToast] = useState(false);
 
+  // ── Handlers ──
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -357,71 +243,12 @@ export default function PublishScreen() {
     return [...taskEntries, ...commentEntries];
   }, [collabTasks, collabComments]);
 
-  // ── 动态数据：团队成员（from collabTasks + collabComments）──
-  const teamMembers = useMemo(() => {
-    const memberMap = new Map<string, { name: string; role: string; avatar: string; color: string; tasks: number; online: boolean; lastEdit: string }>();
-    const ROLE_COLORS: Record<string, string> = {
-      'Project Lead': '#5E50E8',
-      'Script Editor': '#059669',
-      'Asset Artist': '#D97706',
-      'Interaction Designer': '#00A99D',
-    };
-    collabTasks.forEach(t => {
-      if (!memberMap.has(t.assignee)) {
-        memberMap.set(t.assignee, {
-          name: t.assignee,
-          role: t.assigneeRole,
-          avatar: t.assignee.slice(0, 1),
-          color: ROLE_COLORS[t.assigneeRole] ?? S.primary,
-          tasks: 0,
-          online: false,
-          lastEdit: t.dueDate ? t.dueDate.slice(5) : '—',
-        });
-      }
-      const m = memberMap.get(t.assignee)!;
-      m.tasks++;
-      if (t.status === 'in_progress') m.online = true;
-    });
-    collabComments.forEach(c => {
-      if (!memberMap.has(c.author)) {
-        memberMap.set(c.author, {
-          name: c.author,
-          role: c.authorRole,
-          avatar: c.author.slice(0, 1),
-          color: ROLE_COLORS[c.authorRole] ?? S.primary,
-          tasks: 0,
-          online: false,
-          lastEdit: c.timestamp.slice(5, 10),
-        });
-      }
-    });
-    return Array.from(memberMap.values());
-  }, [collabTasks, collabComments]);
-
-  // ── 动态数据：协作动态（from collabComments）──
-  const collabActivities = useMemo(() => {
-    return collabComments.map(c => {
-      let action = '编辑了';
-      let type = 'edit';
-      if (c.content.includes('审核') || c.content.includes('确认')) { action = '提交了审核'; type = 'review'; }
-      else if (c.content.includes('方案') || c.content.includes('设计')) { action = '设计了'; type = 'design'; }
-      else if (c.content.includes('同步') || c.content.includes('更新')) { action = '更新了'; type = 'edit'; }
-      return {
-        user: c.author,
-        action,
-        type,
-        time: c.timestamp.slice(5, 16),
-      };
-    });
-  }, [collabComments]);
-
-  // 快照对比数据
+  // ── 快照对比数据 ──
   const comparePair = useMemo(() => {
     if (selectedSnapshots.length !== 2) return null;
     const a = snapshots.find((s) => s.version === selectedSnapshots[0]);
     const b = snapshots.find((s) => s.version === selectedSnapshots[1]);
     if (!a || !b) return null;
-    // 确保 a 是较新版本
     return a.changes <= b.changes ? { newer: b, older: a } : { newer: a, older: b };
   }, [selectedSnapshots, snapshots]);
 
@@ -443,1254 +270,694 @@ export default function PublishScreen() {
         )}
       </AnimatePresence>
 
-      <div className="p-4 space-y-4">
+      {/* ── Tab Bar ── */}
+      <div className="flex items-center gap-2 px-4 pt-3">
+        {[
+          { label: "发布状态", icon: Rocket },
+          { label: "导出配置", icon: Package },
+          { label: "快照与记录", icon: GitBranch },
+        ].map((tab, i) => {
+          const TabIcon = tab.icon;
+          return (
+            <motion.button key={i} whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab(i)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none"
+              style={{
+                background: activeTab === i ? S.primary : S.s2,
+                color: activeTab === i ? "#fff" : S.text2,
+                border: `1px solid ${activeTab === i ? S.primary : S.border}`,
+                boxShadow: activeTab === i ? `0 2px 8px ${S.primary}30` : "none",
+              }}>
+              <TabIcon size={12} />
+              <span>{tab.label}</span>
+            </motion.button>
+          );
+        })}
+      </div>
 
-        {/* ── 发布状态卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={ExternalLink}
-            title="发布状态"
-            open={secStatus.open}
-            onToggle={secStatus.toggle}
-            action={
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded"
-                style={{ background: `${S.success}12`, color: S.success }}>
-                已发布
-              </span>
-            }
-          />
-          <AnimatePresence>
-            {secStatus.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="flex items-center gap-2 p-2.5 rounded-lg mt-3" style={{ background: S.s2 }}>
-                  <ExternalLink size={12} style={{ color: S.accent }} />
-                  <span className="text-[10px] font-mono flex-1 truncate" style={{ color: S.text2 }}>{url}</span>
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={handleCopy}
-                    className="text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                    style={{
-                      background: copied ? `${S.success}15` : `${S.primary}12`,
-                      color: copied ? S.success : S.primary,
-                    }}
-                  >
-                    {copied ? "已复制" : <><Copy size={9} className="inline mr-0.5" />复制</>}
-                  </motion.button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+      <div className="p-3">
 
-        {/* ── 发布检查卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={CheckCircle2}
-            title="发布检查"
-            subtitle={`${pass}/${qualityChecks.length} 项通过`}
-            open={secChecks.open}
-            onToggle={secChecks.toggle}
-            action={
-              <div className="flex items-center gap-1.5">
-                <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                  <div className="h-full rounded-full" style={{
-                    width: `${Math.round((pass / qualityChecks.length) * 100)}%`,
-                    background: pass === qualityChecks.length ? S.success : S.warning,
-                  }} />
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 0: 发布状态
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+            {/* ── 发布状态卡片 ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <ExternalLink size={13} style={{ color: S.primary }} />
+                  </div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>发布状态</h3>
                 </div>
-                <span className="text-[9px] font-mono font-bold" style={{
-                  color: pass === qualityChecks.length ? S.success : S.warning,
-                }}>
-                  {Math.round((pass / qualityChecks.length) * 100)}%
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded"
+                  style={{ background: `${S.success}12`, color: S.success }}>
+                  已发布
                 </span>
               </div>
-            }
-          />
-          <AnimatePresence>
-            {secChecks.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-1.5 mt-3">
-                  {qualityChecks.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2">
-                      {c.status === 'ok'
-                        ? <CheckCircle2 size={13} color={S.success} className="shrink-0" />
-                        : <AlertTriangle size={13} color={S.warning} className="shrink-0" />}
-                      <span className="text-[10px]" style={{ color: c.status === 'ok' ? S.text2 : S.warning }}>{c.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── 版本快照卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={Camera}
-            title="版本快照"
-            subtitle={`当前 ${snapshots[0]?.version ?? '—'} · ${snapshots.length} 个版本`}
-            open={secSnapshots.open}
-            onToggle={secSnapshots.toggle}
-            action={
-              <div className="flex items-center gap-1.5">
-                {compareMode ? (
-                  <>
-                    <span className="text-[9px]" style={{ color: S.text3 }}>
-                      已选 {selectedSnapshots.length}/2
-                    </span>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={exitCompareMode}
-                      className="text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                      style={{ background: `${S.error}12`, color: S.error }}
-                    >
-                      取消
-                    </motion.button>
-                  </>
-                ) : (
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setCompareMode(true)}
-                    className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                    style={{ background: `${S.accent}12`, color: S.accent }}
-                  >
-                    <GitCompareArrows size={10} /> 对比
-                  </motion.button>
-                )}
+              <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: S.s2 }}>
+                <ExternalLink size={12} style={{ color: S.accent }} />
+                <span className="text-[10px] font-mono flex-1 truncate" style={{ color: S.text2 }}>{url}</span>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleCopy}
+                  className="text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
+                  style={{
+                    background: copied ? `${S.success}15` : `${S.primary}12`,
+                    color: copied ? S.success : S.primary,
+                  }}
+                >
+                  {copied ? "已复制" : <><Copy size={9} className="inline mr-0.5" />复制</>}
+                </motion.button>
               </div>
-            }
-          />
-          <AnimatePresence>
-            {secSnapshots.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-2 mt-3">
-                  {snapshots.map((snap) => {
-                    const cfg = STATUS_CFG[snap.status];
-                    const isSelected = selectedSnapshots.includes(snap.version);
-                    return (
-                      <motion.button
-                        key={snap.version}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          if (compareMode) toggleSnapshotSelect(snap.version);
-                        }}
-                        className="w-full text-left p-3 rounded-xl focus:outline-none"
-                        style={{
-                          background: isSelected ? `${S.accent}08` : S.s2,
-                          border: `1px solid ${isSelected ? S.accent : S.border}`,
-                          cursor: compareMode ? "pointer" : "default",
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            {compareMode && (
-                              <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
-                                style={{
-                                  background: isSelected ? S.accent : S.s3,
-                                  border: `1.5px solid ${isSelected ? S.accent : S.border2}`,
-                                }}>
-                                {isSelected && <CheckCircle2 size={10} color="#fff" />}
-                              </div>
-                            )}
-                            <span className="text-[11px] font-bold font-mono" style={{ color: S.text }}>
-                              {snap.version}
-                            </span>
-                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: cfg.bg, color: cfg.color }}>
-                              {cfg.label}
-                            </span>
-                          </div>
-                          <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{snap.date}</span>
-                        </div>
-                        <p className="text-[10px]" style={{ color: S.text2 }}>{snap.summary}</p>
-                        <div className="flex items-center gap-1 mt-1">
-                          <Layers size={9} style={{ color: S.text3 }} />
-                          <span className="text-[8px]" style={{ color: S.text3 }}>{snap.changes} 项变更</span>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-
-                {/* 快照对比面板 */}
-                <AnimatePresence>
-                  {compareMode && comparePair && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-3 p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.accent}30` }}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <ArrowLeftRight size={12} style={{ color: S.accent }} />
-                          <span className="text-[10px] font-bold" style={{ color: S.text }}>
-                            版本对比
-                          </span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                            style={{ background: `${S.accent}12`, color: S.accent }}>
-                            {comparePair.older.version} → {comparePair.newer.version}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* 旧版本 */}
-                          <div className="p-2.5 rounded-lg" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <span className="text-[10px] font-bold font-mono" style={{ color: S.text3 }}>
-                                {comparePair.older.version}
-                              </span>
-                              <span className="text-[8px] px-1 py-0.5 rounded"
-                                style={{ background: `${S.text3}15`, color: S.text3 }}>
-                                旧
-                              </span>
-                            </div>
-                            <p className="text-[9px] mb-1" style={{ color: S.text2 }}>{comparePair.older.summary}</p>
-                            <div className="flex items-center gap-1">
-                              <Clock size={8} style={{ color: S.text3 }} />
-                              <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.older.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1 mt-1">
-                              <Minus size={8} style={{ color: S.error }} />
-                              <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.older.changes} 项变更</span>
-                            </div>
-                          </div>
-                          {/* 新版本 */}
-                          <div className="p-2.5 rounded-lg" style={{ background: S.card, border: `1px solid ${S.accent}30` }}>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>
-                                {comparePair.newer.version}
-                              </span>
-                              <span className="text-[8px] px-1 py-0.5 rounded"
-                                style={{ background: `${S.accent}12`, color: S.accent }}>
-                                新
-                              </span>
-                            </div>
-                            <p className="text-[9px] mb-1" style={{ color: S.text2 }}>{comparePair.newer.summary}</p>
-                            <div className="flex items-center gap-1">
-                              <Clock size={8} style={{ color: S.text3 }} />
-                              <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.newer.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1 mt-1">
-                              <Plus size={8} style={{ color: S.success }} />
-                              <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.newer.changes} 项变更</span>
-                            </div>
-                          </div>
-                        </div>
-                        {/* 差异摘要 */}
-                        <div className="mt-2 p-2 rounded-lg" style={{ background: `${S.accent}06`, border: `1px solid ${S.accent}15` }}>
-                          <p className="text-[9px]" style={{ color: S.text2 }}>
-                            净增 <span className="font-bold font-mono" style={{ color: S.accent }}>
-                              {Math.abs(comparePair.newer.changes - comparePair.older.changes)}
-                            </span> 项变更 · 从「{comparePair.older.summary}」到「{comparePair.newer.summary}」
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {compareMode && selectedSnapshots.length < 2 && (
-                  <p className="text-[9px] text-center mt-2" style={{ color: S.text3 }}>
-                    请选择两个版本进行对比
-                  </p>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── 变更记录卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={History}
-            title="变更记录"
-            subtitle={`今日 ${changeLog.length} 条编辑`}
-            open={secChangelog.open}
-            onToggle={secChangelog.toggle}
-          />
-          <AnimatePresence>
-            {secChangelog.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-1 mt-3">
-                  {changeLog.map((log, i) => {
-                    const ActionIcon = ACTION_ICONS[log.action] ?? Pencil;
-                    return (
-                      <div key={i} className="flex items-start gap-2.5 py-2 border-b last:border-0"
-                        style={{ borderColor: S.border }}>
-                        {/* 时间 */}
-                        <div className="shrink-0 w-10 text-right pt-0.5">
-                          <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{log.time}</span>
-                        </div>
-                        {/* 时间线圆点 */}
-                        <div className="flex flex-col items-center shrink-0 pt-0.5">
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center"
-                            style={{ background: `${log.color}12` }}>
-                            <ActionIcon size={10} style={{ color: log.color }} />
-                          </div>
-                        </div>
-                        {/* 内容 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: `${log.color}12`, color: log.color }}>
-                              {log.actionLabel}
-                            </span>
-                            <span className="text-[10px] font-bold truncate" style={{ color: S.text }}>
-                              {log.target}
-                            </span>
-                            <span className="text-[8px] px-1 py-0.5 rounded shrink-0"
-                              style={{ background: S.s2, color: S.text3 }}>
-                              {log.user}
-                            </span>
-                          </div>
-                          <p className="text-[9px]" style={{ color: S.text3 }}>{log.detail}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── 发布设置卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={Layers}
-            title="发布设置"
-            open={secSettings.open}
-            onToggle={secSettings.toggle}
-          />
-          <AnimatePresence>
-            {secSettings.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-2 mt-3">
-                  {([
-                    ["作品类型", "互动 H5"],
-                    ["画幅", "移动端竖屏 9:16"],
-                    ["分享标题", "幽灵协议"],
-                    ["付费模式", "免费试玩"],
-                  ] as const).map(([k, v]) => (
-                    <div key={k} className="flex justify-between py-1.5 border-b last:border-0"
-                      style={{ borderColor: S.border }}>
-                      <span className="text-[10px]" style={{ color: S.text3 }}>{k}</span>
-                      <span className="text-[10px] font-medium" style={{ color: S.text }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── 多端导出卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={Download}
-            title="多端导出"
-            subtitle={`${EXPORT_FORMATS.length} 种导出格式`}
-            open={secExport.open}
-            onToggle={secExport.toggle}
-          />
-          <AnimatePresence>
-            {secExport.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                  {EXPORT_FORMATS.map((fmt) => {
-                    const state = exportStates[fmt.id]?.status ?? 'idle';
-                    return (
-                      <div key={fmt.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                        {/* Header: icon + name + status */}
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{fmt.icon}</span>
-                            <div>
-                              <span className="text-[11px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
-                                  background: fmt.status === 'ready' ? `${S.success}12` : `${S.warning}12`,
-                                  color: fmt.status === 'ready' ? S.success : S.warning,
-                                }}>
-                                  {fmt.status === 'ready' ? '就绪' : 'Beta'}
-                                </span>
-                                <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Description */}
-                        <p className="text-[9px] mb-2 leading-relaxed" style={{ color: S.text2 }}>{fmt.description}</p>
-                        {/* Feature tags */}
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {fmt.features.map((feat) => (
-                            <span key={feat} className="text-[8px] px-1.5 py-0.5 rounded"
-                              style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
-                              {feat}
-                            </span>
-                          ))}
-                        </div>
-                        {/* Export button & result */}
-                        <div>
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => state === 'idle' && handleExport(fmt.id)}
-                            disabled={state !== 'idle'}
-                            className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
-                            style={{
-                              background: state === 'done' ? `${S.success}12` : state === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
-                              color: state === 'done' ? S.success : state === 'exporting' ? S.text3 : S.primary,
-                              cursor: state === 'idle' ? 'pointer' : 'default',
-                            }}
-                          >
-                            {state === 'exporting' && (
-                              <>
-                                <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
-                                导出中...
-                              </>
-                            )}
-                            {state === 'done' && <>✅ 已导出</>}
-                            {state === 'idle' && (
-                              <>
-                                <Download size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
-                                导出
-                              </>
-                            )}
-                          </motion.button>
-                          {state === 'done' && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className="mt-1.5 p-2 rounded-lg text-[8px]"
-                              style={{ background: `${S.success}06`, border: `1px solid ${S.success}15` }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span style={{ color: S.text3 }}>
-                                  <CheckCircle2 size={8} className="inline mr-1" style={{ color: S.success }} />
-                                  ghost-protocol_{fmt.id}.{
-                                    fmt.id === 'json' ? 'json' :
-                                    fmt.id === 'webgal' ? 'txt' :
-                                    fmt.id === 'renpy' ? 'rpy' :
-                                    fmt.id === 'ink' ? 'ink' :
-                                    fmt.id === 'h5-package' ? 'zip' : 'pdf'
-                                  }
-                                </span>
-                                <span className="font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
-                              </div>
-                              <button className="text-[8px] font-bold mt-1 focus:outline-none" style={{ color: S.primary }}>
-                                <Download size={7} className="inline mr-0.5" />
-                                下载文件
-                              </button>
-                            </motion.div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── 团队协作卡片 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={User}
-            title="团队协作"
-            subtitle={`${teamMembers.filter((m) => m.online).length}/${teamMembers.length} 人在线`}
-            open={secCollab.open}
-            onToggle={secCollab.toggle}
-            action={
               <motion.button
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
-                style={{ background: `${S.accent}12`, color: S.accent }}
+                whileTap={{ scale: 0.97 }}
+                className="w-full mt-2 py-2 rounded-lg text-xs font-bold text-white focus:outline-none"
+                style={{ background: `linear-gradient(135deg,${S.primary},#7B6EF5)` }}
               >
-                <UserPlus size={10} /> 邀请成员
+                <Rocket size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
+                更新发布
               </motion.button>
-            }
-          />
-          <AnimatePresence>
-            {secCollab.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                {/* 团队成员面板 */}
-                <div className="mt-3">
-                  <div className="text-[9px] font-bold mb-2" style={{ color: S.text3 }}>团队成员</div>
-                  <div className="space-y-2">
-                    {teamMembers.map((member) => (
-                      <div key={member.name} className="flex items-center gap-2.5 p-2.5 rounded-xl"
-                        style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                        {/* Avatar with online indicator */}
-                        <div className="relative shrink-0">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
-                            style={{ background: `${member.color}15`, border: `2px solid ${member.color}30` }}>
-                            {member.avatar}
-                          </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-                            style={{
-                              background: member.online ? S.success : S.text3,
-                              borderColor: S.s2,
-                            }} />
-                        </div>
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{member.name}</span>
-                            <span className="text-[8px] px-1.5 py-0.5 rounded"
-                              style={{ background: `${member.color}12`, color: member.color }}>
-                              {member.role}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Clock size={8} style={{ color: S.text3 }} />
-                            <span className="text-[8px]" style={{ color: S.text3 }}>
-                              {member.online ? '在线' : '离线'} · 最后编辑: {member.lastEdit}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+            </div>
+
+            {/* ── 发布检查清单 ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <CheckCircle2 size={13} style={{ color: S.primary }} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold" style={{ color: S.text }}>发布检查</h3>
+                    <p className="text-[9px]" style={{ color: S.text3 }}>{pass}/{qualityChecks.length} 项通过</p>
                   </div>
                 </div>
-
-                {/* 协作动态流 */}
-                <div className="mt-4">
-                  <div className="text-[9px] font-bold mb-2" style={{ color: S.text3 }}>协作动态</div>
-                  <div className="space-y-0">
-                    {collabActivities.map((act, i) => {
-                      const ActIcon = COLLAB_TYPE_ICONS[act.type] ?? Pencil;
-                      const member = teamMembers.find((m) => m.name === act.user);
-                      const iconColor = member?.color ?? S.text3;
-                      return (
-                        <div key={i} className="flex items-start gap-2.5 py-2 border-b last:border-0"
-                          style={{ borderColor: S.border }}>
-                          {/* Timeline icon */}
-                          <div className="flex flex-col items-center shrink-0 pt-0.5">
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center"
-                              style={{ background: `${iconColor}12` }}>
-                              <ActIcon size={10} style={{ color: iconColor }} />
-                            </div>
-                            {i < collabActivities.length - 1 && (
-                              <div className="w-px flex-1 mt-1" style={{ background: S.border, minHeight: '12px' }} />
-                            )}
-                          </div>
-                          {/* Content */}
-                          <div className="flex-1 min-w-0 pb-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                                style={{ background: `${iconColor}12`, color: iconColor }}>
-                                {act.user}
-                              </span>
-                              <span className="text-[10px]" style={{ color: S.text }}>{act.action}</span>
-                            </div>
-                            <span className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{act.time}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                <div className="flex items-center gap-1.5">
+                  <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                    <div className="h-full rounded-full" style={{
+                      width: `${Math.round((pass / qualityChecks.length) * 100)}%`,
+                      background: pass === qualityChecks.length ? S.success : S.warning,
+                    }} />
                   </div>
+                  <span className="text-[9px] font-mono font-bold" style={{
+                    color: pass === qualityChecks.length ? S.success : S.warning,
+                  }}>
+                    {Math.round((pass / qualityChecks.length) * 100)}%
+                  </span>
                 </div>
+              </div>
+              <div className="space-y-1">
+                {qualityChecks.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2">
+                    {c.status === 'ok'
+                      ? <CheckCircle2 size={13} color={S.success} className="shrink-0" />
+                      : <AlertTriangle size={13} color={S.warning} className="shrink-0" />}
+                    <span className="text-[10px]" style={{ color: c.status === 'ok' ? S.text2 : S.warning }}>{c.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-                {/* 权限管理（折叠面板） */}
-                <div className="mt-4">
-                  <button
-                    onClick={() => setPermissionsOpen((o) => !o)}
-                    className="flex items-center gap-2 w-full text-left focus:outline-none"
-                  >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center"
-                      style={{ background: `${S.warning}12` }}>
-                      <Shield size={10} style={{ color: S.warning }} />
-                    </div>
-                    <span className="text-[10px] font-bold" style={{ color: S.text }}>权限管理</span>
-                    <motion.div animate={{ rotate: permissionsOpen ? 0 : -90 }} transition={{ duration: 0.15 }}>
-                      <ChevronDown size={10} style={{ color: S.text3 }} />
-                    </motion.div>
-                  </button>
-                  <AnimatePresence>
-                    {permissionsOpen && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="space-y-2 mt-2">
-                          {PERMISSION_LEVELS.map((level) => (
-                            <div key={level.role} className="p-2.5 rounded-lg"
-                              style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                              <div className="text-[10px] font-bold mb-1.5" style={{ color: S.text }}>{level.role}</div>
-                              <div className="flex flex-wrap gap-1">
-                                {level.permissions.map((perm) => (
-                                  <span key={perm} className="text-[8px] px-1.5 py-0.5 rounded"
-                                    style={{ background: `${S.primary}08`, color: S.primary, border: `1px solid ${S.primary}15` }}>
-                                    {perm}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+            {/* ── 发布设置 ── */}
+            <div className="rounded-xl p-3 lg:col-span-2" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <Layers size={13} style={{ color: S.primary }} />
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                <h3 className="text-xs font-bold" style={{ color: S.text }}>发布设置</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {([
+                  ["作品类型", "互动 H5"],
+                  ["画幅", "移动端竖屏 9:16"],
+                  ["分享标题", projectName],
+                  ["付费模式", "免费试玩"],
+                ] as const).map(([k, v]) => (
+                  <div key={k} className="p-2 rounded-lg" style={{ background: S.s2 }}>
+                    <span className="text-[9px] block" style={{ color: S.text3 }}>{k}</span>
+                    <span className="text-[10px] font-medium block mt-0.5" style={{ color: S.text }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* ── P8-13: 引擎导出 (Beta) ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={Rocket}
-            title="引擎导出 (Beta)"
-            subtitle={`${engineExportConfigs.length} 个引擎目标`}
-            open={secEngineExport.open}
-            onToggle={secEngineExport.toggle}
-          />
-          <AnimatePresence>
-            {secEngineExport.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                  {engineExportConfigs.map((engine) => {
-                    const state = engineExportStates[engine.id]?.status ?? 'idle';
-                    const statusColor = engine.status === 'stable' ? S.success : engine.status === 'beta' ? S.warning : S.error;
-                    const statusLabel = engine.status === 'stable' ? 'Stable' : engine.status === 'beta' ? 'Beta' : 'Alpha';
-                    const visibleMappings = engine.fieldMappings.slice(0, 4);
-                    const remainingMappings = engine.fieldMappings.length - visibleMappings.length;
-                    return (
-                      <motion.div
-                        key={engine.id}
-                        whileHover={{ y: -2, boxShadow: `0 4px 12px ${S.primary}10` }}
-                        transition={{ duration: 0.15 }}
-                        className="p-3 rounded-xl"
-                        style={{ background: S.s2, border: `1px solid ${S.border}` }}
-                      >
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{engine.icon}</span>
-                            <div>
-                              <span className="text-[11px] font-bold" style={{ color: S.text }}>{engine.name}</span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                                  style={{ background: `${statusColor}12`, color: statusColor }}>
-                                  {statusLabel}
-                                </span>
-                                <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{engine.estimatedSize}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Description */}
-                        <p className="text-[9px] mb-2 leading-relaxed" style={{ color: S.text2 }}>{engine.description}</p>
-                        {/* Feature tags */}
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {engine.features.map((feat) => (
-                            <span key={feat} className="text-[8px] px-1.5 py-0.5 rounded"
-                              style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
-                              {feat}
-                            </span>
-                          ))}
-                        </div>
-                        {/* Field mapping preview */}
-                        <div className="mb-3">
-                          <div className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>字段映射预览</div>
-                          <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
-                            {visibleMappings.map((m, mi) => (
-                              <div key={mi} className="flex items-center text-[8px] px-2 py-1"
-                                style={{ background: mi % 2 === 0 ? S.card : S.s2, borderBottom: mi < visibleMappings.length - 1 ? `1px solid ${S.border}` : 'none' }}>
-                                <span className="font-mono flex-1 truncate" style={{ color: S.text2 }}>{m.sourceField}</span>
-                                <ChevronRight size={8} style={{ color: S.text3 }} className="mx-1 shrink-0" />
-                                <span className="font-mono flex-1 truncate" style={{ color: m.mapped ? S.accent : S.warning }}>{m.targetField}</span>
-                                {m.mapped && <CheckCircle2 size={8} style={{ color: S.success }} className="shrink-0 ml-1" />}
-                              </div>
-                            ))}
-                            {remainingMappings > 0 && (
-                              <div className="text-center py-1 text-[8px]" style={{ background: S.s2, color: S.text3, borderTop: `1px solid ${S.border}` }}>
-                                +{remainingMappings} 更多映射
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {/* Custom options */}
-                        {engine.customOptions.length > 0 && (
-                          <div className="mb-3 space-y-1.5">
-                            <div className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>导出选项</div>
-                            {engine.customOptions.map((opt) => (
-                              <div key={opt.key} className="flex items-center justify-between px-2 py-1 rounded-lg" style={{ background: S.card }}>
-                                <span className="text-[9px]" style={{ color: S.text2 }}>{opt.label}</span>
-                                {opt.type === 'boolean' ? (
-                                  <div className="w-7 h-4 rounded-full relative cursor-pointer" style={{ background: opt.defaultValue ? S.primary : S.s3 }}>
-                                    <div className="w-3 h-3 rounded-full absolute top-0.5 transition-all" style={{
-                                      background: '#fff', left: opt.defaultValue ? '14px' : '2px',
-                                    }} />
-                                  </div>
-                                ) : (
-                                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}>
-                                    {String(opt.defaultValue)}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Export button */}
-                        <motion.button
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => state === 'idle' && handleEngineExport(engine.id)}
-                          disabled={state !== 'idle'}
-                          className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
-                          style={{
-                            background: state === 'done' ? `${S.success}12` : state === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
-                            color: state === 'done' ? S.success : state === 'exporting' ? S.text3 : S.primary,
-                            cursor: state === 'idle' ? 'pointer' : 'default',
-                          }}
-                        >
-                          {state === 'exporting' && (
-                            <>
-                              <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
-                              导出中...
-                            </>
-                          )}
-                          {state === 'done' && <>✅ 已导出 {engine.format}</>}
-                          {state === 'idle' && (
-                            <>
-                              <Download size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
-                              导出 {engine.format}
-                            </>
-                          )}
-                        </motion.button>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 1: 导出配置
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 1 && (
+          <div className="space-y-3">
 
-        {/* ── P8-14: 行业发布格式 ── */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={Globe}
-            title="行业发布格式"
-            subtitle="按行业定制发布输出"
-            open={secIndustry.open}
-            onToggle={secIndustry.toggle}
-          />
-          <AnimatePresence>
-            {secIndustry.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                {/* Industry tabs */}
-                <div className="flex gap-1 mt-3 mb-3 p-1 rounded-lg" style={{ background: S.s2 }}>
-                  {INDUSTRY_TABS.map((tab, idx) => (
-                    <motion.button
-                      key={tab}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setIndustryTab(idx)}
-                      className="flex-1 py-1.5 rounded-md text-[10px] font-bold focus:outline-none"
-                      style={{
-                        background: industryTab === idx ? S.card : 'transparent',
-                        color: industryTab === idx ? S.primary : S.text3,
-                        boxShadow: industryTab === idx ? `0 1px 3px ${S.border}` : 'none',
-                      }}
-                    >
-                      {tab}
-                    </motion.button>
-                  ))}
+            {/* ── 多端导出 ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <Download size={13} style={{ color: S.primary }} />
                 </div>
-                {/* Format cards */}
-                <div className="space-y-2">
-                  {(INDUSTRY_FORMATS[INDUSTRY_TABS[industryTab]] ?? []).map((fmt) => {
-                    const fmtState = exportStates[fmt.id]?.status ?? 'idle';
-                    return (
-                      <div key={fmt.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
-                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
-                              background: fmt.status === 'ready' ? `${S.success}12` : fmt.status === 'beta' ? `${S.warning}12` : `${S.error}12`,
-                              color: fmt.status === 'ready' ? S.success : fmt.status === 'beta' ? S.warning : S.error,
-                            }}>
-                              {fmt.status === 'ready' ? '就绪' : fmt.status === 'beta' ? 'Beta' : 'Alpha'}
-                            </span>
-                          </div>
-                          <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
-                        </div>
-                        <p className="text-[9px] mb-2" style={{ color: S.text2 }}>{fmt.description}</p>
-                        <motion.button
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => fmtState === 'idle' && handleExport(fmt.id)}
-                          disabled={fmtState !== 'idle'}
-                          className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
-                          style={{
-                            background: fmtState === 'done' ? `${S.success}12` : fmtState === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
-                            color: fmtState === 'done' ? S.success : fmtState === 'exporting' ? S.text3 : S.primary,
-                            cursor: fmtState === 'idle' ? 'pointer' : 'default',
-                          }}
-                        >
-                          {fmtState === 'exporting' && (
-                            <>
-                              <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
-                              发布中...
-                            </>
-                          )}
-                          {fmtState === 'done' && <>✅ 已发布</>}
-                          {fmtState === 'idle' && (
-                            <>
-                              <Upload size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
-                              发布
-                            </>
-                          )}
-                        </motion.button>
-                      </div>
-                    );
-                  })}
+                <div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>多端导出</h3>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>{EXPORT_FORMATS.length} 种导出格式</p>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── P8-15: 协作系统深化 ── */}
-
-        {/* 任务看板 */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={LayoutGrid}
-            title="任务看板"
-            subtitle={`${collabTasks.length} 个任务`}
-            open={secTaskBoard.open}
-            onToggle={secTaskBoard.toggle}
-          />
-          <AnimatePresence>
-            {secTaskBoard.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="grid grid-cols-4 gap-2 mt-3">
-                  {([
-                    { key: 'todo', label: '待办', color: S.text3 },
-                    { key: 'in_progress', label: '进行中', color: S.primary },
-                    { key: 'review', label: '审核中', color: S.warning },
-                    { key: 'done', label: '已完成', color: S.success },
-                  ] as const).map((col) => {
-                    const colTasks = collabTasks.filter((t) => t.status === col.key);
-                    return (
-                      <div key={col.key} className="rounded-lg p-2" style={{ background: S.s2, minHeight: '80px' }}>
-                        <div className="flex items-center gap-1 mb-2">
-                          <span className="text-[9px] font-bold" style={{ color: col.color }}>{col.label}</span>
-                          <span className="text-[8px] font-mono px-1 py-0.5 rounded" style={{ background: `${col.color}12`, color: col.color }}>
-                            {colTasks.length}
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          {colTasks.map((task) => {
-                            const prioCfg = PRIORITY_CFG[task.priority];
-                            return (
-                              <motion.div
-                                key={task.id}
-                                whileHover={{ scale: 1.02 }}
-                                className="p-2 rounded-lg cursor-grab"
-                                style={{ background: S.card, border: `1px solid ${S.border}` }}
-                              >
-                                {/* Drag handle */}
-                                <div className="flex items-center gap-1 mb-1">
-                                  <div className="flex flex-col items-center opacity-30">
-                                    <div className="w-3 h-0.5 rounded-full" style={{ background: S.text3, marginBottom: '2px' }} />
-                                    <div className="w-3 h-0.5 rounded-full" style={{ background: S.text3, marginBottom: '2px' }} />
-                                    <div className="w-3 h-0.5 rounded-full" style={{ background: S.text3 }} />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[9px] font-bold truncate" style={{ color: S.text }}>{task.title}</div>
-                                  </div>
-                                </div>
-                                {/* Badges row */}
-                                <div className="flex items-center gap-1 flex-wrap mb-1">
-                                  <span className="text-[7px] font-bold px-1 py-0.5 rounded" style={{ background: prioCfg.bg, color: prioCfg.color }}>
-                                    {prioCfg.label}
-                                  </span>
-                                  <span className="text-[7px] px-1 py-0.5 rounded" style={{ background: `${S.accent}10`, color: S.accent }}>
-                                    {task.category}
-                                  </span>
-                                </div>
-                                {/* Assignee */}
-                                <div className="flex items-center gap-1 mb-1">
-                                  <User size={7} style={{ color: S.text3 }} />
-                                  <span className="text-[8px]" style={{ color: S.text3 }}>{task.assignee}</span>
-                                  <span className="text-[7px]" style={{ color: S.text3 }}>({task.assigneeRole})</span>
-                                </div>
-                                {/* Bottom row */}
-                                <div className="flex items-center gap-1.5">
-                                  {task.dueDate && (
-                                    <span className="text-[7px] flex items-center gap-0.5" style={{ color: new Date(task.dueDate) < new Date('2026-06-02') ? S.error : S.text3 }}>
-                                      <Clock size={7} />
-                                      {task.dueDate}
-                                      {new Date(task.dueDate) < new Date('2026-06-02') && <span style={{ color: S.error }}> (逾期)</span>}
-                                    </span>
-                                  )}
-                                  {task.comments > 0 && (
-                                    <span className="text-[7px] flex items-center gap-0.5" style={{ color: S.text3 }}>
-                                      <MessageCircle size={7} />
-                                      {task.comments}
-                                    </span>
-                                  )}
-                                  {task.linkedNodeId && (
-                                    <span className="text-[7px] px-1 py-0.5 rounded font-mono" style={{ background: `${S.primary}08`, color: S.primary }}>
-                                      {task.linkedNodeId}
-                                    </span>
-                                  )}
-                                </div>
-                              </motion.div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* 评论动态 */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={MessageCircle}
-            title="评论动态"
-            subtitle={`${collabComments.length} 条评论`}
-            open={secCommentsFeed.open}
-            onToggle={secCommentsFeed.toggle}
-          />
-          <AnimatePresence>
-            {secCommentsFeed.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-0 mt-3">
-                  {collabComments.map((comment, i) => (
-                    <div key={comment.id} className="p-3 rounded-xl"
-                      style={{ background: i % 2 === 0 ? S.s2 : S.card, border: `1px solid ${S.border}`, marginBottom: '4px' }}>
-                      {/* Header */}
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[10px] font-bold" style={{ color: S.text }}>{comment.author}</span>
-                        <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
-                          {comment.authorRole}
-                        </span>
-                        <span className="text-[8px] ml-auto" style={{ color: S.text3 }}>{comment.timestamp}</span>
-                      </div>
-                      {/* Content with mentions */}
-                      <div className="text-[10px] leading-relaxed mb-1.5" style={{ color: S.text2 }}>
-                        {renderWithMentions(comment.content, comment.mentions)}
-                      </div>
-                      {/* Footer */}
-                      <div className="flex items-center gap-2">
-                        {comment.taskId && (
-                          <span className="text-[7px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}10`, color: S.accent }}>
-                            {comment.taskId}
-                          </span>
-                        )}
-                        {comment.nodeId && (
-                          <span className="text-[7px] px-1.5 py-0.5 rounded font-mono" style={{ background: `${S.primary}08`, color: S.primary }}>
-                            {comment.nodeId}
-                          </span>
-                        )}
-                        <span className="text-[7px] px-1.5 py-0.5 rounded ml-auto" style={{
-                          background: comment.isResolved ? `${S.success}12` : `${S.warning}12`,
-                          color: comment.isResolved ? S.success : S.warning,
-                        }}>
-                          {comment.isResolved ? '已解决' : '待处理'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* 审核流程 */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={Shield}
-            title="审核流程"
-            subtitle={`${reviewItems.length} 个审核项`}
-            open={secReviewWorkflow.open}
-            onToggle={secReviewWorkflow.toggle}
-          />
-          <AnimatePresence>
-            {secReviewWorkflow.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-3 mt-3">
-                  {reviewItems.map((item) => {
-                    const TypeIcon = REVIEW_TYPE_ICONS[item.type] ?? Pencil;
-                    const currentStageIdx = REVIEW_STAGES.findIndex((s) => s.key === item.stage);
-                    return (
-                      <div key={item.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                        {/* Header */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: `${S.primary}12` }}>
-                            <TypeIcon size={10} style={{ color: S.primary }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[10px] font-bold" style={{ color: S.text }}>{item.title}</div>
-                            <div className="text-[8px]" style={{ color: S.text3 }}>
-                              {item.submitter} → {item.reviewer}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Stage pipeline */}
-                        <div className="flex items-center justify-between mb-2 px-1">
-                          {REVIEW_STAGES.map((stage, si) => {
-                            const isActive = si <= currentStageIdx;
-                            const isCurrent = si === currentStageIdx;
-                            return (
-                              <div key={stage.key} className="flex items-center" style={{ flex: si < REVIEW_STAGES.length - 1 ? 1 : 'none' }}>
-                                <div className="flex flex-col items-center">
-                                  <div className="w-3 h-3 rounded-full flex items-center justify-center" style={{
-                                    background: isCurrent ? S.primary : isActive ? `${S.primary}30` : S.s3,
-                                    border: isCurrent ? `2px solid ${S.primary}` : `2px solid ${isActive ? S.primary : S.border}`,
-                                  }}>
-                                    {isCurrent && <CheckCircle2 size={7} color="#fff" />}
-                                  </div>
-                                  <span className="text-[7px] mt-0.5" style={{ color: isCurrent ? S.primary : isActive ? S.text2 : S.text3 }}>
-                                    {stage.label}
-                                  </span>
-                                </div>
-                                {si < REVIEW_STAGES.length - 1 && (
-                                  <div className="flex-1 h-px mx-1" style={{ background: isActive ? S.primary : S.border }} />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Details */}
-                        <div className="flex items-center gap-2 mb-1 text-[8px]" style={{ color: S.text3 }}>
-                          {item.submittedAt && <span>提交: {item.submittedAt}</span>}
-                          {item.reviewedAt && <span>· 审核: {item.reviewedAt}</span>}
-                        </div>
-                        <div className="text-[9px] mb-1" style={{ color: S.text2 }}>{item.changeSummary}</div>
-                        <div className="text-[9px]" style={{ color: S.text3 }}>{item.comments}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* 版本差异对比 */}
-        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <SectionHeader
-            icon={GitCompare}
-            title="版本差异对比"
-            subtitle={`${versionDiffs.length} 组对比数据`}
-            open={secVersionDiff.open}
-            onToggle={secVersionDiff.toggle}
-          />
-          <AnimatePresence>
-            {secVersionDiff.open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                {/* Version selectors */}
-                <div className="flex items-center gap-2 mt-3 mb-3">
-                  <select
-                    value={diffFromIdx}
-                    onChange={(e) => setDiffFromIdx(Number(e.target.value))}
-                    className="flex-1 text-[10px] px-2 py-1.5 rounded-lg focus:outline-none"
-                    style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    {versionDiffs.map((d, i) => (
-                      <option key={i} value={i}>{d.fromVersion} → {d.toVersion}</option>
-                    ))}
-                  </select>
-                  <ArrowLeftRight size={12} style={{ color: S.text3 }} className="shrink-0" />
-                  <select
-                    value={diffToIdx}
-                    onChange={(e) => setDiffToIdx(Number(e.target.value))}
-                    className="flex-1 text-[10px] px-2 py-1.5 rounded-lg focus:outline-none"
-                    style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    {versionDiffs.map((d, i) => (
-                      <option key={i} value={i}>{d.fromVersion} → {d.toVersion}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* Diff summary card */}
-                {(() => {
-                  const diff = versionDiffs[diffFromIdx] ?? versionDiffs[0];
-                  const metrics = [
-                    { label: '节点新增', value: diff.nodesAdded, color: S.success },
-                    { label: '节点修改', value: diff.nodesModified, color: S.primary },
-                    { label: '节点删除', value: diff.nodesRemoved, color: S.error },
-                    { label: '变量变更', value: diff.variablesChanged, color: S.warning },
-                    { label: '资产更新', value: diff.assetsUpdated, color: S.accent },
-                    { label: '脚本变更', value: diff.scriptChanges, color: '#8B5CF6' },
-                  ];
-                  const maxVal = Math.max(...metrics.map((m) => m.value), 1);
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {EXPORT_FORMATS.map((fmt) => {
+                  const state = exportStates[fmt.id]?.status ?? 'idle';
                   return (
-                    <div className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
-                          {diff.fromVersion}
-                        </span>
-                        <ChevronRight size={10} style={{ color: S.text3 }} />
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.success}12`, color: S.success }}>
-                          {diff.toVersion}
-                        </span>
-                      </div>
-                      <div className="space-y-2 mb-2">
-                        {metrics.map((m) => (
-                          <div key={m.label} className="flex items-center gap-2">
-                            <span className="text-[8px] w-14 shrink-0" style={{ color: S.text3 }}>{m.label}</span>
-                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.max((m.value / maxVal) * 100, m.value > 0 ? 8 : 0)}%` }}
-                                transition={{ duration: 0.4 }}
-                                className="h-full rounded-full flex items-center justify-end pr-1"
-                                style={{ background: m.color }}
-                              >
-                                {m.value > 0 && (
-                                  <span className="text-[7px] font-bold font-mono" style={{ color: '#fff' }}>{m.value}</span>
-                                )}
-                              </motion.div>
+                    <div key={fmt.id} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                      <div className="flex items-start justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{fmt.icon}</span>
+                          <div>
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
+                                background: fmt.status === 'ready' ? `${S.success}12` : `${S.warning}12`,
+                                color: fmt.status === 'ready' ? S.success : S.warning,
+                              }}>
+                                {fmt.status === 'ready' ? '就绪' : 'Beta'}
+                              </span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
                             </div>
-                            <span className="text-[9px] font-mono font-bold w-5 text-right" style={{ color: m.color }}>{m.value}</span>
                           </div>
+                        </div>
+                      </div>
+                      <p className="text-[9px] mb-1.5 leading-relaxed" style={{ color: S.text2 }}>{fmt.description}</p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {fmt.features.map((feat) => (
+                          <span key={feat} className="text-[7px] px-1 py-0.5 rounded"
+                            style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
+                            {feat}
+                          </span>
                         ))}
                       </div>
-                      <p className="text-[9px] pt-2" style={{ color: S.text2, borderTop: `1px solid ${S.border}` }}>
-                        {diff.summary}
-                      </p>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => state === 'idle' && handleExport(fmt.id)}
+                        disabled={state !== 'idle'}
+                        className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                        style={{
+                          background: state === 'done' ? `${S.success}12` : state === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
+                          color: state === 'done' ? S.success : state === 'exporting' ? S.text3 : S.primary,
+                          cursor: state === 'idle' ? 'pointer' : 'default',
+                        }}
+                      >
+                        {state === 'exporting' && (
+                          <>
+                            <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
+                            导出中...
+                          </>
+                        )}
+                        {state === 'done' && <>&#x2705; 已导出</>}
+                        {state === 'idle' && (
+                          <>
+                            <Download size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+                            导出
+                          </>
+                        )}
+                      </motion.button>
+                      {state === 'done' && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-1.5 p-1.5 rounded-lg text-[8px]"
+                          style={{ background: `${S.success}06`, border: `1px solid ${S.success}15` }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span style={{ color: S.text3 }}>
+                              <CheckCircle2 size={8} className="inline mr-1" style={{ color: S.success }} />
+                              ghost-protocol_{fmt.id}.{
+                                fmt.id === 'json' ? 'json' :
+                                fmt.id === 'webgal' ? 'txt' :
+                                fmt.id === 'renpy' ? 'rpy' :
+                                fmt.id === 'ink' ? 'ink' :
+                                fmt.id === 'h5-package' ? 'zip' : 'pdf'
+                              }
+                            </span>
+                            <span className="font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                          </div>
+                          <button className="text-[8px] font-bold mt-1 focus:outline-none" style={{ color: S.primary }}>
+                            <Download size={7} className="inline mr-0.5" />
+                            下载文件
+                          </button>
+                        </motion.div>
+                      )}
                     </div>
                   );
-                })()}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                })}
+              </div>
+            </div>
 
-        {/* ── 操作按钮网格 ── */}
-        <div className="grid grid-cols-2 gap-2">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            className="py-2.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-            style={{ background: `linear-gradient(135deg,${S.primary},#7B6EF5)` }}
-          >
-            <Rocket size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
-            更新发布
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={handleCreateSnapshot}
-            className="py-2.5 rounded-xl text-xs font-bold focus:outline-none"
-            style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}30`, color: S.accent }}
-          >
-            <Camera size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
-            创建快照
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            className="py-2.5 rounded-xl text-xs font-bold focus:outline-none"
-            style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text2 }}
-          >
-            <Layers size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
-            导出 JSON
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            className="py-2.5 rounded-xl text-xs font-bold focus:outline-none"
-            style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text2 }}
-          >
-            <Copy size={12} className="inline mr-1" style={{ verticalAlign: "-1px" }} />
-            复制分享链接
-          </motion.button>
-        </div>
+            {/* ── 行业发布格式 ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <Globe size={13} style={{ color: S.primary }} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>行业发布格式</h3>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>按行业定制发布输出</p>
+                </div>
+              </div>
+              {/* Industry sub-tabs */}
+              <div className="flex gap-1 mb-2 p-1 rounded-lg" style={{ background: S.s2 }}>
+                {INDUSTRY_TABS.map((tab, idx) => (
+                  <motion.button
+                    key={tab}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIndustryTab(idx)}
+                    className="flex-1 py-1.5 rounded-md text-[10px] font-bold focus:outline-none"
+                    style={{
+                      background: industryTab === idx ? S.card : 'transparent',
+                      color: industryTab === idx ? S.primary : S.text3,
+                      boxShadow: industryTab === idx ? `0 1px 3px ${S.border}` : 'none',
+                    }}
+                  >
+                    {tab}
+                  </motion.button>
+                ))}
+              </div>
+              {/* Format cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {(INDUSTRY_FORMATS[INDUSTRY_TABS[industryTab]] ?? []).map((fmt) => {
+                  const fmtState = exportStates[fmt.id]?.status ?? 'idle';
+                  return (
+                    <div key={fmt.id} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
+                            background: fmt.status === 'ready' ? `${S.success}12` : fmt.status === 'beta' ? `${S.warning}12` : `${S.error}12`,
+                            color: fmt.status === 'ready' ? S.success : fmt.status === 'beta' ? S.warning : S.error,
+                          }}>
+                            {fmt.status === 'ready' ? '就绪' : fmt.status === 'beta' ? 'Beta' : 'Alpha'}
+                          </span>
+                        </div>
+                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                      </div>
+                      <p className="text-[9px] mb-1.5" style={{ color: S.text2 }}>{fmt.description}</p>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => fmtState === 'idle' && handleExport(fmt.id)}
+                        disabled={fmtState !== 'idle'}
+                        className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                        style={{
+                          background: fmtState === 'done' ? `${S.success}12` : fmtState === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
+                          color: fmtState === 'done' ? S.success : fmtState === 'exporting' ? S.text3 : S.primary,
+                          cursor: fmtState === 'idle' ? 'pointer' : 'default',
+                        }}
+                      >
+                        {fmtState === 'exporting' && (
+                          <>
+                            <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
+                            发布中...
+                          </>
+                        )}
+                        {fmtState === 'done' && <>&#x2705; 已发布</>}
+                        {fmtState === 'idle' && (
+                          <>
+                            <Upload size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+                            发布
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── 引擎导出 (Beta) ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <Rocket size={13} style={{ color: S.primary }} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>引擎导出 (Beta)</h3>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>{engineExportConfigs.length} 个引擎目标</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {engineExportConfigs.map((engine) => {
+                  const state = engineExportStates[engine.id]?.status ?? 'idle';
+                  const statusColor = engine.status === 'stable' ? S.success : engine.status === 'beta' ? S.warning : S.error;
+                  const statusLabel = engine.status === 'stable' ? 'Stable' : engine.status === 'beta' ? 'Beta' : 'Alpha';
+                  const visibleMappings = engine.fieldMappings.slice(0, 3);
+                  const remainingMappings = engine.fieldMappings.length - visibleMappings.length;
+                  return (
+                    <motion.div
+                      key={engine.id}
+                      whileHover={{ y: -1, boxShadow: `0 4px 12px ${S.primary}10` }}
+                      transition={{ duration: 0.15 }}
+                      className="p-2.5 rounded-xl"
+                      style={{ background: S.s2, border: `1px solid ${S.border}` }}
+                    >
+                      <div className="flex items-start justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{engine.icon}</span>
+                          <div>
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{engine.name}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ background: `${statusColor}12`, color: statusColor }}>
+                                {statusLabel}
+                              </span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{engine.estimatedSize}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[9px] mb-1.5 leading-relaxed" style={{ color: S.text2 }}>{engine.description}</p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {engine.features.map((feat) => (
+                          <span key={feat} className="text-[7px] px-1 py-0.5 rounded"
+                            style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
+                            {feat}
+                          </span>
+                        ))}
+                      </div>
+                      {/* 字段映射预览 */}
+                      <div className="mb-2">
+                        <div className="text-[8px] font-bold mb-1" style={{ color: S.text3 }}>字段映射预览</div>
+                        <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
+                          {visibleMappings.map((m, mi) => (
+                            <div key={mi} className="flex items-center text-[8px] px-2 py-0.5"
+                              style={{ background: mi % 2 === 0 ? S.card : S.s2, borderBottom: mi < visibleMappings.length - 1 ? `1px solid ${S.border}` : 'none' }}>
+                              <span className="font-mono flex-1 truncate" style={{ color: S.text2 }}>{m.sourceField}</span>
+                              <ChevronRight size={8} style={{ color: S.text3 }} className="mx-1 shrink-0" />
+                              <span className="font-mono flex-1 truncate" style={{ color: m.mapped ? S.accent : S.warning }}>{m.targetField}</span>
+                              {m.mapped && <CheckCircle2 size={8} style={{ color: S.success }} className="shrink-0 ml-1" />}
+                            </div>
+                          ))}
+                          {remainingMappings > 0 && (
+                            <div className="text-center py-0.5 text-[8px]" style={{ background: S.s2, color: S.text3, borderTop: `1px solid ${S.border}` }}>
+                              +{remainingMappings} 更多映射
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {/* 导出选项 */}
+                      {engine.customOptions.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          <div className="text-[8px] font-bold mb-0.5" style={{ color: S.text3 }}>导出选项</div>
+                          {engine.customOptions.map((opt) => (
+                            <div key={opt.key} className="flex items-center justify-between px-2 py-0.5 rounded-lg" style={{ background: S.card }}>
+                              <span className="text-[9px]" style={{ color: S.text2 }}>{opt.label}</span>
+                              {opt.type === 'boolean' ? (
+                                <div className="w-7 h-4 rounded-full relative cursor-pointer" style={{ background: opt.defaultValue ? S.primary : S.s3 }}>
+                                  <div className="w-3 h-3 rounded-full absolute top-0.5 transition-all" style={{
+                                    background: '#fff', left: opt.defaultValue ? '14px' : '2px',
+                                  }} />
+                                </div>
+                              ) : (
+                                <span className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}>
+                                  {String(opt.defaultValue)}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => state === 'idle' && handleEngineExport(engine.id)}
+                        disabled={state !== 'idle'}
+                        className="w-full py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                        style={{
+                          background: state === 'done' ? `${S.success}12` : state === 'exporting' ? `${S.primary}08` : `${S.primary}12`,
+                          color: state === 'done' ? S.success : state === 'exporting' ? S.text3 : S.primary,
+                          cursor: state === 'idle' ? 'pointer' : 'default',
+                        }}
+                      >
+                        {state === 'exporting' && (
+                          <>
+                            <span className="inline-block animate-spin mr-1" style={{ fontSize: '10px' }}>&#8987;</span>
+                            导出中...
+                          </>
+                        )}
+                        {state === 'done' && <>&#x2705; 已导出 {engine.format}</>}
+                        {state === 'idle' && (
+                          <>
+                            <Download size={10} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+                            导出 {engine.format}
+                          </>
+                        )}
+                      </motion.button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            TAB 2: 快照与记录
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 2 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+            {/* ── 版本快照 ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <Camera size={13} style={{ color: S.primary }} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold" style={{ color: S.text }}>版本快照</h3>
+                    <p className="text-[9px]" style={{ color: S.text3 }}>当前 {snapshots[0]?.version ?? '—'} | {snapshots.length} 个版本</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {compareMode ? (
+                    <>
+                      <span className="text-[9px]" style={{ color: S.text3 }}>
+                        已选 {selectedSnapshots.length}/2
+                      </span>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={exitCompareMode}
+                        className="text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
+                        style={{ background: `${S.error}12`, color: S.error }}
+                      >
+                        取消
+                      </motion.button>
+                    </>
+                  ) : (
+                    <>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setCompareMode(true)}
+                        className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
+                        style={{ background: `${S.accent}12`, color: S.accent }}
+                      >
+                        <GitCompareArrows size={10} /> 对比
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleCreateSnapshot}
+                        className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded focus:outline-none"
+                        style={{ background: `${S.primary}12`, color: S.primary }}
+                      >
+                        <Camera size={10} /> 新建
+                      </motion.button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {snapshots.map((snap) => {
+                  const cfg = STATUS_CFG[snap.status];
+                  const isSelected = selectedSnapshots.includes(snap.version);
+                  return (
+                    <motion.button
+                      key={snap.version}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        if (compareMode) toggleSnapshotSelect(snap.version);
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl focus:outline-none"
+                      style={{
+                        background: isSelected ? `${S.accent}08` : S.s2,
+                        border: `1px solid ${isSelected ? S.accent : S.border}`,
+                        cursor: compareMode ? "pointer" : "default",
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-2">
+                          {compareMode && (
+                            <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                              style={{
+                                background: isSelected ? S.accent : S.s3,
+                                border: `1.5px solid ${isSelected ? S.accent : S.border2}`,
+                              }}>
+                              {isSelected && <CheckCircle2 size={10} color="#fff" />}
+                            </div>
+                          )}
+                          <span className="text-[11px] font-bold font-mono" style={{ color: S.text }}>
+                            {snap.version}
+                          </span>
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: cfg.bg, color: cfg.color }}>
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{snap.date}</span>
+                      </div>
+                      <p className="text-[10px]" style={{ color: S.text2 }}>{snap.summary}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Layers size={9} style={{ color: S.text3 }} />
+                        <span className="text-[8px]" style={{ color: S.text3 }}>{snap.changes} 项变更</span>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              {/* 快照对比面板 */}
+              <AnimatePresence>
+                {compareMode && comparePair && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2 p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.accent}30` }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <ArrowLeftRight size={12} style={{ color: S.accent }} />
+                        <span className="text-[10px] font-bold" style={{ color: S.text }}>
+                          版本对比
+                        </span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                          style={{ background: `${S.accent}12`, color: S.accent }}>
+                          {comparePair.older.version} → {comparePair.newer.version}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* 旧版本 */}
+                        <div className="p-2 rounded-lg" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] font-bold font-mono" style={{ color: S.text3 }}>
+                              {comparePair.older.version}
+                            </span>
+                            <span className="text-[8px] px-1 py-0.5 rounded"
+                              style={{ background: `${S.text3}15`, color: S.text3 }}>
+                              旧
+                            </span>
+                          </div>
+                          <p className="text-[9px] mb-0.5" style={{ color: S.text2 }}>{comparePair.older.summary}</p>
+                          <div className="flex items-center gap-1">
+                            <Clock size={8} style={{ color: S.text3 }} />
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.older.date}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Minus size={8} style={{ color: S.error }} />
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.older.changes} 项变更</span>
+                          </div>
+                        </div>
+                        {/* 新版本 */}
+                        <div className="p-2 rounded-lg" style={{ background: S.card, border: `1px solid ${S.accent}30` }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>
+                              {comparePair.newer.version}
+                            </span>
+                            <span className="text-[8px] px-1 py-0.5 rounded"
+                              style={{ background: `${S.accent}12`, color: S.accent }}>
+                              新
+                            </span>
+                          </div>
+                          <p className="text-[9px] mb-0.5" style={{ color: S.text2 }}>{comparePair.newer.summary}</p>
+                          <div className="flex items-center gap-1">
+                            <Clock size={8} style={{ color: S.text3 }} />
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.newer.date}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Plus size={8} style={{ color: S.success }} />
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{comparePair.newer.changes} 项变更</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* 差异摘要 */}
+                      <div className="mt-2 p-1.5 rounded-lg" style={{ background: `${S.accent}06`, border: `1px solid ${S.accent}15` }}>
+                        <p className="text-[9px]" style={{ color: S.text2 }}>
+                          净增 <span className="font-bold font-mono" style={{ color: S.accent }}>
+                            {Math.abs(comparePair.newer.changes - comparePair.older.changes)}
+                          </span> 项变更
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {compareMode && selectedSnapshots.length < 2 && (
+                <p className="text-[9px] text-center mt-2" style={{ color: S.text3 }}>
+                  请选择两个版本进行对比
+                </p>
+              )}
+            </div>
+
+            {/* ── 变更记录 ── */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <History size={13} style={{ color: S.primary }} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>变更记录</h3>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>今日 {changeLog.length} 条编辑</p>
+                </div>
+              </div>
+              <div className="space-y-0.5 max-h-[400px] overflow-y-auto">
+                {changeLog.map((log, i) => {
+                  const ActionIcon = ACTION_ICONS[log.action] ?? Pencil;
+                  return (
+                    <div key={i} className="flex items-start gap-2 py-1.5 border-b last:border-0"
+                      style={{ borderColor: S.border }}>
+                      {/* 时间 */}
+                      <div className="shrink-0 w-10 text-right pt-0.5">
+                        <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{log.time}</span>
+                      </div>
+                      {/* 时间线圆点 */}
+                      <div className="flex flex-col items-center shrink-0 pt-0.5">
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{ background: `${log.color}12` }}>
+                          <ActionIcon size={10} style={{ color: log.color }} />
+                        </div>
+                      </div>
+                      {/* 内容 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: `${log.color}12`, color: log.color }}>
+                            {log.actionLabel}
+                          </span>
+                          <span className="text-[10px] font-bold truncate" style={{ color: S.text }}>
+                            {log.target}
+                          </span>
+                          <span className="text-[8px] px-1 py-0.5 rounded shrink-0"
+                            style={{ background: S.s2, color: S.text3 }}>
+                            {log.user}
+                          </span>
+                        </div>
+                        <p className="text-[9px]" style={{ color: S.text3 }}>{log.detail}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 底部留白 */}
-        <div className="h-4" />
+        <div className="h-3" />
       </div>
     </div>
   );

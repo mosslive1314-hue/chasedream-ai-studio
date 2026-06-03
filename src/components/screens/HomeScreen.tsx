@@ -1,13 +1,13 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
-  Plus, Play, Edit3, Users, MousePointer, Star,
-  Search, Clapperboard, ChevronDown, Zap,
+  Plus, ChevronDown, Zap,
   X, ChevronLeft, ChevronRight, Check, Sparkles,
-  Monitor, Smartphone, Gamepad2, Globe, Eye, Palette,
-  Bot, ShieldCheck, Wand2, Trash2,
+  Monitor, Smartphone, Gamepad2, Globe, Palette,
+  Bot, ShieldCheck, Wand2,
+  ArrowRight, CheckCircle2, Layers,
 } from "lucide-react";
 import {
   PROJECT_SPEC_TEMPLATES,
@@ -16,7 +16,7 @@ import {
   type ProjectSpecTemplate,
   type IndustryType,
 } from "@/lib/studio-data";
-import { useProjectStore, useUIStore } from "@/store";
+import { useProjectStore, useUIStore, useNarrativeStore, useSettingsStore } from "@/store";
 
 // ── 设计 tokens（现有页面 + 向导共用基础色）─────────────────────────────
 const S = {
@@ -28,21 +28,6 @@ const S = {
   success: "#059669", warning: "#D97706", error: "#DC2626",
   // legacy aliases (header / stats area)
   purple2: "#A78BFA",
-};
-
-// ── 现有页面数据 ─────────────────────────────────────────────────────────
-const STATS = [
-  { icon: Play,         label: "总游玩次数", value: "12", note: "↑ 1 部作品", color: S.primary,  bg: S.primary10 },
-  { icon: Users,        label: "独立玩家",   value: "0",  note: "暂无数据",   color: S.accent,   bg: "rgba(0,169,157,0.08)" },
-  { icon: MousePointer, label: "选择总次数", value: "0",  note: "暂无数据",   color: S.warning,  bg: "rgba(217,119,6,0.08)" },
-  { icon: Star,         label: "已发布作品", value: "1",  note: "↗ 正在运营", color: S.purple2,  bg: "rgba(167,139,250,0.08)" },
-];
-
-const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
-  published:   { label: "已发布",   bg: "rgba(5,150,105,0.12)",  color: S.success },
-  in_progress: { label: "制作中",   bg: "rgba(94,80,232,0.12)",  color: S.primary },
-  idle:        { label: "空闲",     bg: "rgba(100,116,139,0.12)", color: "#64748B" },
-  draft:       { label: "草稿",     bg: "rgba(100,116,139,0.12)", color: "#64748B" },
 };
 
 // ── 向导常量 ─────────────────────────────────────────────────────────────
@@ -93,6 +78,13 @@ const INIT_FORM: WizardForm = {
   aiAutoAssets: true, aiInteractionDesign: true, aiQualityCheck: false,
 };
 
+// ── Pipeline 12 stages ─────────────────────────────────────────────────
+const PIPELINE_STAGES = [
+  "项目创建", "素材导入", "要素提取", "世界规则",
+  "章纲规划", "线性剧本", "互动设计", "变量配置",
+  "节点验证", "资产管理", "演出预览", "发布导出",
+];
+
 // ── 步骤切换动画 ────────────────────────────────────────────────────────
 const stepVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
@@ -103,6 +95,7 @@ const stepVariants = {
 // ── 主组件 ───────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const [moreOpen, setMoreOpen] = useState(false);
+  const addToast = useUIStore(s => s.addToast);
 
   // 向导状态
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -112,11 +105,38 @@ export default function HomeScreen() {
   const [industryType, setIndustryType] = useState<IndustryType>('game');
 
   // ── 从 store 获取项目数据 ────────────────────────────────────────────────
-  const projects = useProjectStore(state => state.projects);
-  const currentProjectId = useProjectStore(state => state.currentProjectId);
+
+  // ── Narrative store for pipeline metrics ──
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+  const characters = useNarrativeStore(s => s.characters);
+  const branchPaths = useNarrativeStore(s => s.branchPaths);
+  const pipelineStages = useNarrativeStore(s => s.pipelineStages);
+  const projectName = useSettingsStore(s => s.projectName);
+  const currentProject = useProjectStore(s => s.currentProject);
+
+  // ── Pipeline active stage memo ──
+  const activeStage = useMemo(() => pipelineStages.find(s => s.status === "active"), [pipelineStages]);
+  const completedCount = useMemo(() => pipelineStages.filter(s => s.status === "completed").length, [pipelineStages]);
+  const overallPct = useMemo(() => {
+    if (pipelineStages.length === 0) return 0;
+    return Math.round(pipelineStages.reduce((sum, s) => sum + s.progress, 0) / pipelineStages.length);
+  }, [pipelineStages]);
 
   const openWizard = () => { setForm(INIT_FORM); setStep(1); setDir(1); setIndustryType('game'); setWizardOpen(true); };
   const closeWizard = () => setWizardOpen(false);
+
+  // Auto-open wizard when navigating from header "新建项目" button
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "new-project" && !wizardOpen) {
+      openWizard();
+      // Clean up URL without triggering navigation
+      const url = new URL(window.location.href);
+      url.searchParams.delete("action");
+      window.history.replaceState({}, "", url.pathname);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 当前选中行业模板
   const selectedIndustry = useMemo(
@@ -184,243 +204,209 @@ export default function HomeScreen() {
     closeWizard();
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    useProjectStore.getState().deleteProject(id);
-    useUIStore.getState().addToast({ type: "info", title: "项目已删除" });
-  };
-
   // ── 渲染 ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-svh" style={{ background: S.bg }}>
 
-      {/* ── 首页专属顶部导航栏 ── */}
-      <header className="flex items-center h-11 px-4 gap-1 border-b"
-        style={{ background: S.card, borderColor: S.border }}>
-        <nav className="flex items-center gap-0.5">
-          {[
-            { label: "发现",     href: "/" },
-            { label: "我的资产", href: "/assets" },
-            { label: "素材市场", href: "/assets" },
-            { label: "能力市场", href: "/overview" },
-          ].map(item => (
-            <Link key={item.label} href={item.href}>
-              <motion.span whileTap={{ scale: 0.97 }}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50 transition-colors"
-                style={{ color: S.text2 }}>
-                {item.label}
-              </motion.span>
-            </Link>
-          ))}
-          <div className="relative">
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => setMoreOpen(o => !o)}
-              className="flex items-center gap-0.5 px-2.5 py-1 rounded-lg text-xs font-medium focus:outline-none"
-              style={{ color: S.text3 }}>
-              开发者设置 <ChevronDown size={10} />
-            </motion.button>
-            <AnimatePresence>
-              {moreOpen && (
-                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
-                  className="absolute top-full left-0 mt-1 rounded-xl py-1 min-w-[120px] z-50"
-                  style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}>
-                  <Link href="/settings">
-                    <div className="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50"
-                      style={{ color: S.text2 }} onClick={() => setMoreOpen(false)}>
-                      开发者设置
-                    </div>
-                  </Link>
-                  <Link href="/settings">
-                    <div className="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50"
-                      style={{ color: S.text2 }} onClick={() => setMoreOpen(false)}>
-                      AI Key 管理
-                    </div>
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </nav>
-
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg ml-1"
-          style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}>
-          Key已配置
-        </span>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-1.5">
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
-            style={{ background: S.s2, border: `1px solid ${S.border}`, minWidth: 130 }}>
-            <Search size={12} style={{ color: S.text3 }} />
-            <input placeholder="搜索项目…" className="text-xs bg-transparent focus:outline-none w-full"
-              style={{ color: S.text }} />
-          </div>
-          <div className="flex items-center gap-1 px-2 py-1 rounded-lg cursor-pointer"
-            style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-            <div className="w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ background: S.primary }}>
-              <span className="text-[8px] text-white font-bold">M</span>
-            </div>
-            <span className="text-[10px] font-medium" style={{ color: S.text2 }}>maiyiming</span>
-          </div>
-          <Link href="/parse">
-            <motion.button whileTap={{ scale: 0.97 }}
-              className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium focus:outline-none"
-              style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text2 }}>
-              <Clapperboard size={12} /> 短剧改编
-            </motion.button>
-          </Link>
-
-          {/* 新建项目按钮 —— 打开向导 */}
-          <motion.button whileTap={{ scale: 0.97 }}
-            onClick={openWizard}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white focus:outline-none"
-            style={{ background: S.primary }}>
-            <Plus size={12} /> 新建项目
-          </motion.button>
-        </div>
-      </header>
-
       {/* ── 主内容 ── */}
-      <main className="px-6 py-6 max-w-6xl mx-auto space-y-6">
+      <main className="px-6 py-6 max-w-6xl mx-auto space-y-5">
 
         {/* 标题行 */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold" style={{ color: S.text }}>创作台</h1>
-            <p className="text-xs mt-0.5" style={{ color: S.text3 }}>{projects.length} 个项目</p>
+            <h1 className="text-xl font-bold" style={{ color: S.text }}>{projectName || "工作台"}</h1>
+            <p className="text-xs mt-0.5" style={{ color: S.text3 }}>
+              总体进度 {overallPct}% · 已完成 {completedCount}/12 阶段
+            </p>
           </div>
-          <Link href="/parse">
+          <div className="flex items-center gap-2">
+            <Link href="/parse">
+              <motion.button whileTap={{ scale: 0.97 }}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
+                style={{ background: S.primary10, border: `1px solid ${S.primary20}`, color: S.primary }}>
+                <Zap size={12} /> 剧本解构 · AI流水线
+              </motion.button>
+            </Link>
             <motion.button whileTap={{ scale: 0.97 }}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
-              style={{ background: S.primary10, border: `1px solid ${S.primary20}`, color: S.primary }}>
-              <Zap size={12} /> 剧本解构 · AI流水线
+              onClick={openWizard}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white focus:outline-none"
+              style={{ background: S.primary }}>
+              <Plus size={12} /> 新建项目
             </motion.button>
-          </Link>
+          </div>
         </div>
 
-        {/* 数据概览 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {STATS.map((stat, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="p-4 rounded-2xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2"
-                style={{ background: stat.bg }}>
-                <stat.icon size={15} style={{ color: stat.color }} />
+        {/* ── 今日聚焦：当前活跃阶段 ── */}
+        {activeStage && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 rounded-2xl relative overflow-hidden"
+            style={{ background: S.card, border: `1px solid ${S.primary20}` }}
+          >
+            {/* Subtle gradient accent */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: `linear-gradient(135deg, ${S.primary10} 0%, transparent 60%)`,
+            }} />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                  style={{ background: S.primary10 }}>
+                  {activeStage.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: S.primary, color: "#fff" }}>
+                      当前阶段
+                    </span>
+                    <h2 className="text-sm font-bold" style={{ color: S.text }}>
+                      {activeStage.name}
+                    </h2>
+                  </div>
+                  <p className="text-[10px] mt-0.5" style={{ color: S.text3 }}>{activeStage.description}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-2xl font-black tabular-nums" style={{ color: S.primary }}>{activeStage.progress}</span>
+                  <span className="text-xs" style={{ color: S.text3 }}>%</span>
+                </div>
               </div>
-              <p className="text-xl font-bold font-mono" style={{ color: S.text }}>{stat.value}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: S.text3 }}>{stat.label}</p>
-              <p className="text-[9px] mt-0.5" style={{ color: stat.color }}>{stat.note}</p>
+
+              {/* Progress bar */}
+              <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: S.s3 }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${activeStage.progress}%` }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className="h-full rounded-full"
+                  style={{ background: `linear-gradient(90deg, ${S.primary}, ${S.purple2})` }}
+                />
+              </div>
+
+              <div className="flex gap-4">
+                {/* Issues */}
+                {activeStage.issues.length > 0 && (
+                  <div className="flex-1">
+                    <p className="text-[9px] font-semibold mb-1" style={{ color: S.warning }}>
+                      待解决问题 ({activeStage.issues.length})
+                    </p>
+                    <div className="space-y-0.5">
+                      {activeStage.issues.slice(0, 3).map((issue, i) => (
+                        <div key={i} className="flex items-center gap-1.5 text-[10px]" style={{ color: S.text2 }}>
+                          <div className="w-1 h-1 rounded-full shrink-0" style={{ background: S.warning }} />
+                          {issue}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Next action CTA */}
+                <div className="flex-1 flex flex-col justify-end">
+                  <p className="text-[9px] font-semibold mb-1" style={{ color: S.text3 }}>下一步操作</p>
+                  <p className="text-[10px] mb-2" style={{ color: S.text2 }}>{activeStage.nextAction}</p>
+                  {activeStage.linkedPage && (
+                    <Link href={activeStage.linkedPage}>
+                      <motion.button whileTap={{ scale: 0.97 }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white focus:outline-none"
+                        style={{ background: S.primary }}>
+                        前往处理 <ArrowRight size={10} />
+                      </motion.button>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── 快捷指标卡片 ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "叙事节点", value: storyNodes.length, icon: "🗺️", color: S.primary },
+            { label: "角色设定", value: characters.length, icon: "👤", color: "#D97706" },
+            { label: "分支路径", value: branchPaths.length, icon: "🔀", color: "#059669" },
+            { label: "章节数", value: currentProject()?.chapters ?? 0, icon: "📖", color: "#DC2626" },
+          ].map((m, i) => (
+            <motion.div key={i}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.05 }}
+              className="flex items-center gap-3 p-3 rounded-xl"
+              style={{ background: S.card, border: `1px solid ${S.border}` }}
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
+                style={{ background: `${m.color}12` }}>
+                {m.icon}
+              </div>
+              <div>
+                <p className="text-lg font-black tabular-nums" style={{ color: S.text }}>{m.value}</p>
+                <p className="text-[9px]" style={{ color: S.text3 }}>{m.label}</p>
+              </div>
             </motion.div>
           ))}
         </div>
 
-        {/* 作品表现 */}
+        {/* ── 制作管线进度概览（紧凑版） ── */}
         <div className="p-4 rounded-2xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <h2 className="text-sm font-bold mb-2" style={{ color: S.text }}>作品表现</h2>
-          <div className="flex items-center justify-between py-1.5"
-            style={{ borderBottom: `1px solid ${S.border}` }}>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-mono" style={{ color: S.text3 }}>1</span>
-              <span className="text-xs font-medium" style={{ color: S.text }}>幽灵协议</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                <Layers size={14} style={{ color: S.primary }} />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold" style={{ color: S.text }}>制作管线</h2>
+                <p className="text-[9px]" style={{ color: S.text3 }}>12 阶段创作流水线进度</p>
+              </div>
             </div>
-            <span className="text-xs font-mono font-bold" style={{ color: S.primary }}>11 次</span>
+            <Link href="/pipeline">
+              <motion.span whileTap={{ scale: 0.97 }} className="text-[9px] flex items-center gap-0.5" style={{ color: S.primary }}>
+                查看详情 <ArrowRight size={9} />
+              </motion.span>
+            </Link>
+          </div>
+          <div className="grid grid-cols-6 md:grid-cols-12 gap-1.5">
+            {PIPELINE_STAGES.map((stage, i) => {
+              const progress = pipelineStages[i]?.progress ?? 0;
+              const isComplete = progress >= 100;
+              const isActive = pipelineStages[i]?.status === "active";
+              return (
+                <motion.div key={i}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  className="flex flex-col items-center gap-1 p-2 rounded-xl cursor-pointer transition-colors"
+                  style={{
+                    background: isComplete ? "rgba(5,150,105,0.06)" : isActive ? S.primary10 : S.s2,
+                    border: `1px solid ${isComplete ? "rgba(5,150,105,0.2)" : isActive ? S.primary20 : S.border}`,
+                  }}
+                  title={`${stage}: ${progress}%`}
+                >
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold"
+                    style={{
+                      background: isComplete ? S.success : isActive ? S.primary : S.s3,
+                      color: isComplete || isActive ? "#fff" : S.text3,
+                    }}>
+                    {isComplete ? <CheckCircle2 size={10} /> : String(i + 1).padStart(2, "0")}
+                  </div>
+                  <span className="text-[7px] text-center leading-tight truncate w-full" style={{ color: isComplete ? S.success : isActive ? S.primary : S.text3 }}>
+                    {stage}
+                  </span>
+                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.4, delay: i * 0.03 }}
+                      className="h-full rounded-full"
+                      style={{ background: isComplete ? S.success : S.primary }}
+                    />
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
 
-        {/* 项目网格 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-          {/* 新建卡片 —— 点击打开向导 */}
-          <motion.div whileTap={{ scale: 0.98 }}
-            onClick={openWizard}
-            className="rounded-2xl flex flex-col items-center justify-center cursor-pointer"
-            style={{ background: S.card, border: `1.5px dashed ${S.border2}`, minHeight: 260 }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
-              style={{ background: S.primary10 }}>
-              <Plus size={20} style={{ color: S.primary }} />
-            </div>
-            <span className="text-sm font-medium" style={{ color: S.text2 }}>新建项目</span>
-            <span className="text-[10px] mt-1" style={{ color: S.text3 }}>使用创建向导</span>
-          </motion.div>
-
-          {/* 项目卡片 */}
-          {projects.map((p, i) => {
-            const st = STATUS_STYLE[p.status] ?? STATUS_STYLE.draft;
-            const isCurrent = currentProjectId === p.id;
-            return (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.06 }}
-                onClick={() => useProjectStore.getState().setCurrentProject(p.id)}
-                className="group rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-150"
-                style={{
-                  background: S.card,
-                  border: isCurrent ? `2px solid ${S.primary}` : `1px solid ${S.border}`,
-                  boxShadow: isCurrent ? `0 0 0 3px ${S.primary20}` : "none",
-                }}
-              >
-                <div className="relative overflow-hidden" style={{ height: 160 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.cover || `https://placehold.co/400x160/${S.s3.slice(1)}/${S.text3.slice(1)}?text=${encodeURIComponent(p.title)}`}
-                    alt={p.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0" style={{ background: "linear-gradient(to top,rgba(0,0,0,0.4),transparent)" }} />
-                  <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: st.bg, color: st.color }}>
-                    {st.label}
-                  </span>
-                  {/* 删除按钮（悬停显示） */}
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={(e) => handleDelete(e, p.id)}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 focus:outline-none z-10"
-                    style={{ background: "rgba(220,38,38,0.85)", color: "#fff" }}
-                    title="删除项目"
-                  >
-                    <Trash2 size={11} />
-                  </motion.button>
-                </div>
-                <div className="p-3 space-y-2">
-                  <h3 className="text-sm font-bold truncate" style={{ color: S.text }}>{p.title}</h3>
-                  <p className="text-[10px]" style={{ color: S.text3 }}>{p.genre}</p>
-                  {(p as any).desc && (
-                    <p className="text-[10px] line-clamp-2" style={{ color: S.text3 }}>{(p as any).desc}</p>
-                  )}
-                  <p className="text-[9px] font-mono" style={{ color: S.text3 }}>
-                    {p.chapters}章 · {p.nodes}节点 · {p.branches}分支
-                  </p>
-                  <div className="flex gap-2">
-                    <Link href="/nodes" className="flex-1">
-                      <motion.button whileTap={{ scale: 0.97 }}
-                        className="w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-                        style={{ background: S.primary }}>
-                        <Edit3 size={11} /> 编辑
-                      </motion.button>
-                    </Link>
-                    {p.status === "published" && (
-                      <Link href="/simulator">
-                        <motion.button whileTap={{ scale: 0.97 }}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium focus:outline-none"
-                          style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text2 }}>
-                          <Play size={11} /> 试玩
-                        </motion.button>
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
       </main>
 
       {/* ══════════════════════════════════════════════════════════════════

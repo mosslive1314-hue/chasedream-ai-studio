@@ -5,17 +5,17 @@ import {
   Eye, Sparkles, Save, Rocket, AlertTriangle,
   CheckCircle2, ChevronDown, ChevronUp, Plus,
   ZoomIn, ZoomOut, Maximize2, AlignLeft,
-  ExternalLink, Play, FileText, Flame, BookOpen,
+  ExternalLink, Play, FileText, Flame,
   User, Package, Music, GitBranch, X, Loader2,
   Monitor, Star, Download, Wand2,
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings,
-  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3, Scale,
+  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
   Users, Clock
 } from "lucide-react";
 import Link from "next/link";
-import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory, type BranchPath } from "@/lib/studio-data";
-import { useNarrativeStore, useUIStore } from "@/store";
+import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
+import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
 
 const S = {
   bg:      "#F5F6FA",
@@ -34,15 +34,11 @@ const S = {
   cGrid:   "#E2E4EF",
 };
 
-// ── 顶部 Tab 定义（完全对齐截图：剧本/画布/热力图/故事/角色/资产）──────────
-type TabId = "script"|"canvas"|"heatmap"|"story"|"character"|"assets"|"ui"|"variables"|"timeline";
+// ── 顶部 Tab 定义（保留独特功能标签页，移除与 /script /assets 重叠项）──────────
+type TabId = "canvas"|"heatmap"|"ui"|"variables"|"timeline";
 const TABS: { id:TabId; label:string; icon:any }[] = [
-  { id:"script",    label:"剧本",   icon:FileText  },
   { id:"canvas",    label:"画布",   icon:AlignLeft },
   { id:"heatmap",   label:"热力图", icon:Flame     },
-  { id:"story",     label:"故事",   icon:BookOpen  },
-  { id:"character", label:"角色",   icon:User      },
-  { id:"assets",    label:"资产",   icon:Package   },
   { id:"ui",        label:"用户界面", icon:Monitor },
   { id:"variables", label:"变量",   icon:BarChart3 },
   { id:"timeline",  label:"角色线", icon:Users     },
@@ -59,44 +55,6 @@ const NODE_TYPE: Record<string, { label:string; color:string; bg:string; border:
   ending_bad:  { label:"结局", color:"#EF4444", bg:"rgba(239,68,68,0.08)",   border:"rgba(239,68,68,0.4)"   },
 };
 
-// ── 剧本 Tab 内容（P12-#23: 从 store 读取 scriptBlocks）─────────────────
-function ScriptContent() {
-  const scriptBlocks = useNarrativeStore(state => state.scriptBlocks);
-  const typeLabel: Record<string, string> = { scene: "场景", dialog: "台词", choice: "选择", narr: "旁白", cond: "条件" };
-  return (
-    <div className="p-4 space-y-3 overflow-y-auto h-full">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-bold" style={{ color:S.text }}>第一章：渗透行动</h3>
-        <Link href="/parse">
-          <motion.button whileTap={{ scale:0.97 }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
-            style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
-            <Sparkles size={11} /> AI 剧本解构
-          </motion.button>
-        </Link>
-      </div>
-      {scriptBlocks.map((b) => (
-        <div key={b.id} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: b.type==="choice" ? "rgba(245,158,11,0.12)" : "rgba(124,108,245,0.10)",
-                color: b.type==="choice" ? S.warning : S.primary }}>
-              {typeLabel[b.type] ?? b.type}
-            </span>
-            {b.char && <span className="text-[10px] font-bold" style={{ color:S.primary }}>{b.char}</span>}
-          </div>
-          <p className="text-xs" style={{ color:S.text2 }}>{b.content}</p>
-          {b.options && b.options.length > 0 && <div className="mt-1.5 space-y-1">
-            {b.options.map((o: string, j: number) => (
-              <div key={j} className="text-[10px] px-2 py-0.5 rounded"
-                style={{ background:S.s2, color:S.text3 }}>{o}</div>
-            ))}
-          </div>}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ── 热力图 Tab ────────────────────────────────────────────────────────────
 function HeatmapContent() {
@@ -264,570 +222,6 @@ function HeatmapContent() {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// ── 路径对比组件 ────────────────────────────────────────────────────────────
-function PathComparison({ pathA, pathB }: { pathA: BranchPath; pathB: BranchPath }) {
-  const storyNodes = useNarrativeStore(state => state.storyNodes);
-  const sharedNodes = pathA.nodes.filter((n: string) => pathB.nodes.includes(n));
-  const uniqueToA = pathA.nodes.filter((n: string) => !pathB.nodes.includes(n));
-  const uniqueToB = pathB.nodes.filter((n: string) => !pathA.nodes.includes(n));
-  const divergePoint = sharedNodes[sharedNodes.length - 1];
-
-  const getNodeInfo = (id: string) => storyNodes.find(n => n.id === id);
-
-  return (
-    <div className="space-y-3">
-      {/* 路径概览对比 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="p-3 rounded-xl" style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="w-2 h-2 rounded-full" style={{ background: S.primary }} />
-            <span className="text-[10px] font-bold" style={{ color: S.primary }}>{pathA.label}</span>
-          </div>
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <span className="text-[9px]" style={{ color: S.text3 }}>节点数</span>
-              <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>{pathA.nodes.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[9px]" style={{ color: S.text3 }}>结局</span>
-              <span className="text-[10px] font-bold" style={{ color: pathA.type === "good" ? S.success : S.error }}>{pathA.ending}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[9px]" style={{ color: S.text3 }}>类型</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: pathA.type === "good" ? `${S.success}15` : `${S.error}15`, color: pathA.type === "good" ? S.success : S.error }}>
-                {pathA.type === "good" ? "好结局" : "坏结局"}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="p-3 rounded-xl" style={{ background: `${S.accent}06`, border: `1px solid ${S.accent}20` }}>
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="w-2 h-2 rounded-full" style={{ background: S.accent }} />
-            <span className="text-[10px] font-bold" style={{ color: S.accent }}>{pathB.label}</span>
-          </div>
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <span className="text-[9px]" style={{ color: S.text3 }}>节点数</span>
-              <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>{pathB.nodes.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[9px]" style={{ color: S.text3 }}>结局</span>
-              <span className="text-[10px] font-bold" style={{ color: pathB.type === "good" ? S.success : S.error }}>{pathB.ending}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[9px]" style={{ color: S.text3 }}>类型</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: pathB.type === "good" ? `${S.success}15` : `${S.error}15`, color: pathB.type === "good" ? S.success : S.error }}>
-                {pathB.type === "good" ? "好结局" : "坏结局"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 并排路径节点流 */}
-      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-        <h4 className="text-[10px] font-bold mb-3" style={{ color: S.text }}>路径节点对比</h4>
-        <div className="grid grid-cols-2 gap-3">
-          {/* Path A */}
-          <div className="space-y-1">
-            {pathA.nodes.map((nodeId: string, i: number) => {
-              const node = getNodeInfo(nodeId);
-              const isShared = sharedNodes.includes(nodeId);
-              const isDiverge = nodeId === divergePoint;
-              return (
-                <div key={nodeId} className="flex items-center gap-1.5">
-                  <span className="text-[8px] font-mono w-3" style={{ color: S.text3 }}>{i + 1}</span>
-                  <div className="flex-1 flex items-center gap-1 px-2 py-1 rounded-lg"
-                    style={{
-                      background: isDiverge ? `${S.warning}12` : isShared ? S.s2 : `${S.primary}08`,
-                      border: isDiverge ? `1px solid ${S.warning}40` : `1px solid ${isShared ? S.border : `${S.primary}25`}`,
-                    }}>
-                    {isDiverge && <GitBranch size={8} style={{ color: S.warning }} />}
-                    <span className="text-[9px] font-mono" style={{ color: isDiverge ? S.warning : isShared ? S.text3 : S.primary }}>{nodeId}</span>
-                    <span className="text-[9px] truncate" style={{ color: isDiverge ? S.warning : isShared ? S.text2 : S.text }}>
-                      {node?.label || nodeId}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {/* Path B */}
-          <div className="space-y-1">
-            {pathB.nodes.map((nodeId: string, i: number) => {
-              const node = getNodeInfo(nodeId);
-              const isShared = sharedNodes.includes(nodeId);
-              const isDiverge = nodeId === divergePoint;
-              return (
-                <div key={nodeId} className="flex items-center gap-1.5">
-                  <span className="text-[8px] font-mono w-3" style={{ color: S.text3 }}>{i + 1}</span>
-                  <div className="flex-1 flex items-center gap-1 px-2 py-1 rounded-lg"
-                    style={{
-                      background: isDiverge ? `${S.warning}12` : isShared ? S.s2 : `${S.accent}08`,
-                      border: isDiverge ? `1px solid ${S.warning}40` : `1px solid ${isShared ? S.border : `${S.accent}25`}`,
-                    }}>
-                    {isDiverge && <GitBranch size={8} style={{ color: S.warning }} />}
-                    <span className="text-[9px] font-mono" style={{ color: isDiverge ? S.warning : isShared ? S.text3 : S.accent }}>{nodeId}</span>
-                    <span className="text-[9px] truncate" style={{ color: isDiverge ? S.warning : isShared ? S.text2 : S.text }}>
-                      {node?.label || nodeId}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* 分叉点与统计 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="p-3 rounded-xl" style={{ background: `${S.warning}06`, border: `1px solid ${S.warning}20` }}>
-          <div className="flex items-center gap-1.5 mb-2">
-            <GitBranch size={12} style={{ color: S.warning }} />
-            <span className="text-[10px] font-bold" style={{ color: S.warning }}>分叉点</span>
-          </div>
-          <p className="text-[10px] font-bold" style={{ color: S.text }}>
-            {divergePoint} - {getNodeInfo(divergePoint)?.label}
-          </p>
-          <p className="text-[9px] mt-1" style={{ color: S.text3 }}>
-            两条路径在此节点后开始分歧
-          </p>
-        </div>
-        <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <span className="text-[10px] font-bold block mb-2" style={{ color: S.text }}>路径长度对比</span>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <div className="h-6 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono"
-                style={{ background: `${S.primary}15`, color: S.primary }}>
-                {pathA.nodes.length} 节点
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="h-6 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono"
-                style={{ background: `${S.accent}15`, color: S.accent }}>
-                {pathB.nodes.length} 节点
-              </div>
-            </div>
-          </div>
-          <p className="text-[9px] mt-1.5 text-center" style={{ color: S.text3 }}>
-            差异: {Math.abs(pathA.nodes.length - pathB.nodes.length)} 节点
-          </p>
-        </div>
-      </div>
-
-      {/* 共享与独有节点列表 */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <span className="text-[9px] font-bold block mb-2" style={{ color: S.text3 }}>共享节点 ({sharedNodes.length})</span>
-          <div className="flex flex-wrap gap-1">
-            {sharedNodes.map(id => (
-              <span key={id} className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text2 }}>
-                {id}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="p-3 rounded-xl" style={{ background: `${S.primary}04`, border: `1px solid ${S.primary}15` }}>
-          <span className="text-[9px] font-bold block mb-2" style={{ color: S.primary }}>路径 A 独有 ({uniqueToA.length})</span>
-          <div className="flex flex-wrap gap-1">
-            {uniqueToA.map(id => (
-              <span key={id} className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
-                {id} {getNodeInfo(id)?.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="p-3 rounded-xl" style={{ background: `${S.accent}04`, border: `1px solid ${S.accent}15` }}>
-          <span className="text-[9px] font-bold block mb-2" style={{ color: S.accent }}>路径 B 独有 ({uniqueToB.length})</span>
-          <div className="flex flex-wrap gap-1">
-            {uniqueToB.map(id => (
-              <span key={id} className="text-[8px] font-mono px-1.5 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>
-                {id} {getNodeInfo(id)?.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 分支平衡分析组件 ──────────────────────────────────────────────────────
-function BranchBalanceAnalysis() {
-  const branchPaths = useNarrativeStore(state => state.branchPaths);
-  const storyNodes = useNarrativeStore(state => state.storyNodes);
-  const nodeEdges = useNarrativeStore(state => state.nodeEdges);
-
-  const branchMetrics = branchPaths.map(path => ({
-    label: path.label,
-    nodeCount: path.nodes.length,
-    ending: path.ending,
-    endingType: path.type,
-    nodes: path.nodes,
-  }));
-
-  const totalNodes = storyNodes.length;
-  const choiceNodes = storyNodes.filter(n => n.type === "choice");
-  const conditionNodes = storyNodes.filter(n => n.type === "condition");
-  const endingNodes = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad");
-
-  // Balance score calculation
-  const lengthDiff = Math.abs(branchMetrics[0].nodeCount - branchMetrics[1].nodeCount);
-  const maxLen = Math.max(...branchMetrics.map(m => m.nodeCount));
-  const lengthBalance = Math.round((1 - lengthDiff / maxLen) * 100);
-  const endingDiversity = endingNodes.length >= 3 ? 100 : endingNodes.length >= 2 ? 70 : 40;
-  const choiceRichness = choiceNodes.length >= 3 ? 100 : choiceNodes.length >= 2 ? 75 : 50;
-  const balanceScore = Math.round((lengthBalance * 0.4 + endingDiversity * 0.3 + choiceRichness * 0.3));
-
-  // Ending probability estimation
-  const totalEndingPaths = branchPaths.length;
-  const endingProbabilities = branchPaths.map(path => ({
-    ending: path.ending,
-    type: path.type,
-    probability: Math.round(100 / totalEndingPaths),
-  }));
-
-  // Suggestions
-  const suggestions: { text: string; type: "warn" | "info" }[] = [];
-  if (lengthDiff > 3) {
-    const shorter = branchMetrics[0].nodeCount < branchMetrics[1].nodeCount ? branchMetrics[0] : branchMetrics[1];
-    suggestions.push({ text: `${shorter.label} 较短，建议增加 1-2 个独有节点`, type: "warn" });
-  }
-  if (endingNodes.length <= 2) {
-    suggestions.push({ text: "考虑增加隐藏结局提升重玩价值", type: "info" });
-  }
-  if (choiceNodes.length <= 1) {
-    suggestions.push({ text: "选择点过少，建议在中间章节增加互动点", type: "warn" });
-  }
-  if (conditionNodes.length === 0) {
-    suggestions.push({ text: "缺少条件判定节点，建议增加变量驱动的分支判定", type: "info" });
-  }
-
-  const scoreColor = balanceScore >= 80 ? S.success : balanceScore >= 60 ? S.warning : S.error;
-
-  return (
-    <div className="space-y-3">
-      {/* 平衡度评分 */}
-      <div className="p-3 rounded-xl flex items-center gap-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-        <div className="relative w-16 h-16 shrink-0">
-          <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="28" fill="none" stroke={S.s2} strokeWidth="5" />
-            <circle cx="32" cy="32" r="28" fill="none" stroke={scoreColor} strokeWidth="5"
-              strokeDasharray={`${(balanceScore / 100) * 175.9} 175.9`} strokeLinecap="round" />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm font-black font-mono" style={{ color: scoreColor }}>{balanceScore}</span>
-          </div>
-        </div>
-        <div className="flex-1">
-          <span className="text-[10px] font-bold block mb-1" style={{ color: S.text }}>分支平衡度评分</span>
-          <div className="space-y-1">
-            <div className="flex justify-between text-[9px]">
-              <span style={{ color: S.text3 }}>路径长度均衡</span>
-              <span style={{ color: lengthBalance >= 80 ? S.success : S.warning }}>{lengthBalance}%</span>
-            </div>
-            <div className="flex justify-between text-[9px]">
-              <span style={{ color: S.text3 }}>结局多样性</span>
-              <span style={{ color: endingDiversity >= 80 ? S.success : S.warning }}>{endingDiversity}%</span>
-            </div>
-            <div className="flex justify-between text-[9px]">
-              <span style={{ color: S.text3 }}>选择丰富度</span>
-              <span style={{ color: choiceRichness >= 80 ? S.success : S.warning }}>{choiceRichness}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 分支长度对比条形图 */}
-      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-        <h4 className="text-[10px] font-bold mb-3 flex items-center gap-1.5" style={{ color: S.text }}>
-          <BarChart3 size={12} style={{ color: S.primary }} />
-          分支长度对比
-        </h4>
-        <div className="space-y-2">
-          {branchMetrics.map((m, i) => {
-            const barColor = i === 0 ? S.primary : S.accent;
-            const widthPct = (m.nodeCount / totalNodes) * 100;
-            return (
-              <div key={i} className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-medium" style={{ color: S.text2 }}>{m.label}</span>
-                  <span className="text-[9px] font-mono font-bold" style={{ color: barColor }}>{m.nodeCount} 节点</span>
-                </div>
-                <div className="h-4 rounded-full overflow-hidden" style={{ background: S.s2 }}>
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${widthPct}%` }}
-                    transition={{ duration: 0.6, delay: i * 0.1 }}
-                    className="h-full rounded-full flex items-center justify-end pr-1.5"
-                    style={{ background: barColor, opacity: 0.75 }}>
-                    <span className="text-[8px] font-bold text-white">{m.ending}</span>
-                  </motion.div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 选择分布分析 */}
-      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-        <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text }}>
-          <GitBranch size={12} style={{ color: S.warning }} />
-          选择分布分析
-        </h4>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="p-2 rounded-lg text-center" style={{ background: S.s2 }}>
-            <div className="text-sm font-black font-mono" style={{ color: S.warning }}>{choiceNodes.length}</div>
-            <div className="text-[8px]" style={{ color: S.text3 }}>选择节点</div>
-          </div>
-          <div className="p-2 rounded-lg text-center" style={{ background: S.s2 }}>
-            <div className="text-sm font-black font-mono" style={{ color: S.accent }}>{conditionNodes.length}</div>
-            <div className="text-[8px]" style={{ color: S.text3 }}>条件节点</div>
-          </div>
-          <div className="p-2 rounded-lg text-center" style={{ background: S.s2 }}>
-            <div className="text-sm font-black font-mono" style={{ color: S.primary }}>{endingNodes.length}</div>
-            <div className="text-[8px]" style={{ color: S.text3 }}>结局节点</div>
-          </div>
-        </div>
-        <div className="mt-2 space-y-1">
-          {choiceNodes.map(cn => {
-            const edges = nodeEdges.filter(e => e.from === cn.id);
-            return (
-              <div key={cn.id} className="flex items-center gap-2 p-1.5 rounded-lg" style={{ background: S.s2 }}>
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
-                  {cn.id}
-                </span>
-                <span className="text-[9px]" style={{ color: S.text2 }}>{cn.label}</span>
-                <span className="text-[8px] ml-auto" style={{ color: S.text3 }}>{edges.length} 个选项</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 结局概率估算 */}
-      <div className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-        <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.text }}>
-          <Target size={12} style={{ color: S.accent }} />
-          结局概率估算
-        </h4>
-        <p className="text-[8px] mb-2" style={{ color: S.text3 }}>基于路径结构等概率估算（非实际游玩数据）</p>
-        <div className="space-y-1.5">
-          {endingProbabilities.map((ep, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-[9px] w-20 truncate shrink-0" style={{ color: S.text2 }}>{ep.ending}</span>
-              <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: S.s2 }}>
-                <motion.div initial={{ width: 0 }} animate={{ width: `${ep.probability}%` }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
-                  className="h-full rounded-full"
-                  style={{ background: ep.type === "good" ? S.success : S.error, opacity: 0.7 }} />
-              </div>
-              <span className="text-[9px] font-bold font-mono w-8 text-right shrink-0" style={{ color: ep.type === "good" ? S.success : S.error }}>
-                {ep.probability}%
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 改进建议 */}
-      {suggestions.length > 0 && (
-        <div className="p-3 rounded-xl" style={{ background: `${S.warning}04`, border: `1px solid ${S.warning}20` }}>
-          <h4 className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: S.warning }}>
-            <Sparkles size={12} />
-            改进建议
-          </h4>
-          <div className="space-y-1.5">
-            {suggestions.map((s, i) => (
-              <div key={i} className="flex items-start gap-1.5 p-2 rounded-lg"
-                style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <span className="text-[9px] mt-0.5 shrink-0" style={{ color: s.type === "warn" ? S.warning : S.primary }}>
-                  {s.type === "warn" ? "!" : "i"}
-                </span>
-                <span className="text-[9px]" style={{ color: S.text2 }}>{s.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── 故事 Tab ──────────────────────────────────────────────────────────────
-function StoryContent() {
-  const branchPaths = useNarrativeStore(state => state.branchPaths);
-  const [comparePathA, setComparePathA] = useState<string>(branchPaths[0]?.id || "");
-  const [comparePathB, setComparePathB] = useState<string>(branchPaths[1]?.id || "");
-  const [showComparison, setShowComparison] = useState(false);
-
-  const pathA = branchPaths.find(p => p.id === comparePathA);
-  const pathB = branchPaths.find(p => p.id === comparePathB);
-
-  return (
-    <div className="p-4 space-y-3 overflow-y-auto h-full">
-      <h3 className="text-sm font-bold" style={{ color:S.text }}>故事设定</h3>
-      {[
-        { label:"世界观", value:"2047年，赛博朋克都市。信息战与人工智能渗透社会各层，侦探艾拉追踪神秘失踪线人，揭露幕后权力阴谋。" },
-        { label:"主线",   value:"侦探追踪 → 线人现身 → 关键抉择 → 真相揭露 → 多重结局" },
-        { label:"主题",   value:"信任与背叛、真相的代价、个人选择改变命运" },
-      ].map(item => (
-        <div key={item.label} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
-          <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:S.text3 }}>{item.label}</p>
-          <p className="text-xs leading-relaxed" style={{ color:S.text2 }}>{item.value}</p>
-        </div>
-      ))}
-
-      {/* 路径对比工具 */}
-      <div className="pt-2">
-        <div className="flex items-center gap-2 mb-3">
-          <Scale size={14} style={{ color: S.primary }} />
-          <h3 className="text-sm font-bold" style={{ color: S.text }}>路径对比工具</h3>
-        </div>
-        <div className="p-3 rounded-xl space-y-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[9px] font-bold block mb-1" style={{ color: S.text3 }}>路径 A</label>
-              <select value={comparePathA} onChange={e => { setComparePathA(e.target.value); setShowComparison(false); }}
-                className="w-full px-2 py-1.5 rounded-lg text-[10px] focus:outline-none"
-                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
-                {branchPaths.map(p => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-[9px] font-bold block mb-1" style={{ color: S.text3 }}>路径 B</label>
-              <select value={comparePathB} onChange={e => { setComparePathB(e.target.value); setShowComparison(false); }}
-                className="w-full px-2 py-1.5 rounded-lg text-[10px] focus:outline-none"
-                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
-                {branchPaths.map(p => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <motion.button whileTap={{ scale: 0.97 }}
-            onClick={() => setShowComparison(true)}
-            className="w-full py-2 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1.5 focus:outline-none"
-            style={{ background: S.primary }}>
-            <GitBranch size={12} /> 开始对比
-          </motion.button>
-        </div>
-
-        {showComparison && pathA && pathB && pathA.id !== pathB.id && (
-          <div className="mt-3">
-            <PathComparison pathA={pathA} pathB={pathB} />
-          </div>
-        )}
-        {showComparison && pathA && pathB && pathA.id === pathB.id && (
-          <div className="mt-3 p-3 rounded-xl text-center" style={{ background: `${S.warning}06`, border: `1px solid ${S.warning}20` }}>
-            <p className="text-[10px]" style={{ color: S.warning }}>请选择两条不同的路径进行对比</p>
-          </div>
-        )}
-      </div>
-
-      {/* 分支平衡分析 */}
-      <div className="pt-2">
-        <div className="flex items-center gap-2 mb-3">
-          <BarChart3 size={14} style={{ color: S.accent }} />
-          <h3 className="text-sm font-bold" style={{ color: S.text }}>分支平衡分析</h3>
-        </div>
-        <BranchBalanceAnalysis />
-      </div>
-    </div>
-  );
-}
-
-// ── 角色 Tab（P12-#23: 从 store 读取 characters）─────────────────────────
-function CharacterContent() {
-  const characters = useNarrativeStore(state => state.characters);
-  return (
-    <div className="p-4 space-y-3 overflow-y-auto h-full">
-      <h3 className="text-sm font-bold" style={{ color:S.text }}>角色配置</h3>
-      {characters.map(c => (
-        <div key={c.id} className="p-3 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center"
-              style={{ background:`${c.color}15` }}>
-              <User size={13} style={{ color:c.color }} />
-            </div>
-            <div>
-              <span className="text-xs font-bold" style={{ color:S.text }}>{c.name}</span>
-              <span className="text-[9px] ml-1.5 px-1.5 py-0.5 rounded"
-                style={{ background:`${c.color}12`, color:c.color }}>{c.role}</span>
-            </div>
-            <span className="ml-auto text-[9px]" style={{ color:S.text3 }}>出现 {c.appearNodes?.length ?? 0} 节点</span>
-          </div>
-          <p className="text-[10px]" style={{ color:S.text3 }}>{c.description}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── 资产 Tab（P12-#23: 从 store 读取 assetCards）─────────────────────────
-function AssetsContent() {
-  const assetCards = useNarrativeStore(state => state.assetCards);
-  const storyNodes = useNarrativeStore(state => state.storyNodes);
-
-  const assetProgress = useMemo(() => {
-    const total = assetCards.length || storyNodes.length || 1;
-    const imgOk = assetCards.filter(c => c.hasImage).length;
-    const bgmOk = assetCards.filter(c => c.hasBgm).length;
-    const voiceOk = assetCards.filter(c => c.hasVoice).length;
-    return [
-      { label: "场景背景", ok: imgOk, total },
-      { label: "BGM", ok: bgmOk, total },
-      { label: "配音", ok: voiceOk, total },
-    ];
-  }, [assetCards, storyNodes]);
-
-  const missingAssets = assetCards.filter(c => !c.hasImage || !c.hasBgm);
-
-  return (
-    <div className="p-4 space-y-3 overflow-y-auto h-full">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-bold" style={{ color:S.text }}>节点资产</h3>
-        <Link href="/assets">
-          <span className="text-[10px] flex items-center gap-0.5 cursor-pointer" style={{ color:S.primary }}>
-            完整管理 <ExternalLink size={9} />
-          </span>
-        </Link>
-      </div>
-      {missingAssets.length > 0 && (
-        <div className="p-3 rounded-xl" style={{ background:"rgba(245,158,11,0.06)", border:`1px solid rgba(245,158,11,0.25)` }}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <AlertTriangle size={12} style={{ color:S.warning }} />
-            <span className="text-xs font-bold" style={{ color:S.warning }}>{missingAssets.length} 个资产待补充</span>
-          </div>
-          <p className="text-[10px]" style={{ color:S.text3 }}>
-            {missingAssets.slice(0, 2).map(a => a.nodeId).join(', ')} 等节点资产尚未完成
-          </p>
-          <Link href="/assets">
-            <motion.button whileTap={{ scale:0.97 }}
-              className="mt-2 flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg focus:outline-none"
-              style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
-              <ExternalLink size={9} /> 补充资产
-            </motion.button>
-          </Link>
-        </div>
-      )}
-      <div className="grid grid-cols-3 gap-2">
-        {assetProgress.map(a => (
-          <div key={a.label} className="p-2.5 rounded-xl text-center"
-            style={{ background:S.card, border:`1px solid ${S.border}` }}>
-            <p className="text-[9px] mb-1" style={{ color:S.text3 }}>{a.label}</p>
-            <p className="text-sm font-bold font-mono"
-              style={{ color: a.ok === a.total ? S.success : a.ok === 0 ? S.error : S.warning }}>
-              {a.ok}/{a.total}
-            </p>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -1121,6 +515,7 @@ const UI_ASSET_CHECKLIST = [
 function UIContent() {
   const uiTemplates = useNarrativeStore(state => state.uiTemplates);
   const gameUISettings = useNarrativeStore(state => state.gameUISettings);
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const [catFilter, setCatFilter] = useState<UITemplateCategory | "all">("all");
   const [selectedTpl, setSelectedTpl] = useState<UITemplate | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
@@ -1923,7 +1318,7 @@ function UIContent() {
                   </div>
                   <div className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                     <p className="text-[9px] leading-relaxed" style={{ color: S.text3 }}>
-                      AI 将分析「幽灵协议」的赛博朋克·间谍惊悚题材，自动生成包含对话框、选项按钮、HUD 状态栏、
+                      AI 将分析「{projectName}」的赛博朋克·间谍惊悚题材，自动生成包含对话框、选项按钮、HUD 状态栏、
                       系统菜单等配套 UI，确保视觉风格与剧情内容高度统一。
                     </p>
                   </div>
@@ -1941,7 +1336,7 @@ function UIContent() {
                           downloads: 0,
                           rating: 0,
                           preview: "",
-                          description: `基于「幽灵协议」剧本自动生成的${aiGenStyle}风格 UI 套件，包含对话框、选项按钮、HUD 和系统菜单。`,
+                          description: `基于「${projectName}」剧本自动生成的${aiGenStyle}风格 UI 套件，包含对话框、选项按钮、HUD 和系统菜单。`,
                           source: "ai_generated",
                           isApplied: false,
                           components: [
@@ -2706,17 +2101,15 @@ function VariablesContent() {
 // ── 主编辑器页面 ──────────────────────────────────────────────────────────
 export default function NodesScreen() {
   const storyNodes = useNarrativeStore(state => state.storyNodes);
-  const stageChecks = useNarrativeStore(state => state.stageChecks);
   const narrativeIntents = useNarrativeStore(state => state.narrativeIntents);
   const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
   const narrativeStates = useNarrativeStore(state => state.narrativeStates);
   const variables = useNarrativeStore(state => state.variables);
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const [activeTab, setActiveTab] = useState<TabId>("canvas");
   const [sel, setSel] = useState<string|null>(null);
-  const [checkOpen, setCheckOpen] = useState(true);
   const [aiModal, setAiModal] = useState<"write"|"node"|"bgm"|"portrait"|null>(null);
   const [aiInput, setAiInput] = useState("");
-  const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [diagView, setDiagView] = useState<DiagView>('all');
 
@@ -2729,9 +2122,6 @@ export default function NodesScreen() {
     { id: "ending", label: "结局", icon: Trophy },
     { id: "error", label: "有问题", icon: AlertTriangle },
   ];
-
-  const doneCount = stageChecks.filter(c=>c.status==="ok").length;
-  const pct = Math.round((doneCount/stageChecks.length)*100);
 
   const filteredSidebarNodes = storyNodes.filter(node => {
     if (nodeFilter === "all") return true;
@@ -2761,94 +2151,7 @@ export default function NodesScreen() {
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
 
-      {/* ── 顶部标题栏（对齐截图：幽灵协议 · 赛博朋克·间谍惊悚 · ✓正常）── */}
-      <div className="flex items-center justify-between px-4 py-2 shrink-0"
-        style={{ background:S.card, borderBottom:`1px solid ${S.border}` }}>
-        {/* 左：项目信息 */}
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <motion.div whileTap={{ scale:0.95 }} className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
-              style={{ background:`${S.primary}12` }}>
-              <span className="text-[10px] font-black" style={{ color:S.primary }}>卓</span>
-            </motion.div>
-          </Link>
-          <div className="w-px h-4" style={{ background:S.border }} />
-          <span className="text-sm font-bold" style={{ color:S.text }}>幽灵协议</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background:S.s2, color:S.text3 }}>
-            赛博朋克 · 间谍惊悚
-          </span>
-          <div className="flex items-center gap-1">
-            <CheckCircle2 size={12} style={{ color:S.success }} />
-            <span className="text-[10px]" style={{ color:S.success }}>正常</span>
-          </div>
-        </div>
-
-        {/* 右：操作按钮——整合成紧凑图标组，减少视觉噪音 */}
-        <div className="flex items-center gap-1.5">
-          {/* 基础操作图标组 */}
-          <div className="flex items-center rounded-xl overflow-hidden"
-            style={{ border:`1px solid ${S.border}` }}>
-            <Link href="/simulator">
-              <motion.button whileTap={{ scale:0.97 }} title="预览"
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium focus:outline-none"
-                style={{ background:S.s2, color:S.text2 }}>
-                <Eye size={13} /> <span className="hidden lg:inline">预览</span>
-              </motion.button>
-            </Link>
-            <div style={{ width:1, background:S.border, height:24 }} />
-            <div className="flex items-center gap-1 px-2.5 py-1.5"
-              style={{ background:S.s2, color:S.success }}>
-              <Save size={12} />
-              <span className="text-[10px] hidden lg:inline" style={{ color:S.success }}>已保存</span>
-            </div>
-          </div>
-
-          {/* AI工具下拉 */}
-          <div className="relative">
-            <motion.button whileTap={{ scale:0.97 }}
-              onClick={() => setAiToolsOpen(o=>!o)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold focus:outline-none"
-              style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
-              <Sparkles size={12} /> AI工具
-              <ChevronDown size={10} />
-            </motion.button>
-            <AnimatePresence>
-              {aiToolsOpen && (
-                <motion.div initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }}
-                  exit={{ opacity:0, y:4 }} transition={{ duration:0.12 }}
-                  className="absolute right-0 top-full mt-1 rounded-xl py-1.5 w-40 z-50"
-                  style={{ background:S.card, border:`1px solid ${S.border}`, boxShadow:"0 4px 16px rgba(0,0,0,0.1)" }}>
-                  {[
-                    { label:"AI续写故事",   icon:Sparkles,  action:()=>{ setAiModal("write");    setAiToolsOpen(false); } },
-                    { label:"AI生成节点",   icon:GitBranch, action:()=>{ setAiModal("node");     setAiToolsOpen(false); } },
-                    { label:"AI一键BGM",   icon:Music,     action:()=>{ setAiModal("bgm");      setAiToolsOpen(false); } },
-                    { label:"AI生成立绘",   icon:User,      action:()=>{ setAiModal("portrait"); setAiToolsOpen(false); } },
-                  ].map(item => (
-                    <motion.button key={item.label} whileTap={{ scale:0.98 }}
-                      onClick={item.action}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left focus:outline-none hover:bg-gray-50"
-                      style={{ color:S.text2 }}>
-                      <item.icon size={11} style={{ color:S.primary }} />
-                      {item.label}
-                    </motion.button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* 发布按钮 */}
-          <Link href="/publish">
-            <motion.button whileTap={{ scale:0.97 }}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
-              style={{ background:S.primary }}>
-              <Rocket size={12} /> 发布
-            </motion.button>
-          </Link>
-        </div>
-      </div>
-
-      {/* ── 6个Tab（完全对齐截图：剧本/画布/热力图/故事/角色/资产）── */}
+      {/* ── 5个Tab（保留独特功能：画布/热力图/用户界面/变量/角色线）── */}
       <div className="flex items-center border-b shrink-0"
         style={{ background:S.card, borderColor:S.border }}>
         {TABS.map(tab => (
@@ -2925,70 +2228,9 @@ export default function NodesScreen() {
       {/* ── 三栏主体 ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* 左侧面板（完全对齐截图：阶段检查 + 章节节点列表）*/}
+        {/* 左侧面板（情绪曲线 + 章节节点列表 + 叙事设计意图）*/}
         <div className="w-[190px] shrink-0 border-r overflow-y-auto"
           style={{ borderColor:S.border, background:S.card }}>
-
-          {/* 阶段检查（对齐截图：第一阶段主线检查 83%）*/}
-          <div className="px-3 pt-3 pb-2 border-b" style={{ borderColor:S.border }}>
-            <button className="w-full flex items-center justify-between focus:outline-none"
-              onClick={() => setCheckOpen(o=>!o)}>
-              <div>
-                <p className="text-[10px] font-bold" style={{ color:S.text }}>第一阶段主线检查</p>
-                <p className="text-[9px]" style={{ color:S.text3 }}>生成、编辑、预览、发布 H5</p>
-              </div>
-              <div className="text-right">
-                <p className="text-base font-bold font-mono" style={{ color:S.primary }}>{pct}%</p>
-                <p className="text-[8px]" style={{ color:S.text3 }}>完成度</p>
-              </div>
-            </button>
-            {/* 进度条 */}
-            <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background:S.s2 }}>
-              <div className="h-full rounded-full" style={{ width:`${pct}%`, background:S.primary }} />
-            </div>
-          </div>
-
-          {/* 检查项列表 */}
-          <AnimatePresence>
-            {checkOpen && (
-              <motion.div initial={{ height:0 }} animate={{ height:"auto" }} exit={{ height:0 }}
-                className="overflow-hidden">
-                <div className="px-3 py-2 space-y-1">
-                  {stageChecks.map((c,i) => (
-                    <div key={i} className="py-1.5"
-                      style={{ borderBottom: i<stageChecks.length-1 ? `1px solid ${S.border}` : "none" }}>
-                      <div className="flex items-start gap-1.5">
-                        {c.status==="ok"
-                          ? <CheckCircle2 size={12} style={{ color:S.success, marginTop:1, flexShrink:0 }} />
-                          : <AlertTriangle size={12} style={{ color:S.warning, marginTop:1, flexShrink:0 }} />}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold" style={{ color:S.text }}>{c.label}</span>
-                            <span className="text-[8px] font-bold px-1 rounded"
-                              style={{ background: c.status==="ok" ? `${S.success}12` : `${S.warning}12`,
-                                color: c.status==="ok" ? S.success : S.warning }}>
-                              {c.status==="ok" ? "完成" : "建议"}
-                            </span>
-                          </div>
-                          <p className="text-[9px] leading-snug mt-0.5" style={{ color:S.text3 }}>{c.detail}</p>
-                          {/* 补充资产按钮（对齐截图中的警告项）*/}
-                          {c.label==="节点资产" && (
-                            <Link href="/assets">
-                              <motion.span whileTap={{ scale:0.95 }}
-                                className="inline-flex items-center gap-0.5 mt-1 text-[9px] font-bold cursor-pointer px-1.5 py-0.5 rounded"
-                                style={{ background:`${S.primary}12`, color:S.primary, border:`1px solid ${S.primary}20` }}>
-                                <ExternalLink size={8} /> 补充资产
-                              </motion.span>
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* 情绪曲线 (P0-3) */}
           <div className="px-3 py-2 border-b" style={{ borderColor: S.border }}>
@@ -3110,11 +2352,7 @@ export default function NodesScreen() {
             <motion.div key={activeTab} initial={{ opacity:0 }} animate={{ opacity:1 }}
               exit={{ opacity:0 }} transition={{ duration:0.1 }} className="h-full">
               {activeTab==="canvas"    && <CanvasContent sel={sel} setSel={setSel} nodeFilter={nodeFilter} diagView={diagView} />}
-              {activeTab==="script"    && <ScriptContent />}
               {activeTab==="heatmap"   && <HeatmapContent />}
-              {activeTab==="story"     && <StoryContent />}
-              {activeTab==="character" && <CharacterContent />}
-              {activeTab==="assets"    && <AssetsContent />}
               {activeTab==="ui"        && <UIContent />}
               {activeTab==="variables" && <VariablesContent />}
               {activeTab==="timeline"  && <CharacterTimelineContent />}
