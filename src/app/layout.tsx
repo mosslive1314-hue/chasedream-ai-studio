@@ -14,6 +14,7 @@ import { UndoRedoListener } from "@/components/ui/UndoRedoListener";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { SaveIndicator } from "@/components/ui/SaveIndicator";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { EazoBannerHider } from "@/components/ui/EazoBannerHider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -57,6 +58,7 @@ export default function RootLayout({
     <html lang="zh-CN" className={cn("h-full antialiased", inter.variable)}>
       <body className="min-h-svh flex flex-col" style={{ background: "var(--app-bg)" }}>
         <EazoProvider>
+          <EazoBannerHider />
           <UserSyncEffect />
           {/* P13: Undo/Redo keyboard listener + auto-save tracking */}
           <UndoRedoListener />
