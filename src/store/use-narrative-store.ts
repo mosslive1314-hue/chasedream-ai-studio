@@ -776,6 +776,7 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
     }),
     {
       name: 'cd-narrative',
+      version: 2,
     }
   )
 );
