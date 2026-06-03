@@ -2,6 +2,7 @@
 import { useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   BookOpen, Scissors, GitBranch, Layers, Zap,
   Trophy, ArrowRight, Target, Users, MapPin, Package,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { useNarrativeStore, useSettingsStore, useUIStore } from "@/store";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 // ── Design tokens ───────────────────────────────────────────────────────
 const S = {
@@ -53,6 +55,7 @@ function StatPill({ label, value, color }: { label: string; value: number | stri
 
 // ── Main Component ──────────────────────────────────────────────────────
 export default function StoryOverviewScreen() {
+  const pathname = usePathname();
   const projectName = useSettingsStore(s => s.projectName);
   const [activeTab, setActiveTab] = useState<TabId>("progress");
   const addToast = useUIStore(s => s.addToast);
@@ -133,6 +136,9 @@ export default function StoryOverviewScreen() {
           </Link>
         </div>
       </div>
+
+      {/* ── Pipeline Nav ──────────────────────────────────────────────── */}
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── Tab Bar ────────────────────────────────────────────────────── */}
       <div className="shrink-0 flex items-center gap-1 px-5 pt-2 pb-0" style={{ borderBottom: `1px solid ${S.border}`, background: S.card }}>

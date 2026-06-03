@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns } from "lucide-react";
 import Link from "next/link";
 import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
 import { useNarrativeStore, useProjectStore, useCanvasAgentStore } from "@/store";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -702,6 +704,7 @@ function ChapterPlanContent() {
 }
 
 export default function ScriptScreen() {
+  const pathname = usePathname();
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const narrativeTemplates = NARRATIVE_TEMPLATES.map(t =>
     t.id === 'three-act' ? { ...t, examples: `《${projectName}》当前结构接近三幕式` } : t
@@ -713,7 +716,7 @@ export default function ScriptScreen() {
   const [blocks, setBlocks] = useState<ScriptBlock[]>(scriptBlocks);
   const [editId, setEditId] = useState<string|null>(null);
   const [editVal, setEditVal] = useState("");
-  const [activeLayer, setActiveLayer] = useState<LayerId>("interactive");
+  const [activeLayer, setActiveLayer] = useState<LayerId>("linear");
   const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const [splitPreview, setSplitPreview] = useState(false);
@@ -835,6 +838,7 @@ export default function ScriptScreen() {
 
   return (
     <div className="h-svh flex flex-col overflow-hidden" style={{ background:S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
       {/* 四层导航 (P0-2) */}
       <div className="flex items-center border-b shrink-0"
         style={{ background: S.card, borderColor: S.border }}>

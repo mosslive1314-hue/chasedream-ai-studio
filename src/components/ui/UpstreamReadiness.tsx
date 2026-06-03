@@ -14,14 +14,15 @@ const S = {
 
 /** Map base route path -> primary pipeline stage index (0-based).
  *  When multiple stages share the same linkedPage, we pick the first
- *  (lowest index) so the user sees the entry-point stage for that page. */
+ *  (lowest index) so the user sees the entry-point stage for that page.
+ *  Pages NOT in this map (e.g. /cinematic) will NOT show the bar. */
 const PAGE_STAGE_MAP: Record<string, number> = {
   "/settings": 0,        // 项目创建
   "/parse": 1,           // 素材导入与解构
   "/story-overview": 2,  // 世界观与叙事规则
   "/script": 4,          // 线性剧本 (stages 3-4 both → /script)
   "/interaction": 5,     // 互动叙事设计 (stages 5-6 both → /interaction)
-  "/cinematic": 6,       // 演出设计 → 变量与交互机制 (stage 6, cinematic direction)
+  // /cinematic intentionally omitted — no pipeline stage maps to 演出设计
   "/nodes": 7,           // 节点图谱与路径
   "/assets": 8,          // 资产生成与管理
   "/simulator": 9,       // 演出预览与试玩

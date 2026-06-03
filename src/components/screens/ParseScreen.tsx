@@ -7,8 +7,9 @@ import {
   Network, CheckSquare, List, Rocket,
   BookOpen, Settings, Terminal,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
+import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -242,6 +243,7 @@ function generateAgentLogs(stepIndex: number) {
 // -- 主组件 --------------------------------------------------------------------
 export default function ParseScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const worldRules = useNarrativeStore(s => s.worldRules);
   const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);
@@ -314,6 +316,7 @@ export default function ParseScreen() {
 
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
+      <UpstreamReadiness currentPath={pathname} />
 
       {/* ── 顶部面包屑 ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
