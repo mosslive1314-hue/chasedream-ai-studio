@@ -278,9 +278,12 @@ export default function InteractionScreen() {
                         style={{ background: S.card, border: `1px solid ${expanded ? S.primary : S.border}`, boxShadow: expanded ? `0 4px 24px ${S.primary10}` : "0 1px 3px rgba(0,0,0,0.04)" }}
                       >
                         {/* ── Card Header (always visible) ────────────── */}
-                        <button
+                        <div
+                          role="button"
+                          tabIndex={0}
                           onClick={() => toggle(ip.id)}
-                          className="w-full text-left p-5 focus:outline-none"
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(ip.id); } }}
+                          className="w-full text-left p-5 focus:outline-none cursor-pointer"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -346,7 +349,7 @@ export default function InteractionScreen() {
                               </div>
                             </div>
                           </div>
-                        </button>
+                        </div>
 
                         {/* ── Card Body (expandable) ─────────────────── */}
                         <AnimatePresence>
