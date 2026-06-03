@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, LayoutGrid, MessageCircle, Shield, Clock, User, UserPlus,
-  Pencil, Upload, Rocket, Layers, Eye, CheckCircle2, ChevronDown, ChevronRight,
+  Pencil, Upload, Rocket, Layers, Eye, CheckCircle2, ChevronDown, ChevronRight, Lock,
 } from "lucide-react";
 import { useNarrativeStore, useUIStore } from "@/store";
 
@@ -25,6 +25,8 @@ const TABS = [
   { label: "任务看板", icon: LayoutGrid },
   { label: "评论动态", icon: MessageCircle },
   { label: "审核流程", icon: Shield },
+  { label: "协作动态", icon: Clock },
+  { label: "权限管理", icon: Lock },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
@@ -142,7 +144,6 @@ export default function CollabScreen() {
 
   const [activeTab, setActiveTab] = useState(0);
   const [commentText, setCommentText] = useState("");
-  const [expandedPerms, setExpandedPerms] = useState(false);
 
   // ── Derived: team members ──
   const members = useMemo(() => {
@@ -180,20 +181,20 @@ export default function CollabScreen() {
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
       {/* ── Tab Bar ── */}
-      <div className="flex items-center gap-2 px-4 pt-3">
+      <div className="flex items-center gap-1.5 px-4 pt-3 flex-wrap">
         {TABS.map((tab, i) => {
           const Icon = tab.icon;
           return (
             <motion.button key={i} whileTap={{ scale: 0.95 }}
               onClick={() => setActiveTab(i)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all focus:outline-none"
               style={{
                 background: activeTab === i ? S.primary : S.s2,
                 color: activeTab === i ? "#fff" : S.text2,
                 border: `1px solid ${activeTab === i ? S.primary : S.border}`,
                 boxShadow: activeTab === i ? `0 2px 8px ${S.primary}30` : "none",
               }}>
-              <Icon size={12} />
+              <Icon size={11} />
               <span>{tab.label}</span>
             </motion.button>
           );
@@ -256,71 +257,6 @@ export default function CollabScreen() {
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Activity Timeline */}
-              <div className="rounded-xl p-3 mb-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <MessageCircle size={12} style={{ color: S.primary }} />
-                  <span className="text-[11px] font-bold" style={{ color: S.text }}>协作动态</span>
-                </div>
-                <div className="space-y-1.5">
-                  {collabComments.slice(0, 6).map(c => {
-                    const AIcon = ACTIVITY_ICONS[c.authorRole] ?? Pencil;
-                    const rc = ROLE_COLORS[c.authorRole] ?? S.text3;
-                    return (
-                      <div key={c.id} className="flex items-start gap-2 py-1.5 border-b last:border-0" style={{ borderColor: S.border }}>
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-                          style={{ background: `${rc}15` }}>
-                          <AIcon size={10} style={{ color: rc }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{c.author}</span>
-                            <span className="text-[8px]" style={{ color: S.text3 }}>{c.timestamp.slice(5, 16)}</span>
-                          </div>
-                          <p className="text-[9px] leading-relaxed" style={{ color: S.text2 }}>
-                            {highlightMentions(c.content, c.mentions)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Permissions */}
-              <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setExpandedPerms(p => !p)}
-                  className="flex items-center justify-between w-full focus:outline-none">
-                  <div className="flex items-center gap-2">
-                    <Shield size={12} style={{ color: S.primary }} />
-                    <span className="text-[11px] font-bold" style={{ color: S.text }}>权限管理</span>
-                  </div>
-                  {expandedPerms ? <ChevronDown size={14} style={{ color: S.text3 }} /> : <ChevronRight size={14} style={{ color: S.text3 }} />}
-                </motion.button>
-                <AnimatePresence>
-                  {expandedPerms && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
-                      <div className="mt-2 space-y-1.5">
-                        {PERMISSION_LEVELS.map(p => (
-                          <div key={p.role} className="p-2 rounded-lg" style={{ background: S.s2 }}>
-                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{p.role}</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {p.permissions.map(perm => (
-                                <span key={perm} className="text-[8px] px-1.5 py-0.5 rounded"
-                                  style={{ background: S.primary10, color: S.primary }}>{perm}</span>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </motion.div>
           )}
@@ -562,6 +498,112 @@ export default function CollabScreen() {
                     </div>
                   );
                 })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══════════════════ TAB 4: 协作动态 ═══════════════════ */}
+          {activeTab === 4 && (
+            <motion.div key="t4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+              <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <Clock size={13} style={{ color: S.primary }} />
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: S.text }}>协作动态</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: S.s2, color: S.text3 }}>
+                    最近 {Math.min(collabComments.length, 20)} 条
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {collabComments.slice(0, 20).map(c => {
+                    const AIcon = ACTIVITY_ICONS[c.authorRole] ?? Pencil;
+                    const rc = ROLE_COLORS[c.authorRole] ?? S.text3;
+                    return (
+                      <div key={c.id} className="flex items-start gap-2.5 py-2 border-b last:border-0" style={{ borderColor: S.border }}>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: `${rc}15` }}>
+                          <AIcon size={11} style={{ color: rc }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold" style={{ color: S.text }}>{c.author}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${rc}10`, color: rc }}>
+                              {ROLE_LABELS[c.authorRole] ?? c.authorRole}
+                            </span>
+                            <span className="text-[9px]" style={{ color: S.text3 }}>{c.timestamp.slice(5, 16)}</span>
+                          </div>
+                          <p className="text-[10px] leading-relaxed mt-0.5" style={{ color: S.text2 }}>
+                            {highlightMentions(c.content, c.mentions)}
+                          </p>
+                          {(c as any).linkedTask && (
+                            <span className="inline-flex items-center gap-1 text-[8px] mt-1 px-1.5 py-0.5 rounded"
+                              style={{ background: S.s2, color: S.text3 }}>
+                              <Layers size={8} /> {(c as any).linkedTask}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {collabComments.length === 0 && (
+                    <div className="text-center py-8">
+                      <Clock size={24} style={{ color: S.text3, opacity: 0.4 }} />
+                      <p className="text-[10px] mt-2" style={{ color: S.text3 }}>暂无协作动态</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══════════════════ TAB 5: 权限管理 ═══════════════════ */}
+          {activeTab === 5 && (
+            <motion.div key="t5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+              <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                    <Lock size={13} style={{ color: S.primary }} />
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: S.text }}>权限管理</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: S.s2, color: S.text3 }}>
+                    {PERMISSION_LEVELS.length} 个角色
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {PERMISSION_LEVELS.map(p => (
+                    <div key={p.role} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Shield size={12} style={{ color: S.primary }} />
+                        <span className="text-[11px] font-bold" style={{ color: S.text }}>{p.role}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.permissions.map(perm => (
+                          <span key={perm} className="text-[9px] px-2 py-0.5 rounded-lg"
+                            style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}>
+                            {perm}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 p-3 rounded-xl" style={{ background: S.s2, border: `1px dashed ${S.border}` }}>
+                  <p className="text-[10px] font-medium mb-2" style={{ color: S.text2 }}>当前成员权限分配</p>
+                  <div className="space-y-1">
+                    {members.slice(0, 6).map(m => (
+                      <div key={m.name} className="flex items-center justify-between py-1">
+                        <span className="text-[10px]" style={{ color: S.text }}>{m.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded" style={{
+                          background: `${ROLE_COLORS[m.role] ?? S.text3}15`,
+                          color: ROLE_COLORS[m.role] ?? S.text3,
+                        }}>
+                          {ROLE_LABELS[m.role] ?? m.role}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}

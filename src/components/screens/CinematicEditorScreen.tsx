@@ -11,7 +11,7 @@ import {
   type CinematicDirection, type CameraShotType, type CameraMovement,
   type TransitionType, type EmotionIntensity,
 } from "@/lib/studio-data";
-import { useNarrativeStore } from "@/store";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -125,6 +125,18 @@ export default function CinematicEditorScreen() {
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const characters = useNarrativeStore(s => s.characters);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
+  const updateCinematicDirection = useNarrativeStore(s => s.updateCinematicDirection);
+  const addToast = useUIStore(s => s.addToast);
+
+  // ── Edit handlers ──
+  const updateDirection = (nodeId: string, updates: Partial<CinematicDirection>) => {
+    updateCinematicDirection(nodeId, updates);
+    addToast({
+      type: "success",
+      title: "演出方向已更新",
+      message: `节点 ${nodeId} 的演出设置已保存`,
+    });
+  };
 
   const [selectedNodeId, setSelectedNodeId] = useState<string>(cinematicDirections[0]?.nodeId ?? "N01");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -305,7 +317,7 @@ export default function CinematicEditorScreen() {
                     <div className="flex-1 h-px" />
                   </div>
                   <div className="p-5">
-                    <CameraSection direction={currentDirection} />
+                    <CameraSection direction={currentDirection} onUpdate={updateDirection} />
                   </div>
                 </div>
               )}
@@ -405,7 +417,7 @@ function SectionCard({ icon, title, color, bg, children }: {
 // ══════════════════════════════════════════════════════════════════════════
 // Camera Section
 // ══════════════════════════════════════════════════════════════════════════
-function CameraSection({ direction }: { direction: CinematicDirection }) {
+function CameraSection({ direction, onUpdate }: { direction: CinematicDirection; onUpdate: (nodeId: string, updates: Partial<CinematicDirection>) => void }) {
   const cam = direction.camera;
   const shotMeta = SHOT_META[cam.shotType] ?? SHOT_META.wide;
   const moveMeta = MOVEMENT_META[cam.movement] ?? MOVEMENT_META.none;
@@ -453,6 +465,17 @@ function CameraSection({ direction }: { direction: CinematicDirection }) {
 
       {/* Camera frame visualization */}
       <CameraFrameViz shotType={cam.shotType} focusTarget={cam.focusTarget} />
+
+      {/* Editable: Duration slider */}
+      <div className="flex items-center gap-3 pt-2" style={{ borderTop: `1px solid ${S.border}` }}>
+        <span className="text-[10px] font-medium shrink-0" style={{ color: S.text3 }}>调整时长</span>
+        <input
+          type="range" min={1} max={30} value={cam.duration}
+          onChange={e => onUpdate(direction.nodeId, { camera: { ...cam, duration: Number(e.target.value) } })}
+          className="flex-1 h-1.5 accent-violet-500"
+        />
+        <span className="text-xs font-bold w-8 text-right" style={{ color: S.primary }}>{cam.duration}s</span>
+      </div>
     </div>
   );
 }

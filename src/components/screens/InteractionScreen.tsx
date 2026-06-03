@@ -13,7 +13,7 @@ import {
   type InteractionPoint, type InteractionOption,
   type ConsequenceChain, type ConsequenceTiming,
 } from "@/lib/studio-data";
-import { useNarrativeStore } from "@/store";
+import { useNarrativeStore, useUIStore } from "@/store";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -61,6 +61,18 @@ export default function InteractionScreen() {
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const narrativeStates = useNarrativeStore(s => s.narrativeStates);
   const consequenceChains = useNarrativeStore(s => s.consequenceChains);
+  const updateInteractionPoint = useNarrativeStore(s => s.updateInteractionPoint);
+  const addToast = useUIStore(s => s.addToast);
+
+  // ── Toggle test status and persist ────────────────────────────────────
+  const toggleTested = (id: string, current: boolean) => {
+    updateInteractionPoint(id, { tested: !current });
+    addToast({
+      type: !current ? "success" : "info",
+      title: !current ? "已标记为已测试" : "已取消测试标记",
+      message: `互动点状态已更新`,
+    });
+  };
 
   // ── Derived lookup maps ────────────────────────────────────────────────
   const chapterLabels = useMemo(() => {
@@ -270,15 +282,18 @@ export default function InteractionScreen() {
                             </div>
                             {/* Right: test badge + expand icon */}
                             <div className="flex items-center gap-2 shrink-0">
-                              <span
-                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold"
+                              <motion.button
+                                whileTap={{ scale: 0.93 }}
+                                onClick={(e) => { e.stopPropagation(); toggleTested(ip.id, ip.tested); }}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer hover:opacity-80 transition-opacity"
                                 style={{
                                   background: ip.tested ? "rgba(5,150,105,0.10)" : "rgba(217,119,6,0.10)",
                                   color: ip.tested ? S.success : S.warning,
                                 }}
+                                title={ip.tested ? "点击取消测试标记" : "点击标记为已测试"}
                               >
-                                {ip.tested ? "已测试" : "未测试"}
-                              </span>
+                                {ip.tested ? "已测试 ✓" : "未测试"}
+                              </motion.button>
                               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: S.s2 }}>
                                 {expanded ? <ChevronUp size={14} style={{ color: S.text3 }} /> : <ChevronDown size={14} style={{ color: S.text3 }} />}
                               </div>

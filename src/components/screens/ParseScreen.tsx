@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { WorldRule, WorldRuleType } from "@/lib/studio-data";
-import { useNarrativeStore, useProjectStore } from "@/store";
+import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -240,6 +240,8 @@ export default function ParseScreen() {
   const worldRules = useNarrativeStore(s => s.worldRules);
   const characters = useNarrativeStore(s => s.characters);
   const scenes = useNarrativeStore(s => s.scenes);
+  const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);
+  const addToast = useUIStore(s => s.addToast);
 
   const ARTIFACTS: Record<number, { heading:string; summary:string; items: ArtifactItem[] }> = {
     1: {
@@ -560,7 +562,11 @@ export default function ParseScreen() {
                   </div>
                 </div>
                 <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={() => setRules(prev => prev.map(r => ({ ...r, validated: true })))}
+                  onClick={() => {
+                    setRules(prev => prev.map(r => ({ ...r, validated: true })));
+                    worldRules.forEach(r => updateWorldRule(r.id, { validated: true }));
+                    addToast({ type: "success", title: "校验完成", message: `已校验全部 ${worldRules.length} 条规则` });
+                  }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
                   style={{ background: `${S.primary}12`, color: S.primary, border: `1px solid ${S.primary}25` }}>
                   <CheckCircle2 size={10} /> 校验全部
@@ -677,7 +683,15 @@ export default function ParseScreen() {
               <RotateCcw size={11}/> 重新生成
             </motion.button>
             <div className="flex-1" />
-            <motion.button whileTap={{ scale:0.97 }} onClick={() => router.push("/script")}
+            <motion.button whileTap={{ scale:0.97 }}
+              onClick={() => {
+                // Flush local state to store before navigating
+                rules.forEach(r => {
+                  if (r.validated) updateWorldRule(r.id, { validated: true });
+                });
+                addToast({ type: "success", title: "已应用到工作台", message: "解构结果已保存，可在剧本编辑中继续使用" });
+                router.push("/script");
+              }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold focus:outline-none"
               style={{ background:`${S.accent}15`, border:`1px solid ${S.accent}30`, color: S.accent }}>
               ✓ 应用到工作台 <ArrowRight size={11}/>

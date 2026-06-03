@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Plus, ChevronDown, Home,
+  Plus, ChevronDown, Home, MessageSquare,
 } from "lucide-react";
-import { useUIStore } from "@/store";
+import { useUIStore, useCanvasAgentStore } from "@/store";
 
 const S = {
   card: "#FFFFFF",
@@ -20,6 +20,8 @@ export function WorkbenchHeader() {
   const addToast = useUIStore(s => s.addToast);
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const setPanelOpen = useCanvasAgentStore(s => s.setPanelOpen);
+  const panelOpen = useCanvasAgentStore(s => s.panelOpen);
 
   return (
     <header className="flex items-center h-11 px-4 gap-1 border-b shrink-0"
@@ -38,32 +40,20 @@ export function WorkbenchHeader() {
         </Link>
 
         {[
-          { label: "我的作品", href: "/my-works", comingSoon: false },
-          { label: "我的资产", href: "/assets", comingSoon: false },
-          { label: "素材市场", href: "#", comingSoon: true },
-          { label: "能力市场", href: "#", comingSoon: true },
-        ].map(item =>
-          item.comingSoon ? (
-            <motion.button key={item.label} whileTap={{ scale: 0.97 }}
-              onClick={() => addToast({ type: "info", title: "功能规划中", message: `${item.label}将在后续版本上线，敬请期待` })}
-              className="relative px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50 transition-colors focus:outline-none"
-              style={{ color: S.text3 }}>
+          { label: "我的作品", href: "/my-works" },
+          { label: "我的资产", href: "/assets" },
+        ].map(item => (
+          <Link key={item.label} href={item.href}>
+            <motion.span whileTap={{ scale: 0.97 }}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50 transition-colors"
+              style={{
+                color: isActive(item.href, pathname) ? S.primary : S.text2,
+                background: isActive(item.href, pathname) ? S.primary10 : "transparent",
+              }}>
               {item.label}
-              <span className="ml-1 text-[8px] px-1 py-0.5 rounded-full font-bold"
-                style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}>
-                即将上线
-              </span>
-            </motion.button>
-          ) : (
-            <Link key={item.label} href={item.href}>
-              <motion.span whileTap={{ scale: 0.97 }}
-                className="px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50 transition-colors"
-                style={{ color: S.text2 }}>
-                {item.label}
-              </motion.span>
-            </Link>
-          )
-        )}
+            </motion.span>
+          </Link>
+        ))}
 
         {/* 开发者设置下拉 */}
         <div className="relative">
@@ -104,6 +94,21 @@ export function WorkbenchHeader() {
 
       <div className="flex-1" />
 
+      {/* Agent 面板按钮 */}
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setPanelOpen(!panelOpen)}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium focus:outline-none transition-colors mr-2"
+        style={{
+          color: panelOpen ? S.primary : S.text2,
+          background: panelOpen ? S.primary10 : "transparent",
+        }}
+        title="AI 助手 (Cmd+J)"
+      >
+        <MessageSquare size={13} />
+        <span>AI 助手</span>
+      </motion.button>
+
       {/* 新建项目 — 主 CTA */}
       <Link href="/?action=new-project">
         <motion.button whileTap={{ scale: 0.97 }}
@@ -114,4 +119,9 @@ export function WorkbenchHeader() {
       </Link>
     </header>
   );
+}
+
+function isActive(href: string, path: string): boolean {
+  if (href === "/") return path === "/";
+  return path.startsWith(href);
 }

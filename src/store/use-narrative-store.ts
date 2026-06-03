@@ -201,6 +201,26 @@ interface NarrativeStoreState {
   // --- Chapter Plan Actions ---
   updateChapterPlan: (id: string, updates: Partial<ChapterPlan>) => void;
 
+  // --- Script Block Actions ---
+  updateScriptBlock: (id: string, updates: Partial<ScriptBlock>) => void;
+  addScriptBlock: (block: ScriptBlock) => void;
+  removeScriptBlock: (id: string) => void;
+
+  // --- UI Template Actions ---
+  updateUITemplate: (id: string, updates: Partial<UITemplate>) => void;
+  addUITemplate: (template: UITemplate) => void;
+
+  // --- Game UI Settings ---
+  updateGameUISettings: (updates: Partial<GameUISettings>) => void;
+
+  // --- Scene/Prop/Character Add Actions ---
+  addScene: (scene: GameScene) => void;
+  addProp: (prop: GameProp) => void;
+  addCharacter: (character: GameCharacter) => void;
+
+  // --- Cinematic Direction Actions ---
+  updateCinematicDirection: (id: string, updates: Partial<CinematicDirection>) => void;
+
   // --- Collaboration Actions ---
   updateCollabTask: (id: string, updates: Partial<CollabTask>) => void;
   addCollabComment: (comment: CollabComment) => void;
@@ -388,6 +408,77 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
         set(state => ({
           chapterPlans: state.chapterPlans.map(cp =>
             cp.id === id ? { ...cp, ...updates } : cp
+          ),
+        }));
+      },
+
+      // --- Script Block Actions ---
+      updateScriptBlock: (id, updates) => {
+        set(state => ({
+          scriptBlocks: state.scriptBlocks.map(sb =>
+            sb.id === id ? { ...sb, ...updates } : sb
+          ),
+        }));
+      },
+
+      addScriptBlock: (block) => {
+        set(state => ({
+          scriptBlocks: [...state.scriptBlocks, block],
+        }));
+      },
+
+      removeScriptBlock: (id) => {
+        set(state => ({
+          scriptBlocks: state.scriptBlocks.filter(sb => sb.id !== id),
+        }));
+      },
+
+      // --- UI Template Actions ---
+      updateUITemplate: (id, updates) => {
+        set(state => ({
+          uiTemplates: state.uiTemplates.map(t =>
+            t.id === id ? { ...t, ...updates } : t
+          ),
+        }));
+      },
+
+      addUITemplate: (template) => {
+        set(state => ({
+          uiTemplates: [...state.uiTemplates, template],
+        }));
+      },
+
+      // --- Game UI Settings ---
+      updateGameUISettings: (updates) => {
+        set(state => ({
+          gameUISettings: { ...state.gameUISettings, ...updates },
+        }));
+      },
+
+      // --- Scene/Prop/Character Add Actions ---
+      addScene: (scene) => {
+        set(state => ({
+          scenes: [...state.scenes, scene],
+        }));
+      },
+
+      addProp: (prop) => {
+        set(state => ({
+          props: [...state.props, prop],
+        }));
+      },
+
+      addCharacter: (character) => {
+        set(state => ({
+          characters: [...state.characters, character],
+        }));
+      },
+
+      // --- Cinematic Direction Actions ---
+      updateCinematicDirection: (id, updates) => {
+        set(state => ({
+          cinematicDirections: state.cinematicDirections.map(cd =>
+            cd.nodeId === id ? { ...cd, ...updates } : cd
           ),
         }));
       },

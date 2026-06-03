@@ -387,7 +387,7 @@ export const PIPELINE_STAGES: PipelineStage[] = [
     issues: [],
     nextAction: '已完成',
     requiresHumanConfirm: true,
-    linkedPage: '/parse',
+    linkedPage: '/story-overview',
   },
   {
     id: 'stage-04', order: 4, name: '章纲规划',
@@ -415,9 +415,9 @@ export const PIPELINE_STAGES: PipelineStage[] = [
     icon: '🎭', status: 'active', progress: 65,
     artifacts: ['叙事意图 11 个', '情绪曲线', '变量关联 4 个'],
     issues: ['N07 潜行判定缺少失败反馈', 'QTE 节点缺详细配置'],
-    nextAction: '前往节点图完善互动设计意图与失败反馈',
+    nextAction: '前往互动设计页面完善互动意图与失败反馈',
     requiresHumanConfirm: true,
-    linkedPage: '/nodes',
+    linkedPage: '/interaction',
   },
   {
     id: 'stage-07', order: 7, name: '变量与交互机制',
@@ -427,7 +427,7 @@ export const PIPELINE_STAGES: PipelineStage[] = [
     issues: ['变量未配置详细范围', 'QTE 缺可视化编辑器', '无 Hotspot 配置'],
     nextAction: '完善变量范围和 QTE 交互配置',
     requiresHumanConfirm: false,
-    linkedPage: '/nodes',
+    linkedPage: '/interaction',
   },
   {
     id: 'stage-08', order: 8, name: '节点图谱与路径',

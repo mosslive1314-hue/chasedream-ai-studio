@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
   User, MapPin, Package, Sparkles, Play, ArrowRight,
-  Image, Music, Mic, Film, Plus, Edit2, Check
+  Image, Music, Mic, Film, Plus, Edit2, Check, Headphones
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, type IndustryType, type AssetCard } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
 
@@ -181,6 +182,8 @@ export default function AssetsScreen() {
   const assetCards = useNarrativeStore(s => s.assetCards);
   const industry = useUIStore(s => s.industry);
   const setIndustry = useUIStore(s => s.setIndustry);
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "image";
 
   const [activeStep, setActiveStep] = useState<string>("character");
   const [selectedChar, setSelectedChar] = useState(0);
@@ -190,11 +193,34 @@ export default function AssetsScreen() {
   const [viewMode, setViewMode] = useState<"pipeline" | "by-node">("pipeline");
   const [activeAssetFilter, setActiveAssetFilter] = useState<string | null>(null);
 
+  // Store write actions for persisting generation results
+  const addScene = useNarrativeStore(s => s.addScene);
+  const addToast = useUIStore(s => s.addToast);
+
   const handleGenerate = (id: string) => {
     setGenerating(id);
     setTimeout(() => {
       setGenerating(null);
       setGenDone(prev => [...prev, id]);
+
+      // Persist generation result to store
+      if (id.startsWith("scene-")) {
+        const sceneId = id.replace("scene-", "");
+        const sceneData = SCENES.find(s => s.id === sceneId);
+        if (sceneData) {
+          addScene({
+            id: sceneId, name: sceneData.name, location: sceneData.location,
+            lighting: sceneData.light, atmosphere: sceneData.atmosphere,
+            refNodes: [], hasImage: true, visualPrompt: sceneData.prompt,
+          });
+        }
+      }
+
+      addToast({
+        type: "success",
+        title: "资产生成完成",
+        message: `${id.includes("char") ? "立绘" : id.includes("scene") ? "背景图" : id.includes("prop") ? "道具图" : "素材"}已成功生成并绑定`,
+      });
     }, 1800);
   };
 
@@ -222,6 +248,30 @@ export default function AssetsScreen() {
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
 
+      {/* ── 顶层资产类型 Tab 栏 ── */}
+      <div className="flex items-center gap-2 px-4 py-2 shrink-0"
+        style={{ background: S.card, borderBottom: `1px solid ${S.border}` }}>
+        {[
+          { id: "image", label: "图片", icon: Image },
+          { id: "video", label: "视频", icon: Film },
+          { id: "audio", label: "音频", icon: Music },
+        ].map(tab => (
+          <Link key={tab.id} href={`/assets?tab=${tab.id}`}>
+            <motion.button whileTap={{ scale: 0.96 }}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold focus:outline-none transition-all"
+              style={{
+                background: activeTab === tab.id ? S.primary : "transparent",
+                color: activeTab === tab.id ? "#fff" : S.text3,
+                border: `1px solid ${activeTab === tab.id ? S.primary : S.border}`,
+              }}>
+              <tab.icon size={13} />
+              {tab.label}
+            </motion.button>
+          </Link>
+        ))}
+      </div>
+
+      {activeTab === "image" && (<>
       {/* ── 顶部步骤进度条 ── */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ background:S.card, borderBottom:`1px solid ${S.border}` }}>
@@ -880,6 +930,115 @@ export default function AssetsScreen() {
           前往质检总览 →
         </Link>
       </div>
+      </>)}
+
+      {/* ── 视频 Tab ── */}
+      {activeTab === "video" && (<>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${S.primary}12` }}>
+              <Film size={20} style={{ color: S.primary }} />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: S.text }}>视频资产管理</h2>
+              <p className="text-[10px]" style={{ color: S.text3 }}>管理过场动画、演出片段、预告片等视频资产</p>
+            </div>
+          </div>
+
+          {/* Mock video assets grid */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { name: "序章开场动画", duration: "01:24", resolution: "1920x1080", status: "已渲染", statusColor: S.success },
+              { name: "N06 警卫追逐", duration: "00:48", resolution: "1920x1080", status: "渲染中", statusColor: S.warning },
+              { name: "结局A 幽灵归来", duration: "02:10", resolution: "3840x2160", status: "待渲染", statusColor: S.text3 },
+              { name: "结局B 真相大白", duration: "01:55", resolution: "1920x1080", status: "待渲染", statusColor: S.text3 },
+            ].map(vid => (
+              <div key={vid.name} className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <div className="h-24 flex items-center justify-center" style={{ background: "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
+                  <Film size={24} style={{ color: "#ffffff40" }} />
+                </div>
+                <div className="p-3 space-y-1.5">
+                  <p className="text-[10px] font-bold" style={{ color: S.text }}>{vid.name}</p>
+                  <div className="flex items-center gap-2 text-[9px]" style={{ color: S.text3 }}>
+                    <span>{vid.duration}</span>
+                    <span>{vid.resolution}</span>
+                  </div>
+                  <span className="inline-block text-[8px] px-1.5 py-0.5 rounded font-bold"
+                    style={{ background: `${vid.statusColor}15`, color: vid.statusColor }}>
+                    {vid.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action button */}
+          <motion.button whileTap={{ scale: 0.97 }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
+            style={{ background: `linear-gradient(135deg,${S.primary},#A78BFA)` }}>
+            <Sparkles size={12} /> AI 生成视频
+          </motion.button>
+        </div>
+      </>)}
+
+      {/* ── 音频 Tab ── */}
+      {activeTab === "audio" && (<>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${S.accent}12` }}>
+              <Headphones size={20} style={{ color: S.accent }} />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: S.text }}>音频资产管理</h2>
+              <p className="text-[10px]" style={{ color: S.text3 }}>管理 BGM、音效、配音等音频资产</p>
+            </div>
+          </div>
+
+          {/* Mock audio assets grid */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { name: "主题曲", duration: "03:22", format: "WAV", status: "已混音", statusColor: S.success },
+              { name: "紧张BGM", duration: "01:45", format: "MP3", status: "已就绪", statusColor: S.success },
+              { name: "战斗音效", duration: "00:32", format: "WAV", status: "已就绪", statusColor: S.success },
+              { name: "艾拉配音", duration: "12:08", format: "WAV", status: "录制中", statusColor: S.warning },
+              { name: "环境音·雨夜", duration: "05:00", format: "FLAC", status: "待录制", statusColor: S.text3 },
+              { name: "结局配乐", duration: "02:48", format: "WAV", status: "待混音", statusColor: S.text3 },
+            ].map(aud => (
+              <div key={aud.name} className="p-3 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${S.accent}10` }}>
+                    <Music size={14} style={{ color: S.accent }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold truncate" style={{ color: S.text }}>{aud.name}</p>
+                    <p className="text-[8px]" style={{ color: S.text3 }}>{aud.duration} · {aud.format}</p>
+                  </div>
+                </div>
+                <span className="inline-block text-[8px] px-1.5 py-0.5 rounded font-bold"
+                  style={{ background: `${aud.statusColor}15`, color: aud.statusColor }}>
+                  {aud.status}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Batch action buttons */}
+          <div className="flex items-center gap-2">
+            <motion.button whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
+              style={{ background: `linear-gradient(135deg,${S.primary},#A78BFA)` }}>
+              <Sparkles size={12} /> AI 生成 BGM
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold focus:outline-none"
+              style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}30`, color: S.accent }}>
+              <Mic size={12} /> 批量配音
+            </motion.button>
+          </div>
+        </div>
+      </>)}
     </div>
   );
 }

@@ -183,6 +183,51 @@ export default function OverviewScreen() {
     const errNodes = feedbackNodes.filter(n => (n as any).hasError);
     const feedbackScore = feedbackNodes.length > 0 ? Math.round(((feedbackNodes.length - errNodes.length) / feedbackNodes.length) * 100) : 100;
 
+    // 情绪节奏 — dynamically computed from narrativeIntents emotion values
+    const emotionValues = narrativeIntents.map(ni => ni.emotionValue ?? 0).filter(v => v > 0);
+    let emotionScore = 78; // fallback
+    let emotionAvg = 0;
+    let emotionStdDev = 0;
+    if (emotionValues.length >= 3) {
+      // Check variance: good pacing has a mix of low and high tension
+      emotionAvg = emotionValues.reduce((a, b) => a + b, 0) / emotionValues.length;
+      const variance = emotionValues.reduce((s, v) => s + (v - emotionAvg) ** 2, 0) / emotionValues.length;
+      emotionStdDev = Math.sqrt(variance);
+      // Ideal: stdDev between 2-4 (good variance), penalize monotone or extreme variance
+      if (emotionStdDev >= 1.5 && emotionStdDev <= 4.5) {
+        emotionScore = Math.min(100, Math.round(60 + emotionStdDev * 10));
+      } else if (emotionStdDev < 1.5) {
+        emotionScore = Math.round(40 + emotionStdDev * 20); // too flat
+      } else {
+        emotionScore = Math.round(60 + Math.max(0, 5 - (emotionStdDev - 4.5)) * 8); // too spiky
+      }
+      // Bonus for having both low and high tension nodes
+      const hasLow = emotionValues.some(v => v <= 3);
+      const hasHigh = emotionValues.some(v => v >= 7);
+      if (hasLow && hasHigh) emotionScore = Math.min(100, emotionScore + 10);
+    }
+
+    // 伏笔回收率 — dynamically computed from narrativeStates + consequenceChains
+    const consequenceChains = useNarrativeStore.getState().consequenceChains;
+    const narrativeStates = useNarrativeStore.getState().narrativeStates;
+    let foreshadowScore = 80; // fallback
+    if (narrativeStates.length > 0) {
+      // A "planted" state is one that is modified at some node and read at a different node
+      const plantedStates = narrativeStates.filter(ns =>
+        ns.modifiedAt.length > 0 && ns.readAt.length > 0
+      );
+      // A "resolved" state is one whose readAt includes nodes near endings or has affectsEndings
+      const resolvedStates = plantedStates.filter(ns =>
+        (ns.affectsEndings && ns.affectsEndings.length > 0) ||
+        ns.readAt.some(nodeId => storyNodes.find(n => n.id === nodeId && (n.type === 'ending_good' || n.type === 'ending_bad')))
+      );
+      if (plantedStates.length > 0) {
+        foreshadowScore = Math.round(
+          Math.min(100, (resolvedStates.length / plantedStates.length) * 100 + 10)
+        );
+      }
+    }
+
     return [
       {
         dimension: '选择意义度', score: choiceScore, maxScore: 100,
@@ -209,19 +254,23 @@ export default function OverviewScreen() {
         improvements: feedbackScore < 100 ? errNodes.map(n => `${n.id} 缺少失败反馈文案`) : [],
       },
       {
-        dimension: '情绪节奏', score: 78, maxScore: 100,
-        detail: '情绪曲线整体合理，高潮点设计到位',
-        strengths: ['序章低张力建立世界观', 'QTE 高潮点设计合理'],
-        improvements: ['连续高张力节点间建议插入缓冲'],
+        dimension: '情绪节奏', score: emotionScore, maxScore: 100,
+        detail: emotionValues.length > 0
+          ? `${emotionValues.length} 个节点有情感标记，均值 ${emotionAvg.toFixed(1)}，标准差 ${emotionStdDev.toFixed(1)}`
+          : '情感数据不足，使用默认评分',
+        strengths: emotionScore >= 75 ? ['情绪曲线有合理的起伏变化'] : [],
+        improvements: emotionScore < 75 ? ['建议在高张力场景间增加缓冲节点'] : [],
       },
       {
-        dimension: '伏笔回收率', score: 80, maxScore: 100,
-        detail: '伏笔回收情况整体良好',
-        strengths: ['核心伏笔已在结局中回收'],
-        improvements: ['部分支线伏笔可进一步明确收束'],
+        dimension: '伏笔回收率', score: foreshadowScore, maxScore: 100,
+        detail: narrativeStates.length > 0
+          ? `${narrativeStates.length} 个叙事状态中已追踪回收情况`
+          : '叙事状态数据不足，使用默认评分',
+        strengths: foreshadowScore >= 80 ? ['核心伏笔已在结局中回收'] : [],
+        improvements: foreshadowScore < 80 ? ['部分支线伏笔尚未在结局中收束'] : [],
       },
     ];
-  }, [storyNodes, nodeEdges, branchPaths, variables]);
+  }, [storyNodes, nodeEdges, branchPaths, variables, narrativeIntents]);
 
   const totalScore = useMemo(() =>
     Math.round(narrativeScores.reduce((s, n) => s + n.score, 0) / narrativeScores.length),
@@ -327,9 +376,9 @@ export default function OverviewScreen() {
           <div className="text-right">
             <div className="flex items-center gap-1.5">
               <div className="h-1.5 w-16 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                <div className="h-full rounded-full" style={{ width: "74%", background: `linear-gradient(to right,${S.primary},${S.accent})` }} />
+                <div className="h-full rounded-full" style={{ width: `${Math.round((totalScore + healthPct) / 2)}%`, background: `linear-gradient(to right,${S.primary},${S.accent})` }} />
               </div>
-              <span className="text-xs font-mono font-bold" style={{ color: S.primary }}>74%</span>
+              <span className="text-xs font-mono font-bold" style={{ color: S.primary }}>{Math.round((totalScore + healthPct) / 2)}%</span>
             </div>
             <span className="text-[8px]" style={{ color: S.text3 }}>总完成度</span>
           </div>

@@ -1,11 +1,11 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye, Sparkles, Save, Rocket, AlertTriangle,
   CheckCircle2, ChevronDown, ChevronUp, Plus,
   ZoomIn, ZoomOut, Maximize2, AlignLeft,
-  ExternalLink, Play, FileText, Flame,
+  ExternalLink, Play, FileText, Flame, Edit2,
   User, Package, Music, GitBranch, X, Loader2,
   Monitor, Star, Download, Wand2,
   Layout, Eye as EyeIcon, Search,
@@ -235,6 +235,11 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
   const nodeEdges = useNarrativeStore(state => state.nodeEdges);
   const variables = useNarrativeStore(state => state.variables);
   const characters = useNarrativeStore(state => state.characters);
+  const addNode = useNarrativeStore(state => state.addNode);
+  const removeNode = useNarrativeStore(state => state.removeNode);
+  const updateNode = useNarrativeStore(state => state.updateNode);
+  const addEdge = useNarrativeStore(state => state.addEdge);
+  const removeEdge = useNarrativeStore(state => state.removeEdge);
 
   const filteredNodes = storyNodes.filter(node => {
     if (nodeFilter === "all") return true;
@@ -278,8 +283,118 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
 
   const getNodeLabel = (id: string) => storyNodes.find(n => n.id === id)?.label || id;
 
+  // ── Local canvas editing state ──
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [dragState, setDragState] = useState<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
+  const [connectFrom, setConnectFrom] = useState<string | null>(null);
+  const [connectMouse, setConnectMouse] = useState<{ x: number; y: number } | null>(null);
+  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const dragMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const dragEndRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const connectMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const connectEndRef = useRef<((e: MouseEvent) => void) | null>(null);
+
+  const NODE_TYPE_LABELS: Record<string, string> = {
+    scene: "新场景", choice: "新选择", condition: "新条件",
+    qte: "新QTE", ending_good: "新好结局", ending_bad: "新坏结局",
+  };
+
+  const getCanvasPos = (clientX: number, clientY: number) => {
+    const inner = canvasRef.current?.querySelector("[data-canvas-inner]") as HTMLElement | null;
+    if (!inner) return { x: 0, y: 0 };
+    const rect = inner.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  };
+
+  const handleCreateNode = (type: string) => {
+    const containerEl = canvasRef.current;
+    const centerX = containerEl ? containerEl.scrollLeft + containerEl.clientWidth / 2 : 450;
+    const centerY = containerEl ? containerEl.scrollTop + containerEl.clientHeight / 2 : 350;
+    const inner = containerEl?.querySelector("[data-canvas-inner]") as HTMLElement | null;
+    const rect = inner?.getBoundingClientRect();
+    const containerRect = containerEl?.getBoundingClientRect();
+    const offsetX = rect && containerRect ? rect.left - containerRect.left : 0;
+    const offsetY = rect && containerRect ? rect.top - containerRect.top : 0;
+    const newNode = {
+      id: `N${String(Date.now()).slice(-4)}`,
+      label: NODE_TYPE_LABELS[type] || "新节点",
+      type: type as any,
+      x: centerX - offsetX,
+      y: centerY - offsetY,
+    };
+    addNode(newNode);
+    setSel(newNode.id);
+    setCreateMenuOpen(false);
+  };
+
+  const handleDeleteNode = (id: string) => {
+    removeNode(id);
+    if (sel === id) { setSel(null); setDetailPanelOpen(false); }
+  };
+
+  const handleStartDrag = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const pos = getCanvasPos(e.clientX, e.clientY);
+    const node = storyNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    setDragState({ nodeId, offsetX: pos.x - node.x, offsetY: pos.y - node.y });
+  };
+
+  const handleStartConnect = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setConnectFrom(nodeId);
+    const pos = getCanvasPos(e.clientX, e.clientY);
+    setConnectMouse(pos);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (dragState && dragMoveRef.current) dragMoveRef.current(e);
+      if (connectFrom && connectMoveRef.current) connectMoveRef.current(e);
+    };
+    const handleMouseUp = (e: MouseEvent) => {
+      if (dragState && dragEndRef.current) dragEndRef.current(e);
+      if (connectFrom && connectEndRef.current) connectEndRef.current(e);
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragState, connectFrom]);
+
+  dragMoveRef.current = (e: MouseEvent) => {
+    if (!dragState) return;
+    const pos = getCanvasPos(e.clientX, e.clientY);
+    updateNode(dragState.nodeId, { x: pos.x - dragState.offsetX, y: pos.y - dragState.offsetY });
+  };
+  dragEndRef.current = () => { setDragState(null); };
+  connectMoveRef.current = (e: MouseEvent) => {
+    const pos = getCanvasPos(e.clientX, e.clientY);
+    setConnectMouse(pos);
+  };
+  connectEndRef.current = (e: MouseEvent) => {
+    const pos = getCanvasPos(e.clientX, e.clientY);
+    const target = storyNodes.find(n => {
+      if (n.id === connectFrom) return false;
+      return Math.abs(n.x - pos.x) < 70 && Math.abs(n.y - pos.y) < 30;
+    });
+    if (target) {
+      addEdge({ from: connectFrom!, to: target.id, edgeType: "causal" });
+    }
+    setConnectFrom(null);
+    setConnectMouse(null);
+  };
+
+  const selectedNode = storyNodes.find(n => n.id === sel);
+  const selectedEdges = sel ? nodeEdges.filter(e => e.from === sel || e.to === sel) : [];
+
   return (
-    <div className="relative w-full h-full overflow-auto"
+    <div ref={canvasRef} className="relative w-full h-full overflow-auto"
       style={{
         backgroundColor: S.canvas,
         backgroundImage: `linear-gradient(${S.cGrid} 1px,transparent 1px),linear-gradient(90deg,${S.cGrid} 1px,transparent 1px)`,
@@ -405,6 +520,42 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
         </div>
       )}
 
+      {/* ── 创建节点浮动工具栏 ── */}
+      <div className="absolute z-20" style={{ top: diagView !== "all" ? 260 : 12, left: 12 }}>
+        <div className="relative">
+          <motion.button whileTap={{ scale: 0.93 }}
+            onClick={() => setCreateMenuOpen(!createMenuOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold focus:outline-none"
+            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.primary, boxShadow: "0 1px 6px rgba(0,0,0,0.08)" }}>
+            <Plus size={12} /> 新建节点
+          </motion.button>
+          <AnimatePresence>
+            {createMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                transition={{ duration: 0.12 }}
+                className="absolute top-full left-0 mt-1 w-[140px] rounded-xl overflow-hidden"
+                style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 4px 20px rgba(0,0,0,0.12)", zIndex: 50 }}>
+                {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => {
+                  const cfg = NODE_TYPE[type] ?? NODE_TYPE.scene;
+                  return (
+                    <motion.button key={type} whileTap={{ scale: 0.97 }}
+                      onClick={() => handleCreateNode(type)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] font-medium focus:outline-none hover:bg-opacity-50"
+                      style={{ color: S.text, borderBottom: `1px solid ${S.border}` }}>
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+                      {label}
+                    </motion.button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
       {/* 缩放控件 */}
       <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1">
         {[{ icon:ZoomIn },{ icon:ZoomOut },{ icon:Maximize2 }].map((btn,i) => (
@@ -417,7 +568,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
       </div>
 
       {/* 节点画布（SVG连线 + 节点卡片，布局与原站截图一致）*/}
-      <div style={{ width:900, height:700, position:"relative", margin:"32px auto" }}>
+      <div data-canvas-inner style={{ width:900, height:700, position:"relative", margin:"32px auto" }}>
         <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex:0 }}>
           <defs>
             <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
@@ -439,44 +590,255 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
               />
             );
           })}
+          {/* Temporary connection line while dragging */}
+          {connectFrom && connectMouse && (() => {
+            const fromNode = storyNodes.find(n => n.id === connectFrom);
+            if (!fromNode) return null;
+            return (
+              <line x1={fromNode.x} y1={fromNode.y + 42} x2={connectMouse.x} y2={connectMouse.y}
+                stroke={S.primary} strokeWidth={2} strokeDasharray="6 3" opacity={0.6} />
+            );
+          })()}
         </svg>
+
+        {/* ── 选中节点操作栏 ── */}
+        <AnimatePresence>
+          {sel && selectedNode && (() => {
+            const cfg = NODE_TYPE[selectedNode.type] ?? NODE_TYPE.scene;
+            return (
+              <motion.div
+                key="node-action-bar"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.12 }}
+                className="absolute z-30 flex items-center gap-1 px-1.5 py-1 rounded-lg"
+                style={{
+                  left: selectedNode.x - 20,
+                  top: selectedNode.y - 32,
+                  background: S.card,
+                  border: `1px solid ${S.border}`,
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
+                }}>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded mr-0.5"
+                  style={{ background: cfg.bg, color: cfg.color }}>
+                  {selectedNode.id}
+                </span>
+                <motion.button whileTap={{ scale: 0.9 }}
+                  onClick={() => setDetailPanelOpen(true)}
+                  className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
+                  style={{ background: S.s2, color: S.text3 }}
+                  title="编辑节点">
+                  <Edit2 size={9} />
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.9 }}
+                  onClick={() => handleDeleteNode(sel)}
+                  className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
+                  style={{ background: `${S.error}10`, color: S.error }}
+                  title="删除节点">
+                  <Trash2 size={9} />
+                </motion.button>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>
 
         {filteredNodes.map(node => {
           const cfg = NODE_TYPE[node.type] ?? NODE_TYPE.scene;
           const isSelected = sel===node.id;
           const isHighlighted = highlightedNodeIds.has(node.id);
           const nodeOpacity = (diagView !== 'all' && !isHighlighted) ? 0.3 : 1;
+          const isDragging = dragState?.nodeId === node.id;
           return (
-            <motion.button key={node.id} whileTap={{ scale:0.96 }}
-              onClick={() => setSel(node.id===sel?null:node.id)}
-              className="absolute rounded-xl text-left focus:outline-none"
+            <motion.div key={node.id}
+              className="absolute"
+              animate={isDragging ? { scale: 1.04 } : { scale: 1 }}
+              transition={{ duration: 0.1 }}
               style={{
                 left: node.x-70, top: node.y,
-                width: 140, padding:"8px 10px",
-                background: S.card,
-                border: `1px solid ${isSelected ? S.primary : (node as any).hasError ? S.error : cfg.border}`,
-                boxShadow: isSelected
-                  ? `0 0 0 2px ${S.primary}30, 0 2px 12px rgba(124,108,245,0.15)`
-                  : "0 1px 4px rgba(0,0,0,0.06)",
-                zIndex: isSelected ? 20 : 10,
+                width: 140, zIndex: isSelected || isDragging ? 20 : 10,
                 opacity: nodeOpacity,
+                cursor: isDragging ? "grabbing" : "grab",
               }}>
-              {/* 顶部类型标签（对齐原站节点样式）*/}
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background:cfg.bg, color:cfg.color }}>
-                  目 {cfg.label}
-                </span>
-                {(node as any).hasError && <AlertTriangle size={9} style={{ color:S.error }} />}
-              </div>
-              <p className="text-[11px] font-bold truncate" style={{ color:S.text }}>{node.label}</p>
-              {(node as any).errorMsg && (
-                <p className="text-[9px] mt-0.5 truncate" style={{ color:S.error }}>{(node as any).errorMsg}</p>
-              )}
-            </motion.button>
+              <motion.button
+                onMouseDown={(e) => handleStartDrag(e, node.id)}
+                onClick={(e) => { e.stopPropagation(); setSel(node.id===sel?null:node.id); }}
+                className="w-full rounded-xl text-left focus:outline-none"
+                style={{
+                  padding:"8px 10px",
+                  background: S.card,
+                  border: `1px solid ${isSelected ? S.primary : (node as any).hasError ? S.error : cfg.border}`,
+                  boxShadow: isSelected
+                    ? `0 0 0 2px ${S.primary}30, 0 2px 12px rgba(124,108,245,0.15)`
+                    : isDragging
+                    ? `0 4px 20px rgba(124,108,245,0.25)`
+                    : "0 1px 4px rgba(0,0,0,0.06)",
+                }}>
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background:cfg.bg, color:cfg.color }}>
+                    目 {cfg.label}
+                  </span>
+                  {(node as any).hasError && <AlertTriangle size={9} style={{ color:S.error }} />}
+                </div>
+                <p className="text-[11px] font-bold truncate" style={{ color:S.text }}>{node.label}</p>
+                {(node as any).errorMsg && (
+                  <p className="text-[9px] mt-0.5 truncate" style={{ color:S.error }}>{(node as any).errorMsg}</p>
+                )}
+              </motion.button>
+              {/* Connection point at bottom */}
+              <motion.div
+                onMouseDown={(e) => handleStartConnect(e, node.id)}
+                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full cursor-crosshair focus:outline-none"
+                whileHover={{ scale: 1.5 }}
+                style={{
+                  background: connectFrom === node.id ? S.primary : S.card,
+                  border: `2px solid ${connectFrom === node.id ? S.primary : cfg.color}`,
+                  zIndex: 25,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+                }}
+                title="拖拽到另一个节点以创建连线"
+              />
+            </motion.div>
           );
         })}
       </div>
+
+      {/* ── 节点详情面板（右侧滑入）── */}
+      <AnimatePresence>
+        {sel && detailPanelOpen && selectedNode && (
+          <motion.div
+            key="node-detail-panel"
+            initial={{ x: 260, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 260, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 34 }}
+            className="absolute top-0 right-0 h-full z-30 overflow-y-auto"
+            style={{ width: 240, background: S.card, borderLeft: `1px solid ${S.border}`, boxShadow: "-4px 0 20px rgba(0,0,0,0.06)" }}>
+            <div className="p-4 space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
+                  style={{ background: `${S.primary}12`, color: S.primary }}>
+                  {selectedNode.id}
+                </span>
+                <motion.button whileTap={{ scale: 0.9 }}
+                  onClick={() => setDetailPanelOpen(false)}
+                  className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
+                  style={{ background: S.s2, color: S.text3 }}>
+                  <X size={10} />
+                </motion.button>
+              </div>
+
+              {/* Label */}
+              <div>
+                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>
+                  节点名称
+                </label>
+                <input
+                  defaultValue={selectedNode.label}
+                  onBlur={(e) => updateNode(selectedNode.id, { label: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium focus:outline-none"
+                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
+                />
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>
+                  节点类型
+                </label>
+                <select
+                  value={selectedNode.type}
+                  onChange={(e) => updateNode(selectedNode.id, { type: e.target.value as any })}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium focus:outline-none appearance-none"
+                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                  {Object.entries(NODE_TYPE).map(([t, cfg]) => (
+                    <option key={t} value={t}>{cfg.label} ({t})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Position */}
+              <div>
+                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>
+                  位置
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="px-2 py-1 rounded-lg text-center" style={{ background: S.s2 }}>
+                    <span className="text-[7px] block" style={{ color: S.text3 }}>X</span>
+                    <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>{Math.round(selectedNode.x)}</span>
+                  </div>
+                  <div className="px-2 py-1 rounded-lg text-center" style={{ background: S.s2 }}>
+                    <span className="text-[7px] block" style={{ color: S.text3 }}>Y</span>
+                    <span className="text-[10px] font-bold font-mono" style={{ color: S.text }}>{Math.round(selectedNode.y)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Status */}
+              {(selectedNode as any).hasError && (
+                <div className="p-2.5 rounded-lg" style={{ background: `${S.error}08`, border: `1px solid ${S.error}20` }}>
+                  <div className="flex items-center gap-1 mb-1">
+                    <AlertTriangle size={9} style={{ color: S.error }} />
+                    <span className="text-[9px] font-bold" style={{ color: S.error }}>错误</span>
+                  </div>
+                  <p className="text-[9px]" style={{ color: S.text2 }}>{(selectedNode as any).errorMsg || "未知错误"}</p>
+                </div>
+              )}
+
+              {/* Connected Edges */}
+              <div>
+                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>
+                  连接 ({selectedEdges.length})
+                </label>
+                {selectedEdges.length === 0 ? (
+                  <p className="text-[9px] py-2 text-center" style={{ color: S.text3 }}>暂无连接</p>
+                ) : (
+                  <div className="space-y-1">
+                    {selectedEdges.map((edge, i) => {
+                      const isOutgoing = edge.from === sel;
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 p-1.5 rounded-lg"
+                          style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <span className="text-[8px] font-bold px-1 py-0.5 rounded shrink-0"
+                            style={{
+                              background: isOutgoing ? `${S.success}15` : `${S.primary}15`,
+                              color: isOutgoing ? S.success : S.primary,
+                            }}>
+                            {isOutgoing ? "出" : "入"}
+                          </span>
+                          <span className="text-[9px] flex-1 truncate" style={{ color: S.text2 }}>
+                            {isOutgoing ? getNodeLabel(edge.to) : getNodeLabel(edge.from)}
+                          </span>
+                          <motion.button whileTap={{ scale: 0.9 }}
+                            onClick={() => {
+                              const { from, to } = edge;
+                              removeEdge(from, to);
+                            }}
+                            className="shrink-0 w-4 h-4 rounded flex items-center justify-center focus:outline-none"
+                            style={{ color: S.text3 }}>
+                            <X size={8} />
+                          </motion.button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Link to script */}
+              <Link href="/script"
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold focus:outline-none"
+                style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}25` }}>
+                <ExternalLink size={10} />
+                查看剧本
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -515,6 +877,9 @@ const UI_ASSET_CHECKLIST = [
 function UIContent() {
   const uiTemplates = useNarrativeStore(state => state.uiTemplates);
   const gameUISettings = useNarrativeStore(state => state.gameUISettings);
+  const updateGameUISettings = useNarrativeStore(state => state.updateGameUISettings);
+  const updateUITemplate = useNarrativeStore(state => state.updateUITemplate);
+  const addUITemplate = useNarrativeStore(state => state.addUITemplate);
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const [catFilter, setCatFilter] = useState<UITemplateCategory | "all">("all");
   const [selectedTpl, setSelectedTpl] = useState<UITemplate | null>(null);
@@ -976,14 +1341,14 @@ function UIContent() {
                   <span className="text-[9px] font-mono" style={{ color: S.primary }}>{globalTextSpeed}ms</span>
                 </div>
                 <input type="range" min={10} max={100} value={globalTextSpeed}
-                  onChange={e => setGlobalTextSpeed(Number(e.target.value))}
+                  onChange={e => { const v = Number(e.target.value); setGlobalTextSpeed(v); updateGameUISettings({ globalTextSpeed: v }); }}
                   className="w-full h-1 rounded-full appearance-none cursor-pointer"
                   style={{ accentColor: S.primary, background: S.s2 }} />
               </div>
               {[
-                { label: "显示跳过按钮", val: showSkip, set: setShowSkip },
-                { label: "显示自动播放", val: showAuto, set: setShowAuto },
-                { label: "显示存档/读档", val: showSave, set: setShowSave },
+                { label: "显示跳过按钮", val: showSkip, set: (v: boolean) => { setShowSkip(v); updateGameUISettings({ showSkipButton: v }); } },
+                { label: "显示自动播放", val: showAuto, set: (v: boolean) => { setShowAuto(v); updateGameUISettings({ showAutoPlay: v }); } },
+                { label: "显示存档/读档", val: showSave, set: (v: boolean) => { setShowSave(v); updateGameUISettings({ showSaveLoad: v }); } },
               ].map(opt => (
                 <div key={opt.label} className="flex items-center justify-between">
                   <span className="text-[9px]" style={{ color: S.text2 }}>{opt.label}</span>
@@ -2105,6 +2470,11 @@ export default function NodesScreen() {
   const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
   const narrativeStates = useNarrativeStore(state => state.narrativeStates);
   const variables = useNarrativeStore(state => state.variables);
+  const addNode = useNarrativeStore(state => state.addNode);
+  const removeNode = useNarrativeStore(state => state.removeNode);
+  const updateNode = useNarrativeStore(state => state.updateNode);
+  const addEdge = useNarrativeStore(state => state.addEdge);
+  const removeEdge = useNarrativeStore(state => state.removeEdge);
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const [activeTab, setActiveTab] = useState<TabId>("canvas");
   const [sel, setSel] = useState<string|null>(null);
@@ -2262,7 +2632,18 @@ export default function NodesScreen() {
             <div className="mb-1.5">
               <p className="text-[9px] font-medium mb-1" style={{ color:S.text3 }}>节点列表</p>
               <motion.button whileTap={{ scale:0.97 }}
-                className="flex items-center gap-1 w-full py-1 focus:outline-none"
+                onClick={() => {
+                  const newNode = {
+                    id: `N${String(storyNodes.length + 1).padStart(2, '0')}`,
+                    label: `新节点 ${storyNodes.length + 1}`,
+                    type: 'scene' as const,
+                    x: 400 + Math.random() * 100,
+                    y: 300 + Math.random() * 100,
+                  };
+                  addNode(newNode);
+                  setSel(newNode.id);
+                }}
+                className="flex items-center gap-1 w-full py-1 focus:outline-none cursor-pointer hover:opacity-80"
                 style={{ color:S.text3 }}>
                 <Plus size={10} />
                 <span className="text-[9px]">添加节点</span>

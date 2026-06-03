@@ -15,6 +15,7 @@ import { CommandPalette } from "@/components/ui/CommandPalette";
 import { SaveIndicator } from "@/components/ui/SaveIndicator";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { EazoBannerHider } from "@/components/ui/EazoBannerHider";
+import { AgentPanel } from "@/components/ui/AgentPanel";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -83,6 +84,8 @@ export default function RootLayout({
           <Toaster />
           <ToastContainer />
           <OnboardingGate />
+          {/* Global AI Assistant Panel — Cmd+J to toggle */}
+          <AgentPanel />
         </EazoProvider>
       </body>
     </html>

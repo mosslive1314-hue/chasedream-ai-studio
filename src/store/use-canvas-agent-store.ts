@@ -189,7 +189,7 @@ export const useCanvasAgentStore = create<CanvasAgentState>()(
       partialize: (state) => ({
         // 持久化消息历史，不持久化运行时状态
         messages: state.messages.slice(-50), // 只保留最近 50 条
-        panelOpen: state.panelOpen,
+        // panelOpen 不持久化 — 每次刷新页面默认关闭
       }),
     }
   )

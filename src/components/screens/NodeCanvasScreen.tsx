@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import AgentPanel from "@/components/ui/AgentPanel";
 
 const S = {
   surface: "#080910", card: "#0F1017", border: "#1C1E2E",
@@ -194,8 +193,6 @@ export default function NodeCanvasScreen() {
         </Link>
       </div>
 
-      {/* 画布原生 Agent 面板 */}
-      <AgentPanel nodeId={selected} />
     </div>
   );
 }

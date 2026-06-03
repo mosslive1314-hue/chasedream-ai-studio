@@ -8,7 +8,8 @@ import {
   Scissors, FileText, GitBranch, MousePointer,
   Network, Play, Activity, Rocket, Users, Film,
   Settings, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
-  Package, GitCompare, LogOut, UserRound,
+  Package, GitCompare, LogOut, UserRound, Sparkles,
+  Image as ImageIcon, Video, Music, Database,
 } from "lucide-react";
 import { INDUSTRY_LABELS, type IndustryType } from "@/lib/studio-data";
 import { useUIStore } from "@/store";
@@ -35,23 +36,25 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  // \u521B\u4F5C (indices 0-2)
-  { href: "/story-overview", icon: BookOpen,     label: "\u5267\u672C\u603B\u89C8", labelKey: "storyOverview" },  // 0
-  { href: "/parse",          icon: Scissors,     label: "\u5267\u672C\u89E3\u6784", labelKey: "parse" },          // 1
-  { href: "/script",         icon: FileText,     label: "\u5267\u672C\u7F16\u8F91", labelKey: "script" },         // 2
-  // \u8BBE\u8BA1 (indices 3-5)
-  { href: "/interaction",    icon: MousePointer, label: "\u4E92\u52A8\u8BBE\u8BA1", labelKey: "interaction" },    // 3
-  { href: "/cinematic",      icon: Film,         label: "\u6F14\u51FA\u8BBE\u8BA1", labelKey: "cinematic" },      // 4
-  { href: "/nodes",          icon: Network,      label: "\u8282\u70B9\u56FE\u8C31", labelKey: "node" },           // 5
-  // \u4EA4\u4ED8 (indices 6-8)
-  { href: "/overview",       icon: Activity,     label: "\u8D28\u68C0\u603B\u89C8", labelKey: "overview" },       // 6
-  { href: "/simulator",      icon: Play,         label: "\u6F14\u51FA\u9884\u89C8", labelKey: "simulator" },      // 7
-  { href: "/publish",        icon: Rocket,       label: "\u53D1\u5E03",     labelKey: "publish" },        // 8
+  // 创作 (indices 0-2)
+  { href: "/story-overview", icon: BookOpen,     label: "剧本总览", labelKey: "storyOverview" },  // 0
+  { href: "/parse",          icon: Scissors,     label: "剧本解构", labelKey: "parse" },          // 1
+  { href: "/script",         icon: FileText,     label: "剧本编辑", labelKey: "script" },         // 2
+  // 设计 (indices 3-5)
+  { href: "/interaction",    icon: MousePointer, label: "互动设计", labelKey: "interaction" },    // 3
+  { href: "/cinematic",      icon: Film,         label: "演出设计", labelKey: "cinematic" },      // 4
+  { href: "/nodes",          icon: Network,      label: "剧情节点", labelKey: "node" },           // 5
+  // 资产 (indices 6-8)
+  { href: "/assets?tab=image", icon: ImageIcon,  label: "图片" },                                 // 6
+  { href: "/assets?tab=video", icon: Video,      label: "视频" },                                 // 7
+  { href: "/assets?tab=audio", icon: Music,      label: "音频" },                                 // 8
+  // 交付 (indices 9-11)
+  { href: "/simulator",      icon: Play,         label: "演出预览", labelKey: "simulator" },      // 9
+  { href: "/overview",       icon: Activity,     label: "质检总览", labelKey: "overview" },       // 10
+  { href: "/publish",        icon: Rocket,       label: "发布",     labelKey: "publish" },        // 11
 ];
 
-// ── P10-8: Navigation Groups ────────────────────────────────────────────
-// Reorganize flat NAV into 3 collapsible groups.
-// Group labels adapt to industry (game / tourism / education / derivative).
+// ── Navigation Groups ──────────────────────────────────────────────────
 type NavGroup = {
   label: string;
   labelKey: string;
@@ -62,27 +65,32 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "\u521B\u4F5C", labelKey: "creation", icon: FileText,
-    industryLabels: { game: "\u521B\u4F5C", tourism: "\u4F53\u9A8C\u8BBE\u8BA1", education: "\u8BFE\u7A0B\u8BBE\u8BA1", derivative: "\u5267\u60C5\u8BBE\u8BA1" },
+    label: "创作", labelKey: "creation", icon: FileText,
+    industryLabels: { game: "创作", tourism: "体验设计", education: "课程设计", derivative: "剧情设计" },
     items: [NAV[0], NAV[1], NAV[2]],
   },
   {
-    label: "\u8BBE\u8BA1", labelKey: "design", icon: Network,
-    industryLabels: { game: "\u8BBE\u8BA1", tourism: "\u8DEF\u7EBF\u8BBE\u8BA1", education: "\u7D20\u6750\u8BBE\u8BA1", derivative: "\u6F14\u51FA\u8BBE\u8BA1" },
-    items: [NAV[3], NAV[4], NAV[5]],
+    label: "设计", labelKey: "design", icon: Network,
+    industryLabels: { game: "设计", tourism: "路线设计", education: "素材设计", derivative: "演出设计" },
+    items: [NAV[3], NAV[4], NAV[5]],  // 互动设计, 演出设计, 剧情节点
   },
   {
-    label: "\u4EA4\u4ED8", labelKey: "delivery", icon: Rocket,
-    industryLabels: { game: "\u4EA4\u4ED8", tourism: "\u4EA4\u4ED8", education: "\u4EA4\u4ED8", derivative: "\u4EA4\u4ED8" },
-    items: [NAV[6], NAV[7], NAV[8]],
+    label: "资产", labelKey: "asset", icon: Package,
+    industryLabels: { game: "资产", tourism: "资产", education: "资产", derivative: "资产" },
+    items: [NAV[6], NAV[7], NAV[8]],  // 图片, 视频, 音频
+  },
+  {
+    label: "交付", labelKey: "delivery", icon: Rocket,
+    industryLabels: { game: "交付", tourism: "交付", education: "交付", derivative: "交付" },
+    items: [NAV[9], NAV[10], NAV[11]],  // 演出预览, 质检总览, 发布
   },
 ];
 
 // ── Bottom utility tools (below main nav groups) ────────────────────────
 const BOTTOM_TOOLS: NavItem[] = [
-  { href: "/assets",  icon: Package,     label: "资产库" },
-  { href: "/collab",  icon: Users,       label: "\u534F\u4F5C" },
-  { href: "/version", icon: GitCompare, label: "\u7248\u672C\u7BA1\u7406" },
+  { href: "/asset-library", icon: Database,   label: "资产库" },
+  { href: "/collab",        icon: Users,      label: "协作" },
+  { href: "/version",       icon: GitCompare, label: "版本管理" },
 ];
 
 // ── P10-13: Orphan Page Integration ─────────────────────────────────────
@@ -101,6 +109,15 @@ const BOTTOM_TOOLS: NavItem[] = [
 
 function isActive(href: string, path: string) {
   if (href === "/") return path === "/";
+  // Handle query params: /assets?tab=image should only match that exact query
+  if (href.includes("?")) {
+    return path === href || path.startsWith(href + "&");
+  }
+  // For routes without query, check that we don't accidentally match query-param routes
+  if (path.includes("?")) {
+    const basePath = path.split("?")[0];
+    return basePath === href || basePath.startsWith(href + "/");
+  }
   return path.startsWith(href);
 }
 
@@ -108,7 +125,6 @@ function getLabel(item: NavItem, industry: IndustryType): string {
   if (!item.labelKey) return item.label;
   const industryLabel = INDUSTRY_LABELS[item.labelKey]?.[industry];
   if (!industryLabel) return item.label;
-  if (item.labelKey === "asset") return industryLabel + "\u5E93";
   return industryLabel;
 }
 
@@ -122,7 +138,8 @@ function getGroupLabel(group: NavGroup, industry: IndustryType): string {
 const GROUP_STAGE_ROUTES: Record<string, string[]> = {
   creation: ["/settings", "/parse", "/script", "/story-overview"],
   design:   ["/interaction", "/cinematic", "/nodes"],
-  delivery: ["/assets", "/simulator", "/overview", "/publish"],
+  asset:    ["/assets", "/asset-library"],
+  delivery: ["/simulator", "/overview", "/publish"],
 };
 
 type GroupProgress = { pct: number; status: "done" | "active" | "upcoming" };
@@ -139,6 +156,172 @@ function calcGroupProgress(
   const hasActive = matched.some(s => s.status === "active");
   const allDone = matched.every(s => s.status === "completed");
   return { pct: avgPct, status: allDone ? "done" : hasActive ? "active" : "upcoming" };
+}
+
+/* ── Pipeline Mini Nav ──────────────────────────────────────────────────── */
+
+function PipelineMiniNav({
+  stages,
+  open,
+}: {
+  stages: { id: string; order: number; name: string; icon: string; status: string; progress: number; linkedPage?: string }[];
+  open: boolean;
+}) {
+  const industry = useUIStore(s => s.industry);
+  const setIndustry = useUIStore(s => s.setIndustry);
+  const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
+
+  const INDUSTRY_ICONS_LOCAL: { type: IndustryType; icon: string }[] = [
+    { type: "game", icon: "\u{1F3AE}" },
+    { type: "tourism", icon: "\u{1F3DB}\uFE0F" },
+    { type: "education", icon: "\u{1F393}" },
+    { type: "derivative", icon: "\u{1F3AC}" },
+  ];
+  const currentIcon = INDUSTRY_ICONS_LOCAL.find(i => i.type === industry)?.icon || "\u{1F3AE}";
+
+  const overallPct = stages.length > 0
+    ? Math.round(stages.reduce((sum, s) => sum + s.progress, 0) / stages.length)
+    : 0;
+
+  // 4 group progress
+  const GROUPS = [
+    { key: "creation", label: "创作", routes: ["/settings", "/parse", "/script", "/story-overview"] },
+    { key: "design",   label: "设计", routes: ["/interaction", "/cinematic", "/nodes"] },
+    { key: "asset",    label: "资产", routes: ["/assets", "/asset-library"] },
+    { key: "delivery", label: "交付", routes: ["/simulator", "/overview", "/publish"] },
+  ];
+  const groupProgress = GROUPS.map(g => {
+    const matched = stages.filter(s => s.linkedPage && g.routes.includes(s.linkedPage));
+    if (matched.length === 0) return { ...g, pct: 0, color: "#CBD0E5" };
+    const avg = Math.round(matched.reduce((s, st) => s + st.progress, 0) / matched.length);
+    const allDone = matched.every(s => s.status === "completed");
+    const hasActive = matched.some(s => s.status === "active");
+    const color = allDone ? "#059669" : hasActive ? "#5E50E8" : "#CBD0E5";
+    return { ...g, pct: avg, color };
+  });
+
+  if (!open) {
+    return (
+      <div className="flex flex-col items-center py-2" title={`管线进度 ${overallPct}%`}>
+        <div className="w-[3px] h-8 rounded-full overflow-hidden" style={{ background: "#E2E5F0" }}>
+          <motion.div
+            initial={{ height: 0 }} animate={{ height: `${overallPct}%` }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="w-full rounded-full" style={{ background: "#5E50E8" }}
+          />
+        </div>
+        <span className="text-[7px] font-bold mt-0.5 tabular-nums" style={{ color: "#5E50E8" }}>
+          {overallPct}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-1 py-1.5">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="w-4 h-4 rounded-md flex items-center justify-center shrink-0"
+            style={{ background: "rgba(94,80,232,0.12)" }}>
+            <span className="text-[8px]">🎬</span>
+          </div>
+          <span className="text-[10px] font-semibold truncate" style={{ color: "#1A1D2E" }}>
+            制作管线
+          </span>
+        </div>
+
+        {/* Industry switcher */}
+        <div className="relative shrink-0">
+          <motion.button
+            whileTap={{ scale: 0.93 }}
+            onClick={() => setIndustryDropdownOpen(v => !v)}
+            className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-medium focus:outline-none"
+            style={{ color: "#5E50E8", background: "rgba(94,80,232,0.08)" }}
+            title={`当前场景：${INDUSTRY_LABELS.pipeline[industry]}`}
+          >
+            <span className="text-[9px]">{currentIcon}</span>
+            <ChevronDown size={7} />
+          </motion.button>
+          <AnimatePresence>
+            {industryDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 4, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                transition={{ duration: 0.12 }}
+                className="absolute right-0 top-full mt-1 z-50 p-0.5 rounded-lg shadow-lg"
+                style={{ background: "#fff", border: "1px solid #E2E5F0", minWidth: 100 }}
+              >
+                {INDUSTRY_ICONS_LOCAL.map(item => (
+                  <motion.button
+                    key={item.type}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { setIndustry(item.type); setIndustryDropdownOpen(false); }}
+                    className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-left"
+                    style={{ background: industry === item.type ? "rgba(94,80,232,0.1)" : "transparent" }}
+                  >
+                    <span className="text-[10px]">{item.icon}</span>
+                    <span className="text-[9px] font-medium" style={{ color: industry === item.type ? "#5E50E8" : "#1A1D2E" }}>
+                      {INDUSTRY_LABELS.pipeline[item.type]}
+                    </span>
+                  </motion.button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="w-10 h-[3px] rounded-full overflow-hidden" style={{ background: "#E2E5F0" }}>
+            <motion.div
+              initial={{ width: 0 }} animate={{ width: `${overallPct}%` }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="h-full rounded-full" style={{ background: "#5E50E8" }}
+            />
+          </div>
+          <span className="text-[8px] font-bold tabular-nums" style={{ color: "#5E50E8" }}>
+            {overallPct}%
+          </span>
+        </div>
+      </div>
+
+      {/* 4 group progress bars */}
+      <div className="space-y-1 px-2 pt-1 pb-1.5">
+        {groupProgress.map(g => (
+          <div key={g.key} className="flex items-center gap-1.5">
+            <span className="text-[8px] font-medium w-5 shrink-0" style={{ color: "#4A5068" }}>
+              {g.label}
+            </span>
+            <div className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ background: "#E2E5F0" }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${g.pct}%` }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="h-full rounded-full"
+                style={{ background: g.color }}
+              />
+            </div>
+            <span className="text-[7px] font-bold tabular-nums w-6 text-right" style={{ color: g.color }}>
+              {g.pct}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Link to full pipeline */}
+      <Link href="/pipeline">
+        <motion.div
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center justify-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-colors mx-1"
+          style={{ background: "rgba(94,80,232,0.06)", color: "#5E50E8" }}
+        >
+          <span className="text-[8px] font-medium">查看详细管线</span>
+          <ChevronRight size={8} />
+        </motion.div>
+      </Link>
+    </div>
+  );
 }
 
 /* ── Mobile Bottom Nav (P10-14) ─────────────────────────────────────────── */
@@ -306,13 +489,12 @@ export function BottomNav() {
 
 export function SideNav() {
   const path = usePathname();
-  const { sidebarCollapsed, toggleSidebar, industry, setIndustry } =
+  const { sidebarCollapsed, toggleSidebar, industry } =
     useUIStore();
   const pipelineStages = useNarrativeStore(s => s.pipelineStages);
   const open = !sidebarCollapsed;
 
   const [tooltip, setTooltip] = useState<string | null>(null);
-  const [showIndustryPicker, setShowIndustryPicker] = useState(false);
 
   // Track which groups are expanded; auto-expand group containing active route
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => {
@@ -344,14 +526,6 @@ export function SideNav() {
   };
 
   const w = open ? W_OPEN : W_CLOSED;
-
-  const handleIndustryChange = (newIndustry: IndustryType) => {
-    setIndustry(newIndustry);
-    setShowIndustryPicker(false);
-  };
-
-  const currentIndustryIcon =
-    INDUSTRY_ICONS.find((i) => i.type === industry)?.icon || "\u{1F3AE}";
 
   return (
     <>
@@ -408,6 +582,9 @@ export function SideNav() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Pipeline Mini Nav — compact 12-stage progress */}
+        <PipelineMiniNav stages={pipelineStages} open={open} />
 
         {/* Navigation groups */}
         <nav className="flex-1 py-2 px-2 space-y-1 overflow-y-auto">
@@ -711,11 +888,23 @@ export function SideNav() {
                   {tooltip === item.href && item.disabled && (
                     <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 px-2 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap shadow-md"
                       style={{ background: "#1A1D2E", color: "#fff" }}>
-                      {"\u5373\u5C06\u4E0A\u7EBF"}
+                      即将上线
                     </div>
                   )}
                 </motion.button>
               ))}
+              {/* Settings icon (collapsed) */}
+              <Link href="/settings" title="设置">
+                <motion.div
+                  whileTap={{ scale: 0.9 }}
+                  className="w-full flex items-center justify-center py-2 rounded-xl cursor-pointer transition-colors"
+                  style={{
+                    background: isActive("/settings", path) ? "rgba(94,80,232,0.1)" : "transparent",
+                  }}
+                >
+                  <Settings size={14} strokeWidth={1.8} style={{ color: isActive("/settings", path) ? "#5E50E8" : "#9198B5" }} />
+                </motion.div>
+              </Link>
             </div>
           )}
         </nav>
@@ -802,19 +991,20 @@ export function SideNav() {
           {/* Separator */}
           <div className="my-1.5 mx-2" style={{ height: 1, background: "#E2E5F0" }} />
 
-          {/* User profile */}
-          <SidebarUserProfile open={open} />
-
-          {/* Settings link (original) */}
-          <Link href="/settings" title={"\u8BBE\u7F6E"}>
+          {/* Settings link */}
+          <Link href="/settings" title={"设置"}>
             <motion.div
               whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer"
+              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors"
+              style={{
+                background: isActive("/settings", path) ? "rgba(94,80,232,0.1)" : "transparent",
+                border: isActive("/settings", path) ? "1px solid rgba(94,80,232,0.2)" : "1px solid transparent",
+              }}
             >
               <Settings
-                size={15}
-                strokeWidth={1.8}
-                style={{ color: "#9198B5", flexShrink: 0 }}
+                size={14}
+                strokeWidth={isActive("/settings", path) ? 2.5 : 1.8}
+                style={{ color: isActive("/settings", path) ? "#5E50E8" : "#9198B5", flexShrink: 0 }}
               />
               <AnimatePresence>
                 {open && (
@@ -823,122 +1013,18 @@ export function SideNav() {
                     animate={{ opacity: 1, width: "auto" }}
                     exit={{ opacity: 0, width: 0 }}
                     transition={{ duration: 0.16 }}
-                    className="text-xs font-medium overflow-hidden whitespace-nowrap"
-                    style={{ color: "#9198B5" }}
+                    className="text-[11px] font-medium overflow-hidden whitespace-nowrap"
+                    style={{ color: isActive("/settings", path) ? "#5E50E8" : "#9198B5" }}
                   >
-                    {"\u8BBE\u7F6E"}
+                    设置
                   </motion.span>
                 )}
               </AnimatePresence>
             </motion.div>
           </Link>
 
-          {/* Industry picker */}
-          <div className="relative mt-1">
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() =>
-                open && setShowIndustryPicker(!showIndustryPicker)
-              }
-              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer w-full transition-colors"
-              style={{
-                background: showIndustryPicker
-                  ? "rgba(94,80,232,0.06)"
-                  : "transparent",
-              }}
-            >
-              <span className="text-sm shrink-0">
-                {currentIndustryIcon}
-              </span>
-              <AnimatePresence>
-                {open && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: "auto" }}
-                    exit={{ opacity: 0, width: 0 }}
-                    transition={{ duration: 0.16 }}
-                    className="text-[10px] font-medium truncate overflow-hidden whitespace-nowrap"
-                    style={{ color: "#9198B5" }}
-                  >
-                    {INDUSTRY_LABELS.pipeline[industry]}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-
-            {/* Industry picker popup (expanded) */}
-            <AnimatePresence>
-              {showIndustryPicker && open && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute left-0 bottom-full mb-1 z-50 p-1 rounded-xl shadow-lg"
-                  style={{
-                    background: "#fff",
-                    border: "1px solid #E2E5F0",
-                    minWidth: 140,
-                  }}
-                >
-                  {INDUSTRY_ICONS.map((item) => {
-                    const active = industry === item.type;
-                    return (
-                      <motion.button
-                        key={item.type}
-                        whileHover={{ x: 2 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handleIndustryChange(item.type)}
-                        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-left transition-colors"
-                        style={{
-                          background: active
-                            ? "rgba(94,80,232,0.1)"
-                            : "transparent",
-                        }}
-                      >
-                        <span className="text-sm">{item.icon}</span>
-                        <span
-                          className="text-[10px] font-medium"
-                          style={{
-                            color: active ? "#5E50E8" : "#1A1D2E",
-                          }}
-                        >
-                          {INDUSTRY_LABELS.pipeline[item.type]}
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Collapsed: mini industry icons */}
-            {!open && (
-              <div className="flex flex-col items-center gap-0.5 mt-1">
-                {INDUSTRY_ICONS.map((item) => {
-                  const active = industry === item.type;
-                  return (
-                    <motion.button
-                      key={item.type}
-                      whileTap={{ scale: 0.85 }}
-                      onClick={() => handleIndustryChange(item.type)}
-                      className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] transition-colors"
-                      style={{
-                        background: active
-                          ? "rgba(94,80,232,0.15)"
-                          : "transparent",
-                        border: active
-                          ? "1px solid rgba(94,80,232,0.3)"
-                          : "1px solid transparent",
-                      }}
-                    >
-                      {item.icon}
-                    </motion.button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* User profile */}
+          <SidebarUserProfile open={open} />
         </div>
 
         {/* Collapse / expand toggle */}
