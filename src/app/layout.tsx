@@ -16,6 +16,7 @@ import { SaveIndicator } from "@/components/ui/SaveIndicator";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { EazoBannerHider } from "@/components/ui/EazoBannerHider";
 import { AgentPanel } from "@/components/ui/AgentPanel";
+import { SkillLibraryDrawer } from "@/components/ui/SkillLibraryDrawer";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -86,6 +87,8 @@ export default function RootLayout({
           <OnboardingGate />
           {/* Global AI Assistant Panel — Cmd+J to toggle */}
           <AgentPanel />
+          {/* Global Skill Library Drawer — Cmd+Shift+K to toggle */}
+          <SkillLibraryDrawer />
         </EazoProvider>
       </body>
     </html>

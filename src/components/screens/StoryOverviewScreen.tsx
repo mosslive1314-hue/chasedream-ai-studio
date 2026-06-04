@@ -9,9 +9,10 @@ import {
   Shield, BarChart3, MessageCircle, Timer, Activity,
   Eye, Clock, Flame, Upload, FileText, Clipboard,
 } from "lucide-react";
-import { useNarrativeStore, useSettingsStore, useUIStore } from "@/store";
+import { useNarrativeStore, useSettingsStore, useUIStore, useWardrobeStore } from "@/store";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { WardrobeEditor } from "@/components/ui/WardrobeEditor";
 
 // ── Design tokens ───────────────────────────────────────────────────────
 const S = {
@@ -85,6 +86,18 @@ export default function StoryOverviewScreen() {
   const assetCards = useNarrativeStore(s => s.assetCards);
   const relationshipMeters = useNarrativeStore(s => s.relationshipMeters);
   const moralAxes = useNarrativeStore(s => s.moralAxes);
+
+  // ── Wardrobe store ───────────────────────────────────────────────────
+  const wardrobes = useWardrobeStore(s => s.wardrobes);
+  const addOutfit = useWardrobeStore(s => s.addOutfit);
+  const updateOutfit = useWardrobeStore(s => s.updateOutfit);
+  const removeOutfit = useWardrobeStore(s => s.removeOutfit);
+  const setDefaultOutfit = useWardrobeStore(s => s.setDefaultOutfit);
+  const bindOutfitToNodes = useWardrobeStore(s => s.bindOutfitToNodes);
+  const unbindOutfitFromNodes = useWardrobeStore(s => s.unbindOutfitFromNodes);
+
+  // ── Wardrobe selected character ──────────────────────────────────────
+  const [wardrobeCharId, setWardrobeCharId] = useState<string | null>(null);
 
   // ── Derived data ──────────────────────────────────────────────────────
   const eventsPerChapter = useMemo(() =>
@@ -525,25 +538,70 @@ export default function StoryOverviewScreen() {
                       <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: S.primary10, color: S.primary }}>{characters.length}</span>
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {characters.map(char => (
-                        <div key={char.id} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
-                              style={{ background: `${char.color}15`, color: char.color }}>
-                              {char.name.charAt(0)}
+                      {characters.map(char => {
+                        const hasWardrobe = wardrobes.some(w => w.characterId === char.id);
+                        const isWardrobeOpen = wardrobeCharId === char.id;
+                        return (
+                          <div key={char.id}>
+                            <div className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${isWardrobeOpen ? S.primary : S.border}` }}>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
+                                  style={{ background: `${char.color}15`, color: char.color }}>
+                                  {char.name.charAt(0)}
+                                </div>
+                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{char.name}</span>
+                                <span className="text-[7px] px-1.5 py-0.5 rounded ml-auto" style={{
+                                  background: char.role === "protagonist" ? S.primary10 : char.role === "antagonist" ? S.error10 : S.accent10,
+                                  color: char.role === "protagonist" ? S.primary : char.role === "antagonist" ? S.error : S.accent,
+                                }}>{char.role === "protagonist" ? "主角" : char.role === "antagonist" ? "反派" : "配角"}</span>
+                              </div>
+                              <p className="text-[8px] leading-relaxed mb-1.5" style={{ color: S.text3 }}>{char.description}</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[7px]" style={{ color: S.text3 }}>出场: {char.appearNodes.length} 节点</span>
+                                {hasWardrobe && (
+                                  <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setWardrobeCharId(isWardrobeOpen ? null : char.id)}
+                                    className="text-[8px] font-bold px-2 py-0.5 rounded-lg focus:outline-none ml-auto"
+                                    style={{
+                                      background: isWardrobeOpen ? S.primary10 : S.accent10,
+                                      color: isWardrobeOpen ? S.primary : S.accent,
+                                    }}
+                                  >
+                                    {isWardrobeOpen ? "收起造型" : "造型管理"}
+                                  </motion.button>
+                                )}
+                              </div>
                             </div>
-                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{char.name}</span>
-                            <span className="text-[7px] px-1.5 py-0.5 rounded ml-auto" style={{
-                              background: char.role === "protagonist" ? S.primary10 : char.role === "antagonist" ? S.error10 : S.accent10,
-                              color: char.role === "protagonist" ? S.primary : char.role === "antagonist" ? S.error : S.accent,
-                            }}>{char.role === "protagonist" ? "主角" : char.role === "antagonist" ? "反派" : "配角"}</span>
+
+                            {/* Wardrobe Editor (inline expand) */}
+                            <AnimatePresence>
+                              {isWardrobeOpen && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.3 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="mt-2">
+                                    <WardrobeEditor
+                                      character={char}
+                                      wardrobe={wardrobes.find(w => w.characterId === char.id)}
+                                      onAddOutfit={addOutfit}
+                                      onUpdateOutfit={updateOutfit}
+                                      onRemoveOutfit={removeOutfit}
+                                      onSetDefault={setDefaultOutfit}
+                                      onBindNodes={bindOutfitToNodes}
+                                      onUnbindNodes={unbindOutfitFromNodes}
+                                    />
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
-                          <p className="text-[8px] leading-relaxed mb-1.5" style={{ color: S.text3 }}>{char.description}</p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[7px]" style={{ color: S.text3 }}>出场: {char.appearNodes.length} 节点</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

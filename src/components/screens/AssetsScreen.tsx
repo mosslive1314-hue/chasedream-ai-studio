@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
   User, MapPin, Package, Sparkles, Play, ArrowRight,
   Image, Music, Mic, Film, Plus, Edit2, Check, Headphones,
-  Volume2, Waves, Radio, Library, Search,
+  Volume2, Waves, Radio, Library, Search, Shirt,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
@@ -20,16 +20,17 @@ const S = {
   success:"#10B981", warning:"#F59E0B", error:"#EF4444",
 };
 
-// ── 顶部步骤进度（角色→场景→道具→素材生产）─────────────────────────────
+// ── 顶部步骤进度（角色→造型→场景→道具→素材生产）─────────────────────────
 const PIPELINE_STEPS = [
   { id:"character", label:"角色",     icon:User,    done:true  },
+  { id:"wardrobe",  label:"造型",     icon:Shirt,   done:true  },
   { id:"scene",     label:"场景",     icon:MapPin,  done:true  },
   { id:"prop",      label:"道具",     icon:Package, done:false },
   { id:"material",  label:"素材生产", icon:Image,   done:false },
 ];
 
-// ── 角色数据 ──────────────────────────────────────────────────────────────
-const CHARACTERS = [
+// ── 角色数据（Seed fallback — 当 store 为空时使用）────────────────────────
+const SEED_CHARACTERS_UI = [
   {
     id:"ella", name:"艾拉", role:"女主角·侦探",
     appearance:"黑色短发，银色义眼，黑色风衣，赛博朋克风格",
@@ -59,8 +60,8 @@ const CHARACTERS = [
   },
 ];
 
-// ── 场景数据 ──────────────────────────────────────────────────────────────
-const SCENES = [
+// ── 场景数据（Seed fallback）─────────────────────────────────────────────
+const SEED_SCENES_UI = [
   {
     id:"street", name:"霓虹街道", location:"城市·夜·外",
     desc:"赛博朋克都市，积水路面，广告牌投影，霓虹灯光",
@@ -84,8 +85,8 @@ const SCENES = [
   },
 ];
 
-// ── 道具数据 ──────────────────────────────────────────────────────────────
-const PROPS = [
+// ── 道具数据（Seed fallback）─────────────────────────────────────────────
+const SEED_PROPS_UI = [
   {
     id:"chip", name:"追踪芯片", type:"关键道具",
     desc:"植入皮肤下，持续发送位置信号，核心剧情物品",
@@ -103,8 +104,8 @@ const PROPS = [
   },
 ];
 
-// ── 节点素材生产状态 ───────────────────────────────────────────────────────
-const NODE_ASSETS = [
+// ── 节点素材生产状态（Seed fallback）─────────────────────────────────────
+const SEED_NODE_ASSETS = [
   { nodeId:"N01", label:"序章·霓虹夜幕", hasImg:true,  hasBgm:false, hasVoice:false, hasVideo:false },
   { nodeId:"N02", label:"任务简报",       hasImg:true,  hasBgm:false, hasVoice:false, hasVideo:false },
   { nodeId:"N03", label:"进入路线",       hasImg:true,  hasBgm:false, hasVoice:false, hasVideo:false },
@@ -200,6 +201,61 @@ export default function AssetsScreen() {
   const addScene = useNarrativeStore(s => s.addScene);
   const addToast = useUIStore(s => s.addToast);
 
+  // ── Derived UI data from store (with seed fallback) ─────────────────────
+  const characters = useMemo(() => {
+    if (gameCharacters.length === 0) return SEED_CHARACTERS_UI;
+    return gameCharacters.map(c => ({
+      id: c.id,
+      name: c.name,
+      role: c.role,
+      appearance: c.description || "暂无描述",
+      personality: c.emotionStates?.map(e => e.label).join("·") || "未设置",
+      vars: c.appearNodes?.join(", ") || "",
+      nodes: c.appearNodes?.length ?? 0,
+      prompt: c.visualPrompt || "",
+      portraits: { default: true, angry: false, hurt: false, silent: false } as Record<string, boolean>,
+    }));
+  }, [gameCharacters]);
+
+  const scenes = useMemo(() => {
+    if (gameScenes.length === 0) return SEED_SCENES_UI;
+    return gameScenes.map(s => ({
+      id: s.id,
+      name: s.name,
+      location: s.location,
+      desc: s.atmosphere || s.lighting || "",
+      light: s.lighting,
+      atmosphere: s.atmosphere,
+      prompt: s.visualPrompt || "",
+      nodes: s.refNodes?.length ?? 0,
+      hasImg: s.hasImage,
+    }));
+  }, [gameScenes]);
+
+  const props = useMemo(() => {
+    if (gameProps.length === 0) return SEED_PROPS_UI;
+    return gameProps.map(p => ({
+      id: p.id,
+      name: p.name,
+      type: p.type === "key_item" ? "关键道具" : p.type === "tool" ? "可选道具" : p.type === "weapon" ? "武器装备" : "消耗品",
+      desc: p.description,
+      effect: p.gameplayEffect || "无效果",
+      hasImg: p.hasImage,
+    }));
+  }, [gameProps]);
+
+  const nodeAssets = useMemo(() => {
+    if (storyNodes.length === 0) return SEED_NODE_ASSETS;
+    return storyNodes.map(n => ({
+      nodeId: n.id,
+      label: n.label || n.id,
+      hasImg: false,
+      hasBgm: false,
+      hasVoice: false,
+      hasVideo: false,
+    }));
+  }, [storyNodes]);
+
   const handleGenerate = (id: string) => {
     setGenerating(id);
     setTimeout(() => {
@@ -209,7 +265,7 @@ export default function AssetsScreen() {
       // Persist generation result to store
       if (id.startsWith("scene-")) {
         const sceneId = id.replace("scene-", "");
-        const sceneData = SCENES.find(s => s.id === sceneId);
+        const sceneData = scenes.find(s => s.id === sceneId);
         if (sceneData) {
           addScene({
             id: sceneId, name: sceneData.name, location: sceneData.location,
@@ -227,8 +283,8 @@ export default function AssetsScreen() {
     }, 1800);
   };
 
-  const char = CHARACTERS[selectedChar];
-  const scene = SCENES[selectedScene];
+  const char = characters[selectedChar];
+  const scene = scenes[selectedScene];
 
   // ── Empty state check ─────────────────────────────────────────────────────
   if (assetCards.length === 0) {
@@ -365,7 +421,7 @@ export default function AssetsScreen() {
                 style={{ borderColor:S.border, background:S.card }}>
                 <p className="text-[9px] font-bold uppercase tracking-wider px-3 py-2 border-b"
                   style={{ borderColor:S.border, color:S.text3 }}>角色列表</p>
-                {CHARACTERS.map((c,i) => (
+                {characters.map((c,i) => (
                   <motion.button key={c.id} whileTap={{ scale:0.98 }}
                     onClick={() => setSelectedChar(i)}
                     className="w-full text-left px-3 py-2.5 border-b focus:outline-none"
@@ -472,12 +528,86 @@ export default function AssetsScreen() {
                 </div>
 
                 {/* 下一步 */}
-                <motion.button whileTap={{ scale:0.97 }} onClick={() => setActiveStep("scene")}
+                <motion.button whileTap={{ scale:0.97 }} onClick={() => setActiveStep("wardrobe")}
                   className="w-full py-2.5 rounded-xl text-xs font-bold focus:outline-none flex items-center justify-center gap-2"
                   style={{ background:`${S.accent}15`, border:`1px solid ${S.accent}30`, color:S.accent }}>
-                  角色配置完成，进入场景配置 <ChevronRight size={12} />
+                  角色配置完成，进入造型配置 <ChevronRight size={12} />
                 </motion.button>
               </div>
+            </motion.div>
+          )}
+
+          {/* ══ 造型配置 ══ */}
+          {activeStep === "wardrobe" && (
+            <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} className="space-y-4">
+              <div className="rounded-2xl p-5" style={{ background:S.card, border:`1px solid ${S.border}` }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold flex items-center gap-2" style={{ color:S.text }}>
+                    <Shirt size={14} style={{ color:S.primary }} /> 角色造型管理
+                  </h3>
+                  <span className="text-[9px] px-2 py-1 rounded-lg" style={{ background:`${S.primary}12`, color:S.primary }}>
+                    在「剧本总览 → 角色与世界」中管理造型
+                  </span>
+                </div>
+
+                {/* Wardrobe overview cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                  {characters.map(char => (
+                    <div key={char.id} className="p-4 rounded-xl" style={{ background:S.s2, border:`1px solid ${S.border}` }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold"
+                          style={{ background:`${S.primary}12`, color:S.primary }}>
+                          {char.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold" style={{ color:S.text }}>{char.name}</p>
+                          <p className="text-[8px]" style={{ color:S.text3 }}>{char.role}</p>
+                        </div>
+                      </div>
+
+                      {/* Portrait states */}
+                      <div className="grid grid-cols-4 gap-1 mb-2">
+                        {Object.entries(char.portraits).map(([state, done]) => (
+                          <div key={state} className="aspect-square rounded-lg flex items-center justify-center"
+                            style={{ background: done ? `${S.success}12` : S.s2, border:`1px solid ${done ? `${S.success}30` : S.border}` }}>
+                            {done
+                              ? <Check size={10} style={{ color: S.success }} />
+                              : <span className="text-[7px]" style={{ color:S.text3 }}>{state === "default" ? "默认" : state === "angry" ? "愤怒" : state === "hurt" ? "受伤" : "沉默"}</span>
+                            }
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-[8px]" style={{ color:S.text3 }}>
+                        造型管理请前往 <Link href="/story-overview" className="font-bold" style={{ color:S.primary }}>剧本总览</Link> 的「角色与世界」标签页
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick actions */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Link href="/story-overview">
+                    <motion.button whileTap={{ scale:0.97 }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-bold text-white focus:outline-none"
+                      style={{ background:`linear-gradient(135deg,${S.primary},#A78BFA)`, boxShadow:`0 2px 8px ${S.primary}30` }}>
+                      <Shirt size={12} /> 前往造型管理
+                    </motion.button>
+                  </Link>
+                  <motion.button whileTap={{ scale:0.97 }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-bold focus:outline-none"
+                    style={{ background:`${S.primary}12`, color:S.primary, border:`1px solid ${S.primary}30` }}>
+                    <Sparkles size={12} /> AI 生成造型建议
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* 下一步 */}
+              <motion.button whileTap={{ scale:0.97 }} onClick={() => setActiveStep("scene")}
+                className="w-full py-2.5 rounded-xl text-xs font-bold focus:outline-none flex items-center justify-center gap-2"
+                style={{ background:`${S.accent}15`, border:`1px solid ${S.accent}30`, color:S.accent }}>
+                造型配置完成，进入场景配置 <ChevronRight size={12} />
+              </motion.button>
             </motion.div>
           )}
 
@@ -490,7 +620,7 @@ export default function AssetsScreen() {
                 style={{ borderColor:S.border, background:S.card }}>
                 <p className="text-[9px] font-bold uppercase tracking-wider px-3 py-2 border-b"
                   style={{ borderColor:S.border, color:S.text3 }}>场景列表</p>
-                {SCENES.map((sc,i) => (
+                {scenes.map((sc,i) => (
                   <motion.button key={sc.id} whileTap={{ scale:0.98 }}
                     onClick={() => setSelectedScene(i)}
                     className="w-full text-left px-3 py-2.5 border-b focus:outline-none"
@@ -575,9 +705,9 @@ export default function AssetsScreen() {
               className="flex-1 overflow-y-auto p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold" style={{ color:S.text }}>道具设定</h2>
-                <p className="text-xs" style={{ color:S.text3 }}>共 {PROPS.length} 件道具</p>
+                <p className="text-xs" style={{ color:S.text3 }}>共 {props.length} 件道具</p>
               </div>
-              {PROPS.map(prop => (
+              {props.map(prop => (
                 <div key={prop.id} className="p-4 rounded-xl"
                   style={{ background:S.card, border:`1px solid ${S.border}` }}>
                   <div className="flex items-start justify-between mb-2">
@@ -628,7 +758,7 @@ export default function AssetsScreen() {
               className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold" style={{ color:S.text }}>素材生产台</h2>
-                <p className="text-xs" style={{ color:S.text3 }}>为 {NODE_ASSETS.length} 个节点批量生成素材</p>
+                <p className="text-xs" style={{ color:S.text3 }}>为 {nodeAssets.length} 个节点批量生成素材</p>
               </div>
 
               {/* UI 模板说明 */}
@@ -685,7 +815,7 @@ export default function AssetsScreen() {
               <div className="p-4 rounded-xl" style={{ background:S.card, border:`1px solid ${S.border}` }}>
                 <p className="text-xs font-bold mb-3" style={{ color:S.text }}>节点素材状态</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {NODE_ASSETS.map(node => {
+                  {nodeAssets.map(node => {
                     const missing = [!node.hasImg,!node.hasBgm,!node.hasVoice,!node.hasVideo].filter(Boolean).length;
                     return (
                       <div key={node.nodeId} className="p-2.5 rounded-xl"

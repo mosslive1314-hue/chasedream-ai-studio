@@ -21,6 +21,8 @@ export interface StoryNode {
   povCharacterId?: string;
   /** POV 叙事风格 */
   povStyle?: 'first_person' | 'third_person' | 'over_shoulder';
+  /** 该节点的角色造型覆盖（换装系统）：characterId → outfitId */
+  characterOutfitOverrides?: Record<string, string>;
 }
 
 export interface NodeEdge {

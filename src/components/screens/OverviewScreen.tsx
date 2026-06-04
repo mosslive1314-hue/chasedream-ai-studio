@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { INDUSTRY_LABELS, INDUSTRY_QC_RULES, type IndustryType } from "@/lib/studio-data";
-import { useNarrativeStore, useUIStore, useSettingsStore, useProjectStore } from "@/store";
+import { useNarrativeStore, useUIStore, useSettingsStore, useProjectStore, useAnalyticsStore } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
@@ -71,6 +71,14 @@ export default function OverviewScreen() {
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const narrativeIntents = useNarrativeStore(s => s.narrativeIntents);
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+
+  // ── Analytics Store selectors ──
+  const analyticsSessions = useAnalyticsStore(s => s.sessions);
+  const completionRate = useAnalyticsStore(s => s.getCompletionRate());
+  const avgDuration = useAnalyticsStore(s => s.getAvgSessionDuration());
+  const topEnding = useAnalyticsStore(s => s.getTopEnding());
+  const choiceDistributions = useAnalyticsStore(s => s.choiceDistributions);
+  const funnels = useAnalyticsStore(s => s.funnels);
 
   // ── P12-#22: Dynamic STATS from store ──────────────────────────────────
   const stats = useMemo(() => {
@@ -336,6 +344,7 @@ export default function OverviewScreen() {
             { label: "项目概览", icon: BarChart3 },
             { label: "质量检查", icon: Shield },
             { label: "风格一致性", icon: Heart },
+            { label: "数据分析", icon: BarChart3 },
           ].map((tab, i) => {
             const TabIcon = tab.icon;
             return (
@@ -738,6 +747,119 @@ export default function OverviewScreen() {
 
         <div className="h-6" />
       </div>
+
+      {/* ═══════════════════ TAB 3: 数据分析 ═══════════════════ */}
+      <AnimatePresence mode="wait">
+        {activeTab === 3 && (
+          <motion.div key="tab-3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}
+            className="max-w-3xl mx-auto px-5 pb-4 space-y-3">
+
+            {/* 核心指标 */}
+            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
+                  <BarChart3 size={13} style={{ color: S.primary }} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>玩家行为指标</h3>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>基于 {analyticsSessions.length} 个测试会话</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: '测试会话', value: analyticsSessions.length, color: S.primary },
+                  { label: '完成率', value: `${Math.round(completionRate * 100)}%`, color: completionRate >= 0.8 ? S.success : S.warning },
+                  { label: '平均时长', value: `${Math.round(avgDuration / 60)}min`, color: S.accent },
+                  { label: '热门结局', value: topEnding?.name ?? '无', color: S.primary },
+                ].map((item, i) => (
+                  <div key={i} className="p-2 rounded-xl text-center" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                    <p className="text-sm font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
+                    <p className="text-[8px]" style={{ color: S.text3 }}>{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 选择分布 */}
+            {choiceDistributions.length > 0 && (
+              <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <h3 className="text-xs font-bold mb-2" style={{ color: S.text }}>选择分布</h3>
+                <div className="space-y-2">
+                  {choiceDistributions.slice(0, 4).map(dist => (
+                    <div key={dist.nodeId} className="p-2 rounded-lg" style={{ background: S.s2 }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold" style={{ color: S.text }}>{dist.nodeName}</span>
+                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{dist.totalChoices} 次选择</span>
+                      </div>
+                      <div className="space-y-1">
+                        {dist.optionStats.map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <span className="text-[9px] flex-1 truncate" style={{ color: S.text2 }}>{opt.choiceText}</span>
+                            <div className="w-20 h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${opt.ratio * 100}%` }}
+                                transition={{ duration: 0.5, delay: oi * 0.1 }}
+                                className="h-full rounded-full"
+                                style={{ background: opt.ratio >= 0.6 ? S.primary : S.accent }}
+                              />
+                            </div>
+                            <span className="text-[8px] font-mono w-8 text-right" style={{ color: S.text3 }}>
+                              {Math.round(opt.ratio * 100)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 漏斗 */}
+            {funnels.length > 0 && (
+              <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                <h3 className="text-xs font-bold mb-2" style={{ color: S.text }}>转化漏斗</h3>
+                {funnels.map((funnel, fi) => (
+                  <div key={fi} className="mb-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{funnel.name}</span>
+                      <span className="text-[9px] font-mono font-bold" style={{ color: S.primary }}>
+                        {Math.round(funnel.conversionRate * 100)}% 转化
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {funnel.steps.map((step, si) => {
+                        const maxReached = funnel.totalEntries || 1;
+                        const widthPct = (step.reached / maxReached) * 100;
+                        return (
+                          <div key={si} className="flex items-center gap-2">
+                            <span className="text-[9px] w-16 shrink-0 truncate" style={{ color: S.text2 }}>{step.name}</span>
+                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: S.s3 }}>
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(widthPct, 5)}%` }}
+                                transition={{ duration: 0.4, delay: si * 0.08 }}
+                                className="h-full rounded-full flex items-center justify-end pr-1"
+                                style={{ background: `${S.primary}40` }}
+                              >
+                                <span className="text-[7px] font-bold" style={{ color: S.primary }}>{step.reached}</span>
+                              </motion.div>
+                            </div>
+                            {step.dropped > 0 && (
+                              <span className="text-[8px] shrink-0" style={{ color: S.error }}>-{step.dropped}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Next Step Navigation */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"

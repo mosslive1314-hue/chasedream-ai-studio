@@ -58,3 +58,82 @@ export interface VersionDiff {
   scriptChanges: number;
   summary: string;
 }
+
+// ── 团队成员 ──────────────────────────────────────────────────────────────
+
+export type TeamRole = 'director' | 'writer' | 'artist' | 'developer' | 'tester' | 'editor';
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: TeamRole;
+  avatar: string;
+  email?: string;
+  /** 成员是否在线 */
+  online: boolean;
+  /** 最后活跃时间 */
+  lastActiveAt: string;
+  /** 当前正在编辑的节点 ID */
+  editingNodeId?: string;
+  /** 专长标签 */
+  specialties: string[];
+  /** 累计贡献统计 */
+  stats: {
+    tasksCompleted: number;
+    reviewsDone: number;
+    commentsCount: number;
+  };
+}
+
+// ── 在线状态 ──────────────────────────────────────────────────────────────
+
+export type PresenceStatus = 'active' | 'idle' | 'away' | 'offline';
+
+export interface PresenceState {
+  memberId: string;
+  status: PresenceStatus;
+  /** 当前正在查看的页面路径 */
+  viewingPath: string;
+  /** 当前正在编辑的实体 */
+  editingEntity?: {
+    type: 'node' | 'variable' | 'character' | 'scene' | 'asset';
+    id: string;
+    label: string;
+  };
+  /** 光标位置（协同编辑时） */
+  cursorPosition?: {
+    nodeId: string;
+    field: string;
+    offset: number;
+  };
+  /** 最后心跳时间 */
+  heartbeatAt: string;
+}
+
+// ── 审阅动作 ──────────────────────────────────────────────────────────────
+
+export type ReviewActionType =
+  | 'approve'
+  | 'request_changes'
+  | 'comment'
+  | 'assign_reviewer'
+  | 'escalate'
+  | 'rollback'
+  | 'merge';
+
+export interface ReviewAction {
+  id: string;
+  /** 关联的审阅项 ID */
+  reviewItemId: string;
+  /** 执行者 */
+  actorId: string;
+  actorName: string;
+  /** 动作类型 */
+  action: ReviewActionType;
+  /** 附带的评论 */
+  comment?: string;
+  /** 标记为需修改的字段 */
+  flaggedFields?: string[];
+  /** 执行时间 */
+  executedAt: string;
+}

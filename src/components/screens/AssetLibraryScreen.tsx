@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Database, Search, Image, Video, Music, Monitor,
   Upload, Grid, List, ChevronLeft, ChevronRight,
   Filter, Download, Trash2, Eye, MoreHorizontal,
 } from "lucide-react";
+import { useNarrativeStore } from "@/store";
 
 const S = {
   bg: "#F5F6FA", card: "#FFFFFF", s2: "#F4F6FC",
@@ -28,7 +29,7 @@ interface Asset {
   thumb?: string;
 }
 
-const ASSETS: Asset[] = [
+const SEED_ASSETS: Asset[] = [
   { id: "a01", name: "赛博朋克街道_背景.png",     type: "image", size: "2.4 MB",  date: "2025-05-28", status: "approved"  },
   { id: "a02", name: "主角_艾拉_立绘_默认.png",   type: "image", size: "1.8 MB",  date: "2025-05-27", status: "approved"  },
   { id: "a03", name: "序章_开场动画.mp4",          type: "video", size: "24.6 MB", date: "2025-05-26", status: "pending"   },
@@ -84,7 +85,62 @@ export default function AssetLibraryScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCard, setActiveCard] = useState<string | null>(null);
 
-  const filteredAssets = ASSETS.filter(a => {
+  // ── Store selectors ──
+  const gameCharacters = useNarrativeStore(s => s.characters);
+  const gameScenes = useNarrativeStore(s => s.scenes);
+  const gameProps = useNarrativeStore(s => s.props);
+  const assetCards = useNarrativeStore(s => s.assetCards);
+
+  // ── Derive unified asset list from store (seed fallback) ──
+  const allAssets = useMemo<Asset[]>(() => {
+    const storeAssets: Asset[] = [];
+    // Characters → image assets
+    gameCharacters.forEach(c => {
+      storeAssets.push({
+        id: `char-${c.id}`, name: `${c.name}_立绘.png`, type: "image",
+        size: "—", date: "—", status: c.visualPrompt ? "approved" : "pending",
+      });
+    });
+    // Scenes → image assets
+    gameScenes.forEach(s => {
+      storeAssets.push({
+        id: `scene-${s.id}`, name: `${s.name}_背景.png`, type: "image",
+        size: "—", date: "—", status: s.hasImage ? "approved" : "pending",
+      });
+    });
+    // Props → image assets
+    gameProps.forEach(p => {
+      storeAssets.push({
+        id: `prop-${p.id}`, name: `${p.name}_道具图.png`, type: "image",
+        size: "—", date: "—", status: p.hasImage ? "approved" : "pending",
+      });
+    });
+    // Asset cards → typed requirements
+    assetCards.forEach(ac => {
+      storeAssets.push({
+        id: `req-${ac.nodeId}`, name: ac.nodeLabel || ac.nodeId, type: "image",
+        size: "—", date: "—", status: ac.hasImage ? "approved" : "pending",
+      });
+    });
+    return storeAssets.length > 0 ? storeAssets : SEED_ASSETS;
+  }, [gameCharacters, gameScenes, gameProps, assetCards]);
+
+  // ── Dynamic statistics ──
+  const stats = useMemo(() => {
+    const img = allAssets.filter(a => a.type === "image").length;
+    const vid = allAssets.filter(a => a.type === "video").length;
+    const aud = allAssets.filter(a => a.type === "audio").length;
+    const ui = allAssets.filter(a => a.type === "ui").length;
+    return [
+      { label: "总资产", value: allAssets.length, color: S.primary },
+      { label: "图片资产", value: img, color: "#7C6CF5" },
+      { label: "视频资产", value: vid, color: "#F59E0B" },
+      { label: "音频资产", value: aud, color: "#00A99D" },
+      { label: "UI模板", value: ui, color: "#EF4444" },
+    ];
+  }, [allAssets]);
+
+  const filteredAssets = allAssets.filter(a => {
     const matchesFilter = activeFilter === "all" || a.type === activeFilter;
     const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
@@ -178,7 +234,7 @@ export default function AssetLibraryScreen() {
 
         {/* Row 2: statistics bar */}
         <div className="flex items-center gap-3 px-4 pb-2.5">
-          {STATS.map(stat => (
+          {stats.map(stat => (
             <div key={stat.label} className="flex items-center gap-1.5">
               <span className="text-xs font-bold font-mono" style={{ color: stat.color }}>
                 {stat.value}
@@ -359,7 +415,7 @@ export default function AssetLibraryScreen() {
       <div className="shrink-0 flex items-center justify-between px-4 py-2.5"
         style={{ background: S.card, borderTop: `1px solid ${S.border}` }}>
         <span className="text-[10px]" style={{ color: S.text3 }}>
-          显示 1-12 / 共 47 个资产
+          显示 1-{filteredAssets.length} / 共 {allAssets.length} 个资产
         </span>
         <div className="flex items-center gap-1">
           <motion.button whileTap={{ scale: 0.94 }}

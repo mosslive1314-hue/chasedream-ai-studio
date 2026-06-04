@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import {
   Play, Users, MousePointer, Star, Edit3, Trash2,
   Plus, BarChart3, BookOpen, Clapperboard,
 } from "lucide-react";
-import { useProjectStore, useNarrativeStore, useUIStore, useSettingsStore } from "@/store";
+import { useProjectStore, useNarrativeStore, useUIStore, useSettingsStore, useAnalyticsStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 
 // ── Design System ──────────────────────────────────────────────────────────
@@ -28,13 +28,7 @@ const TABS = [
   { label: "作品表现", icon: Star },
 ];
 
-// ── Dashboard stats ────────────────────────────────────────────────────────
-const STATS = [
-  { icon: Play,         label: "总游玩次数", value: "12", note: "↑ 1 部作品", color: S.primary,  bg: S.primary10 },
-  { icon: Users,        label: "独立玩家",   value: "0",  note: "暂无数据",   color: S.accent,   bg: S.accent10 },
-  { icon: MousePointer, label: "选择总次数", value: "0",  note: "暂无数据",   color: S.warning,  bg: "rgba(217,119,6,0.08)" },
-  { icon: Star,         label: "已发布作品", value: "1",  note: "↗ 正在运营", color: S.purple2,  bg: "rgba(167,139,250,0.08)" },
-];
+// ── Dashboard stats are now derived from store data (see component) ───
 
 // ── Status badge config ────────────────────────────────────────────────────
 const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
@@ -65,6 +59,20 @@ export default function MyWorksScreen() {
   const branchPaths    = useNarrativeStore(s => s.branchPaths);
   const projectName    = useSettingsStore(s => s.projectName);
   const addToast       = useUIStore(s => s.addToast);
+  const analyticsSessions = useAnalyticsStore(s => s.sessions);
+
+  // ── Derived dashboard stats (from analytics + project store) ─────────────
+  const STATS = useMemo(() => {
+    const totalSessions = analyticsSessions.length;
+    const totalChoices = analyticsSessions.reduce((sum, s) => sum + (s.choicesMade?.length ?? 0), 0);
+    const publishedCount = projects.filter(p => p.status === "published").length;
+    return [
+      { icon: Play,         label: "总游玩次数", value: String(totalSessions),  note: totalSessions > 0 ? `来自 ${totalSessions} 次测试` : "暂无测试数据", color: S.primary,  bg: S.primary10 },
+      { icon: Users,        label: "独立玩家",   value: String(totalSessions),  note: totalSessions > 0 ? "测试会话数" : "暂无数据",   color: S.accent,   bg: S.accent10 },
+      { icon: MousePointer, label: "选择总次数", value: String(totalChoices),   note: totalChoices > 0 ? `平均 ${Math.round(totalChoices / Math.max(totalSessions, 1))} 次/局` : "暂无数据",   color: S.warning,  bg: "rgba(217,119,6,0.08)" },
+      { icon: Star,         label: "已发布作品", value: String(publishedCount), note: publishedCount > 0 ? "↗ 正在运营" : "尚未发布", color: S.purple2,  bg: "rgba(167,139,250,0.08)" },
+    ];
+  }, [analyticsSessions, projects]);
 
   // ── Core metrics (from live store) ────────────────────────────────────────
   const CORE_METRICS = [

@@ -5,10 +5,13 @@ import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import {
   X, Send, AlertCircle, Loader2, CheckCircle2, XCircle,
-  Sparkles, MessageSquare, ChevronRight, RotateCcw,
+  Sparkles, MessageSquare, ChevronRight, RotateCcw, ChevronDown,
+  Lightbulb, Users, BookOpen,
 } from "lucide-react";
-import { useCanvasAgentStore } from "@/store";
+import { useCanvasAgentStore, useExpertStore, useSkillStore } from "@/store";
 import type { AgentMessage, AgentRunStatus } from "@/store";
+import { ALL_EXPERTS, getPageStage } from "@/lib/ai/agent-orchestrator";
+import type { Expert } from "@/lib/types/expert";
 
 // ─── Design Tokens ──────────────────────────────────────────
 const S = {
@@ -64,8 +67,50 @@ const STEP_LABELS: Record<string, string> = {
   assemble: "组装",
 };
 
-// ─── Quick Actions (context-aware) ──────────────────────────
-function getQuickActions(page: string) {
+// ─── Quick Actions (context-aware + Expert-aware) ───────────
+function getQuickActions(page: string, expert?: Expert | null) {
+  // Expert-specific actions take priority
+  if (expert) {
+    const expertActions: Record<string, { label: string; prompt: string }[]> = {
+      "expert-narrative": [
+        { label: "分析叙事节奏", prompt: "分析当前剧本的张力曲线和叙事节奏是否合理" },
+        { label: "检查世界观一致性", prompt: "检查所有世界规则是否有矛盾之处" },
+        { label: "优化分支结构", prompt: "为当前剧本分支提供结构优化建议" },
+      ],
+      "expert-interaction": [
+        { label: "设计互动点", prompt: "为当前章节建议最佳的互动点位置和类型" },
+        { label: "检查后果链", prompt: "检查所有后果链是否有悬空未收束的分支" },
+        { label: "优化变量设计", prompt: "分析当前变量系统的使用率和平衡性" },
+      ],
+      "expert-cinematic": [
+        { label: "推荐镜头语言", prompt: "根据情感强度推荐镜头类型和运镜方式" },
+        { label: "优化音画同步", prompt: "分析 BGM 情绪标签与场景氛围的匹配度" },
+        { label: "设计转场效果", prompt: "为场景转换推荐合适的转场效果" },
+      ],
+      "expert-art": [
+        { label: "检查风格一致性", prompt: "检查当前场景内所有资产的视觉风格是否统一" },
+        { label: "管理角色造型", prompt: "检查角色造型和视觉锚点的一致性" },
+        { label: "资产覆盖率", prompt: "分析节点与资产的绑定覆盖率" },
+      ],
+      "expert-gameplay": [
+        { label: "可达性分析", prompt: "检查所有结局是否至少有一条可达路径" },
+        { label: "变量平衡检查", prompt: "分析变量分布是否与叙事权重匹配" },
+        { label: "难度曲线", prompt: "分析当前各章节的难度曲线是否平滑" },
+      ],
+      "expert-qa": [
+        { label: "执行全量质检", prompt: "执行全量质量检查并按严重程度排序" },
+        { label: "一致性检查", prompt: "检查叙事逻辑、角色状态和时间线一致性" },
+        { label: "资产依赖检查", prompt: "检查是否存在断裂的资产引用" },
+      ],
+      "expert-release": [
+        { label: "导出配置检查", prompt: "检查各目标引擎的导出配置是否完整" },
+        { label: "版本日志", prompt: "生成当前版本的变更日志" },
+        { label: "平台兼容性", prompt: "分析目标平台的兼容性注意事项" },
+      ],
+    };
+    if (expertActions[expert.id]) return expertActions[expert.id];
+  }
+
   if (page.includes("nodes")) return [
     { label: "检查节点覆盖度", prompt: "检查当前节点图谱的覆盖度，是否有孤立节点" },
     { label: "建议新分支", prompt: "为当前节点图谱建议一条新的分支路线" },
@@ -107,11 +152,12 @@ export function AgentPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [expertDropdownOpen, setExpertDropdownOpen] = useState(false);
 
   // 只在客户端渲染后挂载 portal
   useEffect(() => { setMounted(true); }, []);
 
-  // Store selectors
+  // Store selectors — Canvas Agent
   const panelOpen         = useCanvasAgentStore(s => s.panelOpen);
   const setPanelOpen      = useCanvasAgentStore(s => s.setPanelOpen);
   const messages          = useCanvasAgentStore(s => s.messages);
@@ -125,6 +171,37 @@ export function AgentPanel() {
   const appendToLast      = useCanvasAgentStore(s => s.appendToLastMessage);
   const clearMessages     = useCanvasAgentStore(s => s.clearMessages);
   const errorMessage      = useCanvasAgentStore(s => s.errorMessage);
+
+  // Store selectors — Expert
+  const activeExpertId    = useExpertStore(s => s.activeExpertId);
+  const routingStrategy   = useExpertStore(s => s.routingStrategy);
+  const setActiveExpert   = useExpertStore(s => s.setActiveExpert);
+  const setRoutingStrategy = useExpertStore(s => s.setRoutingStrategy);
+  const autoRouteByPage   = useExpertStore(s => s.autoRouteByPage);
+  const routeByKeywords   = useExpertStore(s => s.routeByKeywords);
+  const getActiveExpert   = useExpertStore(s => s.getActiveExpert);
+  const suggestions       = useExpertStore(s => s.suggestions);
+  const dismissSuggestion = useExpertStore(s => s.dismissSuggestion);
+
+  // Resolve active Expert
+  const activeExpert = getActiveExpert();
+
+  // Auto-route Expert by page
+  useEffect(() => {
+    if (pathname) autoRouteByPage(pathname);
+  }, [pathname, autoRouteByPage]);
+
+  // Active suggestions (not dismissed)
+  const activeSuggestions = suggestions.filter(s => !s.dismissed).slice(0, 3);
+
+  // Loaded skills for current stage
+  const allSkills = useSkillStore(s => s.skills);
+  const pipelineMappings = useSkillStore(s => s.pipelineMappings);
+  const stageIndex = getPageStage(pathname);
+  const stageMapping = pipelineMappings.find(m => m.stageIndex === stageIndex);
+  const loadedSkills = (stageMapping?.recommendedSkillIds ?? [])
+    .map(id => allSkills.find(s => s.id === id))
+    .filter((s): s is import("@/lib/types/skill").Skill => s !== undefined);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -167,7 +244,15 @@ export function AgentPanel() {
     setRunStatus("generating");
     setCurrentStep("generate");
 
-    addMessage({ role: "assistant", content: "", decisionStep: "generate" });
+    const expert = getActiveExpert();
+    addMessage({
+      role: "assistant",
+      content: "",
+      decisionStep: "generate",
+      expertId: expert?.id,
+      expertRole: expert?.role,
+      expertAvatar: expert?.avatar,
+    });
 
     const response = generateContextualResponse(userText, pathname);
     for (let i = 0; i < response.length; i += 3) {
@@ -185,16 +270,18 @@ export function AgentPanel() {
     // Done
     setRunStatus("idle");
     setCurrentStep("");
-  }, [pathname, setRunStatus, setCurrentStep, addMessage, appendToLast]);
+  }, [pathname, setRunStatus, setCurrentStep, addMessage, appendToLast, getActiveExpert]);
 
   // ─── Send Handler ─────────────────────────────────────────
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text || runStatus !== "idle") return;
     addMessage({ role: "user", content: text });
+    // Potentially switch Expert based on keywords
+    routeByKeywords(text);
     setInput("");
     simulateAgentResponse(text);
-  }, [input, runStatus, addMessage, simulateAgentResponse]);
+  }, [input, runStatus, addMessage, simulateAgentResponse, routeByKeywords]);
 
   // ─── Quick Action Handler ─────────────────────────────────
   const handleQuickAction = useCallback((prompt: string) => {
@@ -222,7 +309,7 @@ export function AgentPanel() {
     setRunStatus("idle");
   }, [pendingConfirm, addMessage, setPendingConf, setRunStatus]);
 
-  const quickActions = getQuickActions(pathname);
+  const quickActions = getQuickActions(pathname, activeExpert);
   const statusCfg = STATUS_CONFIG[runStatus];
 
   // ─── Render (createPortal 脱离 EazoProvider 层叠上下文) ──────────────
@@ -299,6 +386,96 @@ export function AgentPanel() {
               </div>
             </div>
 
+            {/* ── Expert Selector Bar ─────────────────────────── */}
+            <div
+              className="shrink-0 border-b relative"
+              style={{ borderColor: S.border }}
+            >
+              <motion.button
+                whileTap={{ scale: 0.99 }}
+                onClick={() => setExpertDropdownOpen(!expertDropdownOpen)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-xs transition-colors hover:bg-gray-50"
+              >
+                {activeExpert ? (
+                  <>
+                    <span className="text-base leading-none">{activeExpert.avatar}</span>
+                    <span className="font-medium" style={{ color: S.text }}>{activeExpert.role}</span>
+                    <span style={{ color: S.text3 }}>{activeExpert.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <Users size={13} style={{ color: S.text3 }} />
+                    <span style={{ color: S.text2 }}>
+                      {routingStrategy === "auto" ? "自动选择 Expert" : "未选择 Expert"}
+                    </span>
+                  </>
+                )}
+                <ChevronDown
+                  size={12}
+                  className="ml-auto transition-transform"
+                  style={{
+                    color: S.text3,
+                    transform: expertDropdownOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                />
+              </motion.button>
+
+              {/* Dropdown */}
+              {expertDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 120 }}
+                  className="absolute left-0 right-0 top-full z-50 border shadow-lg overflow-hidden"
+                  style={{ background: S.card, borderColor: S.border }}
+                >
+                  {/* Auto mode option */}
+                  <button
+                    onClick={() => {
+                      setRoutingStrategy("auto");
+                      setActiveExpert(null);
+                      setExpertDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    style={{ borderBottom: `1px solid ${S.border}` }}
+                  >
+                    <Users size={13} style={{ color: S.text3 }} />
+                    <div>
+                      <div className="font-medium" style={{ color: S.text }}>自动模式</div>
+                      <div style={{ color: S.text3, fontSize: 10 }}>根据页面和输入自动切换 Expert</div>
+                    </div>
+                    {!activeExpertId && (
+                      <CheckCircle2 size={13} className="ml-auto" style={{ color: S.primary }} />
+                    )}
+                  </button>
+
+                  {ALL_EXPERTS.map(expert => (
+                    <button
+                      key={expert.id}
+                      onClick={() => {
+                        setRoutingStrategy("manual");
+                        setActiveExpert(expert.id);
+                        setExpertDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      style={{ borderBottom: `1px solid ${S.border}10` }}
+                    >
+                      <span className="text-base leading-none">{expert.avatar}</span>
+                      <div>
+                        <div className="font-medium" style={{ color: S.text }}>{expert.role}</div>
+                        <div style={{ color: S.text3, fontSize: 10 }}>
+                          {expert.description.slice(0, 32)}…
+                        </div>
+                      </div>
+                      {activeExpertId === expert.id && (
+                        <CheckCircle2 size={13} className="ml-auto" style={{ color: S.primary }} />
+                      )}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </div>
+
             {/* ── Decision Chain Indicator ───────────────────── */}
             {runStatus !== "idle" && currentStep && (
               <div
@@ -335,7 +512,36 @@ export function AgentPanel() {
               <span style={{ color: S.text2, fontWeight: 500 }}>
                 {PAGE_LABELS[pathname] ?? pathname}
               </span>
+              {activeExpert && (
+                <>
+                  <span style={{ color: S.border }}>·</span>
+                  <span className="flex items-center gap-1">
+                    <span>{activeExpert.avatar}</span>
+                    <span style={{ color: S.primary, fontWeight: 500 }}>{activeExpert.role}</span>
+                  </span>
+                </>
+              )}
             </div>
+
+            {/* ── Loaded Skills Strip ──────────────────────────── */}
+            {loadedSkills.length > 0 && (
+              <div
+                className="flex items-center gap-1.5 px-4 py-1 border-b shrink-0 overflow-x-auto"
+                style={{ borderColor: S.border, background: `${S.primary}04` }}
+              >
+                <BookOpen size={10} style={{ color: S.primary, opacity: 0.6 }} />
+                <span style={{ color: S.text3, fontSize: 9, whiteSpace: "nowrap" }}>已加载</span>
+                {loadedSkills.map(skill => (
+                  <span
+                    key={skill.id}
+                    className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0"
+                    style={{ background: `${S.accent}15`, color: S.accent, fontSize: 9 }}
+                  >
+                    {skill.name}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* ── Messages ───────────────────────────────────── */}
             <div
@@ -348,13 +554,20 @@ export function AgentPanel() {
                     className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
                     style={{ background: S.primary10 }}
                   >
-                    <Sparkles size={24} style={{ color: S.primary }} />
+                    {activeExpert ? (
+                      <span className="text-2xl">{activeExpert.avatar}</span>
+                    ) : (
+                      <Sparkles size={24} style={{ color: S.primary }} />
+                    )}
                   </div>
                   <p className="text-sm font-semibold mb-1.5" style={{ color: S.text }}>
-                    逐梦 AI 助手
+                    {activeExpert ? activeExpert.role : "逐梦 AI 助手"}
                   </p>
                   <p className="text-xs leading-relaxed max-w-[240px] mb-5" style={{ color: S.text3 }}>
-                    我可以帮你分析剧本结构、检查节点逻辑、推荐资产绑定方案，或者解答创作问题。
+                    {activeExpert
+                      ? activeExpert.description.slice(0, 60) + "…"
+                      : "我可以帮你分析剧本结构、检查节点逻辑、推荐资产绑定方案，或者解答创作问题。"
+                    }
                   </p>
                   {/* Quick actions */}
                   <div className="w-full space-y-1.5">
@@ -465,6 +678,67 @@ export function AgentPanel() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* ── Proactive Suggestions ──────────────────────── */}
+            {activeSuggestions.length > 0 && (
+              <div
+                className="shrink-0 border-t px-3 py-2 space-y-1.5"
+                style={{ borderColor: S.border, background: `${S.primary}08` }}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: S.text2 }}>
+                  <Lightbulb size={11} style={{ color: S.warning }} />
+                  <span>Expert 建议</span>
+                </div>
+                {activeSuggestions.map(sug => (
+                  <motion.div
+                    key={sug.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 200 }}
+                    className="flex items-start gap-2 p-2 rounded-lg border text-xs"
+                    style={{
+                      borderColor: `${S.border}`,
+                      background: S.card,
+                    }}
+                  >
+                    <span className="text-base leading-none shrink-0 mt-0.5">{sug.expertAvatar}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-medium" style={{ color: S.text, fontSize: 11 }}>
+                          {sug.expertName}
+                        </span>
+                        <span
+                          className="px-1.5 py-0.5 rounded-full"
+                          style={{
+                            fontSize: 9,
+                            background:
+                              sug.priority === "high" ? `${S.error}15` :
+                              sug.priority === "medium" ? `${S.warning}15` :
+                              `${S.primary}15`,
+                            color:
+                              sug.priority === "high" ? S.error :
+                              sug.priority === "medium" ? S.warning :
+                              S.primary,
+                          }}
+                        >
+                          {sug.priority === "high" ? "重要" : sug.priority === "medium" ? "建议" : "提示"}
+                        </span>
+                      </div>
+                      <p className="leading-relaxed" style={{ color: S.text2, fontSize: 11 }}>
+                        {sug.message}
+                      </p>
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => dismissSuggestion(sug.id)}
+                      className="shrink-0 p-1 rounded hover:bg-gray-100"
+                    >
+                      <X size={10} style={{ color: S.text3 }} />
+                    </motion.button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
             {/* ── Input Bar ──────────────────────────────────── */}
             <div
               className="shrink-0 px-3 py-2.5 border-t"
@@ -481,7 +755,7 @@ export function AgentPanel() {
                       handleSend();
                     }
                   }}
-                  placeholder={runStatus !== "idle" ? "AI 正在工作…" : "输入你的问题…"}
+                  placeholder={runStatus !== "idle" ? "AI 正在工作…" : activeExpert ? `向${activeExpert.role}提问…` : "输入你的问题…"}
                   disabled={runStatus !== "idle" && runStatus !== "waiting"}
                   className="flex-1 text-xs px-3 py-2 rounded-lg border outline-none transition-colors"
                   style={{
@@ -558,6 +832,11 @@ function MessageBubble({ msg }: { msg: AgentMessage }) {
             ) : isSystem ? (
               <span className="text-xs font-medium" style={{ color: S.success }}>
                 系统
+              </span>
+            ) : msg.expertAvatar ? (
+              <span className="flex items-center gap-1" style={{ color: S.primary }}>
+                <span style={{ fontSize: 13 }}>{msg.expertAvatar}</span>
+                <span className="font-medium" style={{ fontSize: 11 }}>{msg.expertRole ?? "Expert"}</span>
               </span>
             ) : (
               <span className="flex items-center gap-1" style={{ color: S.primary }}>

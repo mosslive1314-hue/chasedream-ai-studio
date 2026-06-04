@@ -32,6 +32,10 @@ export interface AgentMessage {
   };
   /** 决策链步骤标记 */
   decisionStep?: "understand" | "plan" | "generate" | "assemble";
+  /** Expert 身份标识（由 Expert 系统注入） */
+  expertId?: string;
+  expertRole?: string;
+  expertAvatar?: string;
 }
 
 // ─── Agent 运行状态 ──────────────────────────────────────────

@@ -6,7 +6,7 @@ import {
   Clock, Plus, Minus, Pencil, Rocket,
   CheckCircle2, Layers, ChevronRight, GitBranch, Sparkles, BookOpen,
 } from "lucide-react";
-import { useNarrativeStore, useUIStore } from "@/store";
+import { useNarrativeStore, useUIStore, useVersionStore } from "@/store";
 import type { VersionDiff } from "@/lib/types/collaboration";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
@@ -69,6 +69,14 @@ export default function VersionScreen() {
   const collabTasks   = useNarrativeStore(s => s.collabTasks);
   const collabComments = useNarrativeStore(s => s.collabComments);
   const addToast      = useUIStore(s => s.addToast);
+
+  // ── Version Store selectors ──
+  const vSnapshots    = useVersionStore(s => s.snapshots);
+  const vBranches     = useVersionStore(s => s.branches);
+  const vHistory      = useVersionStore(s => s.getHistory());
+  const createSnapshot = useVersionStore(s => s.createSnapshot);
+  const computeChangeSet = useVersionStore(s => s.computeChangeSet);
+  const activeBranch  = useVersionStore(s => s.getActiveBranch());
 
   const [activeTab, setActiveTab]   = useState(0);
   const [fromIdx, setFromIdx]       = useState(0);
@@ -150,6 +158,13 @@ export default function VersionScreen() {
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
       {/* ── Tab 导航 ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-4 pt-3">
+        {activeBranch && (
+          <div className="flex items-center gap-1 mr-2 px-2 py-1 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+            <GitBranch size={10} style={{ color: S.accent }} />
+            <span className="text-[9px] font-bold" style={{ color: S.accent }}>{activeBranch.name}</span>
+            <span className="text-[8px]" style={{ color: S.text3 }}>{activeBranch.snapshotCount} 快照</span>
+          </div>
+        )}
         {TABS.map((tab, i) => (
           <motion.button
             key={i}
@@ -263,7 +278,14 @@ export default function VersionScreen() {
               <div className="flex items-center gap-2">
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => addToast({ type: "success", title: "快照已创建", message: "新版本快照已保存" })}
+                  onClick={() => {
+                    createSnapshot(
+                      `快照 ${new Date().toLocaleString('zh-CN')}`,
+                      'manual',
+                      '手动创建的快照'
+                    );
+                    addToast({ type: "success", title: "快照已创建", message: "新版本快照已保存" });
+                  }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium"
                   style={{ background: S.primary, color: "#fff" }}
                 >
@@ -453,10 +475,56 @@ export default function VersionScreen() {
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen size={14} style={{ color: S.primary }} />
                 <span className="text-xs font-bold" style={{ color: S.text }}>版本历史</span>
+                {vHistory.length > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.primary10, color: S.primary }}>
+                    {vHistory.length} 条记录
+                  </span>
+                )}
               </div>
 
               {/* 版本时间线 */}
-              {snapshots.length > 0 ? (
+              {vHistory.length > 0 ? (
+                <div className="space-y-2">
+                  {vHistory.map((entry, i) => (
+                    <div key={entry.snapshotId} className="flex gap-3 group">
+                      {/* 时间线 */}
+                      <div className="flex flex-col items-center flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center"
+                          style={{ background: i === 0 ? S.success10 : S.primary10 }}>
+                          {i === 0
+                            ? <CheckCircle2 size={13} style={{ color: S.success }} />
+                            : <Clock size={11} style={{ color: S.primary }} />}
+                        </div>
+                        {i < vHistory.length - 1 && (
+                          <div className="w-px flex-1 my-1" style={{ background: S.border }} />
+                        )}
+                      </div>
+                      {/* 内容 */}
+                      <div className="flex-1 pb-3 min-w-0">
+                        <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold" style={{ color: S.text }}>{entry.author}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                                style={{ background: S.primary10, color: S.primary }}>
+                                {entry.typeLabel}
+                              </span>
+                            </div>
+                            <span className="text-[9px] font-mono" style={{ color: S.text3 }}>
+                              {new Date(entry.timestamp).toLocaleDateString('zh-CN')}
+                            </span>
+                          </div>
+                          <p className="text-[10px] leading-relaxed" style={{ color: S.text2 }}>{entry.summary}</p>
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[9px]" style={{ color: S.text3 }}>
+                            <Layers size={9} />
+                            {entry.changeCount} 项变更
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : snapshots.length > 0 ? (
                 <div className="space-y-2">
                   {snapshots.map((snap, i) => {
                     const cfg = STATUS_CFG[snap.status] ?? STATUS_CFG.published;

@@ -12,6 +12,7 @@ import {
   type PipelineStage, type IndustryType,
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
+import { SkillContextBar } from "@/components/ui/SkillContextBar";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -516,6 +517,15 @@ export default function PipelineScreen() {
           </div>
         </div>
       </div>
+
+      {/* ── Skill Context Bar ── */}
+      {selected && (
+        <SkillContextBar
+          stageIndex={selected.order - 1}
+          onViewSkill={() => {}}
+          onOpenLibrary={() => {}}
+        />
+      )}
 
       <div className="max-w-5xl mx-auto px-5 py-5 space-y-5">
 

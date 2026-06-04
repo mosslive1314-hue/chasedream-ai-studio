@@ -226,6 +226,45 @@ function MeterCard({ meter }: { meter: RelationshipMeter }) {
 
 export function RelationshipMeterPanel() {
   const meters = useNarrativeStore((s) => s.relationshipMeters);
+  const characters = useNarrativeStore((s) => s.characters);
+  const addMeter = useNarrativeStore((s) => s.addRelationshipMeter);
+
+  const [showForm, setShowForm] = useState(false);
+  const [charA, setCharA] = useState("");
+  const [charB, setCharB] = useState("");
+  const [relLabel, setRelLabel] = useState("好感度");
+
+  const handleAdd = () => {
+    if (!charA.trim() || !charB.trim()) return;
+    addMeter({
+      id: `rel-${Date.now()}`,
+      characterAId: charA,
+      characterAName: charA,
+      characterBId: charB,
+      characterBName: charB,
+      relationshipLabel: relLabel || "好感度",
+      currentValue: 0,
+      initialValue: 0,
+      minValue: -100,
+      maxValue: 100,
+      thresholds: [
+        { value: -80, label: "敌对" },
+        { value: -30, label: "陌生" },
+        { value: 20, label: "友好" },
+        { value: 60, label: "亲密" },
+        { value: 90, label: "至交" },
+      ],
+      history: [],
+      color: "#5E50E8",
+    });
+    setCharA(""); setCharB(""); setRelLabel("好感度"); setShowForm(false);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "6px 8px", borderRadius: 6,
+    border: `1px solid ${S.border}`, background: S.card,
+    color: S.text, fontSize: 11, outline: "none",
+  };
 
   return (
     <div style={{
@@ -261,23 +300,74 @@ export function RelationshipMeterPanel() {
         )}
       </div>
 
-      {/* Add new meter — placeholder */}
-      <button
-        onClick={() => {/* placeholder */}}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          width: "100%", padding: "10px 0",
-          border: `1.5px dashed ${S.border}`, borderRadius: 8,
-          background: "transparent", cursor: "pointer",
-          color: S.text3, fontSize: 12, fontWeight: 600,
-          transition: "border-color 0.2s, color 0.2s", marginTop: 2,
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = S.primary; e.currentTarget.style.color = S.primary; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = S.border; e.currentTarget.style.color = S.text3; }}
-      >
-        <Plus size={14} />
-        {"\u6DFB\u52A0\u5173\u7CFB\u8BA1\u91CF\u8868"}
-      </button>
+      {/* Add new meter */}
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            width: "100%", padding: "10px 0",
+            border: `1.5px dashed ${S.border}`, borderRadius: 8,
+            background: "transparent", cursor: "pointer",
+            color: S.text3, fontSize: 12, fontWeight: 600,
+            transition: "border-color 0.2s, color 0.2s", marginTop: 2,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = S.primary; e.currentTarget.style.color = S.primary; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = S.border; e.currentTarget.style.color = S.text3; }}
+        >
+          <Plus size={14} />
+          {"\u6DFB\u52A0\u5173\u7CFB\u8BA1\u91CF\u8868"}
+        </button>
+      ) : (
+        <div style={{
+          padding: 10, borderRadius: 8, background: S.card,
+          border: `1px solid ${S.border}`, display: "flex", flexDirection: "column", gap: 6,
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: S.text }}>{"\u65B0\u5EFA\u5173\u7CFB"}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <select value={charA} onChange={(e) => setCharA(e.target.value)} style={inputStyle}>
+              <option value="">{"\u89D2\u8272 A"}</option>
+              {characters.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {characters.length === 0 && <option value="">{"\u65E0\u89D2\u8272"}</option>}
+            </select>
+            <span style={{ display: "flex", alignItems: "center", color: S.text3, fontSize: 11 }}>{"\u2194"}</span>
+            <select value={charB} onChange={(e) => setCharB(e.target.value)} style={inputStyle}>
+              <option value="">{"\u89D2\u8272 B"}</option>
+              {characters.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {characters.length === 0 && <option value="">{"\u65E0\u89D2\u8272"}</option>}
+            </select>
+          </div>
+          <input
+            value={relLabel}
+            onChange={(e) => setRelLabel(e.target.value)}
+            placeholder={"\u5173\u7CFB\u6807\u7B7E\uFF08\u597D\u611F\u5EA6\u3001\u4FE1\u4EFB\u5EA6\u2026\uFF09"}
+            style={inputStyle}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={handleAdd}
+              disabled={!charA || !charB}
+              style={{
+                flex: 1, padding: "6px 0", borderRadius: 6, border: "none",
+                background: charA && charB ? S.primary : S.border, color: "#fff",
+                fontSize: 11, fontWeight: 600, cursor: charA && charB ? "pointer" : "not-allowed",
+              }}
+            >
+              {"\u786E\u8BA4\u6DFB\u52A0"}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setCharA(""); setCharB(""); }}
+              style={{
+                padding: "6px 12px", borderRadius: 6,
+                border: `1px solid ${S.border}`, background: "transparent",
+                color: S.text3, fontSize: 11, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              {"\u53D6\u6D88"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,9 +6,10 @@ import {
   ChevronRight, Rocket,
   Download, Upload, Globe, Package, Layers,
 } from "lucide-react";
-import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
+import { useNarrativeStore, useUIStore, useProjectStore, useExportStore } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { EXPORT_CATEGORY_LABELS } from "@/lib/seed/export-formats-seed";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -22,94 +23,19 @@ const S = {
   error: "#DC2626", error10: "rgba(220,38,38,0.10)",
 };
 
-// ── 多端导出格式 ─────────────────────────────────────────────────────────
-const EXPORT_FORMATS = [
-  {
-    id: 'webgal',
-    name: 'WebGAL 脚本',
-    icon: '\u{1F3AE}',
-    description: '导出为 WebGAL 引擎可执行的脚本格式，支持在 WebGAL 平台上运行。',
-    status: 'ready',
-    estimatedSize: '2.4 MB',
-    features: ['场景脚本', '对白系统', '选择分支', '变量条件', 'BGM/音效指令'],
-  },
-  {
-    id: 'renpy',
-    name: "Ren'Py 脚本",
-    icon: '\u{1F40D}',
-    description: "导出为 Ren'Py 引擎的 .rpy 格式，适用于 Python 生态的视觉小说开发。",
-    status: 'ready',
-    estimatedSize: '1.8 MB',
-    features: ['Label 结构', 'Menu 选择', '条件跳转', '变量系统', '资源引用'],
-  },
-  {
-    id: 'json',
-    name: '自定义 JSON',
-    icon: '\u{1F4CB}',
-    description: '导出为结构化 JSON，包含完整的节点图、变量、资产引用等所有数据。',
-    status: 'ready',
-    estimatedSize: '856 KB',
-    features: ['完整节点图', '变量定义', '资产清单', '叙事意图', '质检结果'],
-  },
-  {
-    id: 'h5-package',
-    name: '互动 H5 包',
-    icon: '\u{1F4E6}',
-    description: '打包为独立的 H5 应用，可直接部署到服务器或 CDN，玩家通过链接访问。',
-    status: 'ready',
-    estimatedSize: '12.6 MB',
-    features: ['运行时引擎', '场景渲染器', '选择系统', '存档/读档', '资产打包'],
-  },
-  {
-    id: 'ink',
-    name: 'Inkle Ink 格式',
-    icon: '\u{1F58A}\uFE0F',
-    description: '导出为 Ink 互动小说格式，适用于 Unity 集成和文本冒险游戏。',
-    status: 'beta',
-    estimatedSize: '420 KB',
-    features: ['Knot 结构', 'Stitch 子场景', '变量', '条件', 'Choice 选择'],
-  },
-  {
-    id: 'pdf-script',
-    name: 'PDF 剧本',
-    icon: '\u{1F4C4}',
-    description: '导出为格式化的 PDF 剧本文档，包含所有分支路径和注释，适合团队审阅。',
-    status: 'ready',
-    estimatedSize: '3.2 MB',
-    features: ['分幕排版', '对白格式', '分支标注', '变量说明', '导演注释'],
-  },
-];
+// ── 导出格式（来自 ExportStore）──────────────────────────────────────────
+const EXPORT_ICON_MAP: Record<string, string> = {
+  webgal: '🎮', renpy: '🐍', json: '📋', 'h5-package': '📦',
+  ink: '🖊️', 'pdf-script': '📄', openapi: '📐', unity: '🎯',
+  godot: '🤖', 'yarn-spinner': '🧶', lua: '🌙', 'h5-guide': '📖',
+  'wechat-mini': '💬', scorm: '🎓', 'classroom-demo': '🏫',
+  'interactive-short': '🎬', 'iframe-embed': '🖥️', 'social-media': '📱',
+};
 
-// ── 行业发布格式 ─────────────────────────────────────────────────────────
+// ── 行业发布格式（来自 ExportStore）────────────────────────────────────────
 const INDUSTRY_TABS = ['游戏', '文旅', '教育', '衍生'];
-const INDUSTRY_FORMATS: Record<string, { id: string; name: string; description: string; status: string; estimatedSize: string }[]> = {
-  '游戏': [
-    { id: 'game-webgal', name: 'WebGAL', description: '导出为 WebGAL 引擎脚本，支持 Web 平台运行', status: 'ready', estimatedSize: '2.4 MB' },
-    { id: 'game-h5', name: 'H5 包', description: '打包为独立 H5 应用，可通过链接直接访问', status: 'ready', estimatedSize: '12.6 MB' },
-    { id: 'game-json', name: 'JSON', description: '导出完整结构化 JSON 数据，便于二次开发', status: 'ready', estimatedSize: '856 KB' },
-    { id: 'game-engine', name: '引擎导出', description: '导出至 Unity/Godot 等游戏引擎', status: 'beta', estimatedSize: '18.5 MB' },
-  ],
-  '文旅': [
-    { id: 'tour-h5', name: 'H5 导览版', description: '适配移动端导览场景，支持 GPS 定位触发', status: 'ready', estimatedSize: '8.2 MB' },
-    { id: 'tour-wechat', name: '微信小程序包', description: '打包为微信小程序，支持馆内扫码体验', status: 'ready', estimatedSize: '6.5 MB' },
-    { id: 'tour-screen', name: '馆内屏幕版', description: '适配大屏触控交互，用于展厅固定设备', status: 'beta', estimatedSize: '15.3 MB' },
-    { id: 'tour-ar', name: 'AR 标记版', description: '基于 AR 标记触发的增强现实互动体验', status: 'alpha', estimatedSize: '22.1 MB' },
-    { id: 'tour-offline', name: '离线导览版', description: '支持离线运行的导览包，适用于无网络环境', status: 'ready', estimatedSize: '35.8 MB' },
-  ],
-  '教育': [
-    { id: 'edu-classroom', name: '课堂演示包', description: '适配课堂投屏场景，教师控制进度', status: 'ready', estimatedSize: '5.4 MB' },
-    { id: 'edu-scorm', name: 'SCORM 课件', description: '符合 SCORM 2004 标准，可导入主流 LMS', status: 'ready', estimatedSize: '7.8 MB' },
-    { id: 'edu-lti', name: 'LTI 集成', description: '支持 LTI 1.3 协议，无缝对接学习平台', status: 'beta', estimatedSize: '1.2 MB' },
-    { id: 'edu-report', name: '学习报告模板', description: '导出学习进度报告模板，支持数据分析', status: 'ready', estimatedSize: '320 KB' },
-    { id: 'edu-selfstudy', name: '自学链接', description: '生成独立学习链接，学生自主完成互动课程', status: 'ready', estimatedSize: '4.6 MB' },
-  ],
-  '衍生': [
-    { id: 'spin-player', name: '互动短剧播放器', description: '独立播放器应用，支持多平台分发', status: 'ready', estimatedSize: '9.8 MB' },
-    { id: 'spin-h5', name: 'H5 互动播放', description: '轻量级 H5 互动播放页面，适合社交传播', status: 'ready', estimatedSize: '6.2 MB' },
-    { id: 'spin-iframe', name: '平台嵌入 iframe', description: '生成可嵌入的 iframe 代码，适配第三方平台', status: 'ready', estimatedSize: '0.8 MB' },
-    { id: 'spin-social', name: '社交媒体短版', description: '精简为 60 秒互动短片，适配短视频平台', status: 'beta', estimatedSize: '3.5 MB' },
-    { id: 'spin-live', name: '互动直播版', description: '支持直播间互动投票和分支选择', status: 'alpha', estimatedSize: '11.2 MB' },
-  ],
+const INDUSTRY_MAP: Record<string, 'game' | 'tourism' | 'education' | 'derivative'> = {
+  '游戏': 'game', '文旅': 'tourism', '教育': 'education', '衍生': 'derivative',
 };
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
@@ -120,6 +46,17 @@ export default function PublishScreen() {
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const engineExportConfigs = useNarrativeStore(s => s.engineExportConfigs);
   const addToast = useUIStore(s => s.addToast);
+
+  // ── Export Store selectors ──
+  const exportFormats = useExportStore(s => s.formats);
+  const getFormatsByIndustry = useExportStore(s => s.getFormatsByIndustry);
+  const runExport = useExportStore(s => s.runExport);
+  const recentJobs = useExportStore(s => s.getRecentJobs(10));
+
+  // 多端导出：只取主要格式（script + interactive + package 类别）
+  const mainExportFormats = exportFormats.filter(f =>
+    f.category === 'script' || f.category === 'interactive' || f.category === 'package' || f.category === 'document'
+  );
 
   // ── Tab 状态 ──
   const [activeTab, setActiveTab] = useState(0);
@@ -134,18 +71,28 @@ export default function PublishScreen() {
   const [engineExportStates, setEngineExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
   const [industryTab, setIndustryTab] = useState(0);
 
+  // 行业导出：按当前选中的行业筛选
+  const industryFormats = getFormatsByIndustry(
+    INDUSTRY_MAP[INDUSTRY_TABS[industryTab]] ?? 'game'
+  );
+
   // ── Handlers ──
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleExport = (formatId: string) => {
+  const handleExport = async (formatId: string) => {
     setExportStates((prev) => ({ ...prev, [formatId]: { status: 'exporting' } }));
-    setTimeout(() => {
+    try {
+      await runExport(formatId as any);
       setExportStates((prev) => ({ ...prev, [formatId]: { status: 'done' } }));
-      addToast({ type: 'success', title: '导出完成', message: `已成功导出 ${formatId} 格式` });
-    }, 2000);
+      const fmt = exportFormats.find(f => f.id === formatId);
+      addToast({ type: 'success', title: '导出完成', message: `已成功导出 ${fmt?.name ?? formatId} 格式` });
+    } catch {
+      setExportStates((prev) => ({ ...prev, [formatId]: { status: 'idle' } }));
+      addToast({ type: 'error', title: '导出失败', message: `${formatId} 导出过程中出错` });
+    }
   };
 
   const handleEngineExport = (engineId: string) => {
@@ -334,37 +281,40 @@ export default function PublishScreen() {
                 </div>
                 <div>
                   <h3 className="text-xs font-bold" style={{ color: S.text }}>多端导出</h3>
-                  <p className="text-[9px]" style={{ color: S.text3 }}>{EXPORT_FORMATS.length} 种导出格式</p>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>{mainExportFormats.length} 种导出格式</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {EXPORT_FORMATS.map((fmt) => {
+                {mainExportFormats.map((fmt) => {
                   const state = exportStates[fmt.id]?.status ?? 'idle';
+                  const icon = EXPORT_ICON_MAP[fmt.id] ?? '📄';
+                  const statusLabel = fmt.stability === 'stable' ? '就绪' : fmt.stability === 'beta' ? 'Beta' : 'Alpha';
+                  const statusColor = fmt.stability === 'stable' ? S.success : fmt.stability === 'beta' ? S.warning : S.error;
                   return (
                     <div key={fmt.id} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                       <div className="flex items-start justify-between mb-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">{fmt.icon}</span>
+                          <span className="text-base">{icon}</span>
                           <div>
                             <span className="text-[10px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
                             <div className="flex items-center gap-1 mt-0.5">
                               <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
-                                background: fmt.status === 'ready' ? `${S.success}12` : `${S.warning}12`,
-                                color: fmt.status === 'ready' ? S.success : S.warning,
+                                background: `${statusColor}12`,
+                                color: statusColor,
                               }}>
-                                {fmt.status === 'ready' ? '就绪' : 'Beta'}
+                                {statusLabel}
                               </span>
-                              <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.fileExtension}</span>
                             </div>
                           </div>
                         </div>
                       </div>
                       <p className="text-[9px] mb-1.5 leading-relaxed" style={{ color: S.text2 }}>{fmt.description}</p>
                       <div className="flex flex-wrap gap-1 mb-2">
-                        {fmt.features.map((feat) => (
-                          <span key={feat} className="text-[7px] px-1 py-0.5 rounded"
+                        {fmt.capabilities.slice(0, 5).map((cap) => (
+                          <span key={cap} className="text-[7px] px-1 py-0.5 rounded"
                             style={{ background: `${S.primary}08`, color: S.text3, border: `1px solid ${S.border}` }}>
-                            {feat}
+                            {cap}
                           </span>
                         ))}
                       </div>
@@ -403,15 +353,8 @@ export default function PublishScreen() {
                           <div className="flex items-center justify-between">
                             <span style={{ color: S.text3 }}>
                               <CheckCircle2 size={8} className="inline mr-1" style={{ color: S.success }} />
-                              ghost-protocol_{fmt.id}.{
-                                fmt.id === 'json' ? 'json' :
-                                fmt.id === 'webgal' ? 'txt' :
-                                fmt.id === 'renpy' ? 'rpy' :
-                                fmt.id === 'ink' ? 'ink' :
-                                fmt.id === 'h5-package' ? 'zip' : 'pdf'
-                              }
+                              export-{fmt.id}{fmt.fileExtension}
                             </span>
-                            <span className="font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
                           </div>
                           <button className="text-[8px] font-bold mt-1 focus:outline-none" style={{ color: S.primary }}>
                             <Download size={7} className="inline mr-0.5" />
@@ -456,21 +399,23 @@ export default function PublishScreen() {
               </div>
               {/* Format cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {(INDUSTRY_FORMATS[INDUSTRY_TABS[industryTab]] ?? []).map((fmt) => {
+                {industryFormats.map((fmt) => {
                   const fmtState = exportStates[fmt.id]?.status ?? 'idle';
+                  const fmtIcon = EXPORT_ICON_MAP[fmt.id] ?? '📄';
                   return (
                     <div key={fmt.id} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
+                          <span className="text-sm">{fmtIcon}</span>
                           <span className="text-[10px] font-bold" style={{ color: S.text }}>{fmt.name}</span>
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
-                            background: fmt.status === 'ready' ? `${S.success}12` : fmt.status === 'beta' ? `${S.warning}12` : `${S.error}12`,
-                            color: fmt.status === 'ready' ? S.success : fmt.status === 'beta' ? S.warning : S.error,
+                            background: fmt.stability === 'stable' ? `${S.success}12` : fmt.stability === 'beta' ? `${S.warning}12` : `${S.error}12`,
+                            color: fmt.stability === 'stable' ? S.success : fmt.stability === 'beta' ? S.warning : S.error,
                           }}>
-                            {fmt.status === 'ready' ? '就绪' : fmt.status === 'beta' ? 'Beta' : 'Alpha'}
+                            {fmt.stability === 'stable' ? '就绪' : fmt.stability === 'beta' ? 'Beta' : 'Alpha'}
                           </span>
                         </div>
-                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.estimatedSize}</span>
+                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{fmt.fileExtension}</span>
                       </div>
                       <p className="text-[9px] mb-1.5" style={{ color: S.text2 }}>{fmt.description}</p>
                       <motion.button

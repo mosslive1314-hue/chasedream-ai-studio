@@ -12,6 +12,10 @@ export interface GameCharacter {
   emoji: string;
   emotionStates: { label: string; done: boolean }[];
   visualPrompt: string;
+  /** 关联的角色造型衣柜 ID（换装系统） */
+  wardrobeId?: string;
+  /** 角色默认造型 ID */
+  defaultOutfitId?: string;
 }
 
 // ── 场景数据（统一）────────────────────────────────────────────────────────
@@ -86,4 +90,6 @@ export interface CharacterSceneAppearance {
   sceneId: string;
   role: 'main' | 'supporting' | 'background';
   nodeIds: string[];
+  /** 该出场使用的造型 ID（换装系统） */
+  outfitId?: string;
 }
