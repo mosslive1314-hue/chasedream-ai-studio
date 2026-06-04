@@ -280,6 +280,7 @@ export const useAnalyticsStore = create<AnalyticsState>()(
     {
       name: 'cd-analytics',
       storage: createJSONStorage(() => idbStorage),
+      skipHydration: true,
       partialize: (state) => ({
         sessions: state.sessions,
         choiceDistributions: state.choiceDistributions,

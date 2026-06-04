@@ -205,6 +205,7 @@ export const useExportStore = create<ExportState>()(
     {
       name: 'cd-exports',
       storage: createJSONStorage(() => idbStorage),
+      skipHydration: true,
       partialize: (state) => ({ jobs: state.jobs.slice(-20) }), // 只持久化最近 20 条任务
     }
   )

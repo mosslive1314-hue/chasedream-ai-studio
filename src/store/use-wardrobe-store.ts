@@ -285,6 +285,7 @@ export const useWardrobeStore = create<WardrobeState>()(
       name: 'cd-wardrobe',
       version: 1,
       storage: createJSONStorage(() => idbStorage),
+      skipHydration: true,
       migrate: () => seedState as any,
     },
   ),

@@ -213,6 +213,7 @@ export const useSkillStore = create<SkillState>()(
       name: 'cd-skills',
       version: 1,
       storage: createJSONStorage(() => idbStorage),
+      skipHydration: true,
       migrate: () => seedState as any,
     },
   ),

@@ -17,6 +17,7 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { EazoBannerHider } from "@/components/ui/EazoBannerHider";
 import { AgentPanel } from "@/components/ui/AgentPanel";
 import { SkillLibraryDrawer } from "@/components/ui/SkillLibraryDrawer";
+import { StoreHydrator } from "@/store/StoreHydrator";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -60,6 +61,8 @@ export default function RootLayout({
     <html lang="zh-CN" className={cn("h-full antialiased", inter.variable)}>
       <body className="min-h-svh flex flex-col" style={{ background: "var(--app-bg)" }}>
         <EazoProvider>
+          {/* Rehydrate Zustand persist stores from IndexedDB (client-only) */}
+          <StoreHydrator />
           <EazoBannerHider />
           <UserSyncEffect />
           {/* P13: Undo/Redo keyboard listener + auto-save tracking */}

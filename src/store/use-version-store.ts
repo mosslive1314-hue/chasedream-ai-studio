@@ -378,6 +378,7 @@ export const useVersionStore = create<VersionState>()(
     {
       name: 'cd-versions',
       storage: createJSONStorage(() => idbStorage),
+      skipHydration: true,
       partialize: (state) => ({
         snapshots: state.snapshots,
         branches: state.branches,
