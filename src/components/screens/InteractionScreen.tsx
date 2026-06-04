@@ -8,13 +8,14 @@ import {
   Eye, GitBranch, FlaskConical, BookOpen, Sparkles,
   Clock, AlertCircle, CircleCheck, CircleX, Link2,
   MessageCircle, Timer, Search, Gamepad2,
-  Crosshair, MousePointer, MapPin, Repeat, CircleDot, Keyboard,
+  Crosshair, MousePointer, MapPin, Repeat, CircleDot, Keyboard, Package, Pencil, Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
 import { pushTransfer } from "@/lib/data-flow-bridge";
+import ContextualActions from "@/components/ui/ContextualActions";
 import {
   type InteractionPoint, type InteractionOption,
   type ConsequenceChain, type ConsequenceTiming,
@@ -44,7 +45,7 @@ function emotionColor(v: number): { color: string; bg: string; label: string } {
 }
 
 // ── Tab types ────────────────────────────────────────────────────────────
-type ViewTab = "interactions" | "dialogue" | "consequences" | "timed" | "suggestions" | "qte" | "branches" | "variables" | "endings";
+type ViewTab = "interactions" | "dialogue" | "consequences" | "timed" | "suggestions" | "qte" | "branches" | "variables" | "endings" | "props";
 
 // ── Display style mapping for timed decisions ─────────────────────────────
 const TIMED_DISPLAY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -85,6 +86,8 @@ export default function InteractionScreen() {
   const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
   const qteConfigs = useNarrativeStore(s => s.qteConfigs);
   const hotspotConfigs = useNarrativeStore(s => s.hotspotConfigs);
+  const gameProps = useNarrativeStore(s => s.props);
+  const updateProp = useNarrativeStore(s => s.updateProp);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const variables = useNarrativeStore(s => s.variables);
@@ -96,6 +99,7 @@ export default function InteractionScreen() {
   const updateVariable = useNarrativeStore(s => s.updateVariable);
   const addVariable = useNarrativeStore(s => s.addVariable);
   const addToast = useUIStore(s => s.addToast);
+  const proMode = useUIStore(s => s.proMode);
 
   // ── Branch/Variable/Ending designer state ───────────────────────────
   const [branchSelectedNodeId, setBranchSelectedNodeId] = useState<string | null>(storyNodes[0]?.id ?? null);
@@ -253,13 +257,14 @@ export default function InteractionScreen() {
         <div className="flex items-center gap-1" style={{ borderBottom: `2px solid ${S.border}` }}>
           <TabButton active={activeTab === "interactions"} onClick={() => setActiveTab("interactions")} label="互动点设计" icon={<Zap size={14} />} />
           <TabButton active={activeTab === "dialogue"} onClick={() => setActiveTab("dialogue")} label="对话树" icon={<MessageCircle size={14} />} badge={dialogueTrees.length > 0 ? dialogueTrees.length : undefined} />
-          <TabButton active={activeTab === "consequences"} onClick={() => setActiveTab("consequences")} label="后果追踪" icon={<GitBranch size={14} />} badge={conseqStats.unresolved.length > 0 ? conseqStats.unresolved.length : undefined} />
-          <TabButton active={activeTab === "timed"} onClick={() => setActiveTab("timed")} label="限时选择" icon={<Timer size={14} />} badge={timedDecisions.length > 0 ? timedDecisions.length : undefined} />
-          <TabButton active={activeTab === "suggestions"} onClick={() => setActiveTab("suggestions")} label="设计建议" icon={<Sparkles size={14} />} />
-          <TabButton active={activeTab === "qte"} onClick={() => setActiveTab("qte")} label="QTE / 热区" icon={<Gamepad2 size={14} />} badge={qteConfigs.length + hotspotConfigs.length > 0 ? qteConfigs.length + hotspotConfigs.length : undefined} />
+          {proMode && <TabButton active={activeTab === "consequences"} onClick={() => setActiveTab("consequences")} label="后果追踪" icon={<GitBranch size={14} />} badge={conseqStats.unresolved.length > 0 ? conseqStats.unresolved.length : undefined} />}
+          {proMode && <TabButton active={activeTab === "timed"} onClick={() => setActiveTab("timed")} label="限时选择" icon={<Timer size={14} />} badge={timedDecisions.length > 0 ? timedDecisions.length : undefined} />}
+          {proMode && <TabButton active={activeTab === "suggestions"} onClick={() => setActiveTab("suggestions")} label="设计建议" icon={<Sparkles size={14} />} />}
+          {proMode && <TabButton active={activeTab === "qte"} onClick={() => setActiveTab("qte")} label="QTE / 热区" icon={<Gamepad2 size={14} />} badge={qteConfigs.length + hotspotConfigs.length > 0 ? qteConfigs.length + hotspotConfigs.length : undefined} />}
           <TabButton active={activeTab === "branches"} onClick={() => setActiveTab("branches")} label="分支设计" icon={<GitBranch size={14} />} badge={nodeEdges.length > 0 ? nodeEdges.length : undefined} />
           <TabButton active={activeTab === "variables"} onClick={() => setActiveTab("variables")} label="变量管理" icon={<Sliders size={14} />} badge={variables.length > 0 ? variables.length : undefined} />
           <TabButton active={activeTab === "endings"} onClick={() => setActiveTab("endings")} label="结局设计" icon={<Target size={14} />} badge={storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length > 0 ? storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length : undefined} />
+          <TabButton active={activeTab === "props"} onClick={() => setActiveTab("props")} label="道具管理" icon={<Package size={14} />} badge={gameProps.length > 0 ? gameProps.length : undefined} />
         </div>
 
         {/* ════════════ TAB: Interaction Points ════════════ */}
@@ -2006,9 +2011,95 @@ export default function InteractionScreen() {
               </motion.div>
             );
           })()}
+
+          {/* ── Props Management Tab ───────────────────────────────────── */}
+          {activeTab === "props" && (
+            <motion.div key="props" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+              {/* Props header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold" style={{ color: S.text }}>道具管理</h3>
+                  <p className="text-[10px]" style={{ color: S.text3 }}>管理游戏道具及其与节点/变量的绑定关系</p>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ background: `${S.accent}12`, color: S.accent }}>
+                  {gameProps.length} 个道具
+                </span>
+              </div>
+
+              {/* Props list */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {gameProps.map(prop => {
+                  const propTypeLabels: Record<string, string> = {
+                    key_item: "关键道具", tool: "工具", weapon: "武器", consumable: "消耗品",
+                  };
+                  const refNodeLabels = prop.refNodes?.map(nid => storyNodes.find(n => n.id === nid)?.label || nid) || [];
+                  return (
+                    <div key={prop.id} className="rounded-xl p-4 space-y-2"
+                      style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                            style={{ background: `${S.warning}12` }}>
+                            <Package size={13} style={{ color: S.warning }} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-bold" style={{ color: S.text }}>{prop.name}</p>
+                            <p className="text-[8px]" style={{ color: S.text3 }}>
+                              {propTypeLabels[prop.type] || prop.type}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: `${S.primary}08`, color: S.primary }}>
+                          影响 {prop.refNodes?.length || 0} 节点
+                        </span>
+                      </div>
+                      <p className="text-[9px] leading-relaxed" style={{ color: S.text2 }}>
+                        {prop.description || "暂无描述"}
+                      </p>
+                      {/* Referenced nodes */}
+                      {refNodeLabels.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {refNodeLabels.map(label => (
+                            <span key={label} className="text-[7px] px-1.5 py-0.5 rounded font-medium"
+                              style={{ background: S.s2, color: S.text3 }}>
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Variable binding (via gameplay effect) */}
+                      {prop.gameplayEffect && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[7px] font-bold" style={{ color: S.accent }}>游戏效果:</span>
+                          <span className="text-[8px]" style={{ color: S.text2 }}>
+                            {prop.gameplayEffect}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {gameProps.length === 0 && (
+                <div className="text-center py-12">
+                  <Package size={28} style={{ color: S.text3 }} className="mx-auto mb-2" />
+                  <p className="text-xs" style={{ color: S.text3 }}>暂无道具数据</p>
+                  <p className="text-[9px] mt-1" style={{ color: S.text3 }}>请在剧本解构页中提取道具，或从资产页同步</p>
+                </div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
 
       </div>
+
+      <ContextualActions actions={[
+        { icon: GitBranch, label: "添加分支", onClick: () => { if (branchSelectedNodeId) { addEdge({ from: branchSelectedNodeId, to: storyNodes[0]?.id || "", label: "新分支", edgeType: "causal" }); } } },
+        { icon: Sliders, label: "变量管理", onClick: () => setActiveTab("variables") },
+        { icon: ArrowRight, label: "前往节点编辑", href: "/nodes" },
+      ]} />
 
       {/* Next Step Navigation */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between" style={{ borderTopColor: S.border }}>

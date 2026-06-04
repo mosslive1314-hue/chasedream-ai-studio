@@ -17,6 +17,7 @@ import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
 import { pushTransfer } from "@/lib/data-flow-bridge";
+import ContextualActions from "@/components/ui/ContextualActions";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -927,13 +928,14 @@ export default function CinematicEditorScreen() {
           </div>
         )}
       </div>
+      <ContextualActions actions={[
+        { icon: Plus, label: "添加镜头", onClick: () => addShot(storyNodes[0]?.id || "") },
+        { icon: Play, label: "演出预览", href: "/simulator" },
+        { icon: ArrowRight, label: "前往节点编辑", href: "/nodes" },
+      ]} />
     </div>
   );
 }
-
-// ══════════════════════════════════════════════════════════════════════════
-// Section Card wrapper
-// ══════════════════════════════════════════════════════════════════════════
 function SectionCard({ icon, title, color, bg, children }: {
   icon: React.ReactNode; title: string; color: string; bg: string; children: React.ReactNode;
 }) {

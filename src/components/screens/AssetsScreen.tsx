@@ -95,6 +95,7 @@ export default function AssetsScreen() {
   const industry = useUIStore(s => s.industry);
   const setIndustry = useUIStore(s => s.setIndustry);
   const addToast = useUIStore(s => s.addToast);
+  const proMode = useUIStore(s => s.proMode);
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "image";
 
@@ -321,7 +322,8 @@ export default function AssetsScreen() {
           </div>
         </div>
 
-        {/* ── 资产管理面板（可折叠）── */}
+        {/* ── 资产管理面板（可折叠，仅专业模式）── */}
+        {proMode && (
         <div className="shrink-0" style={{ borderBottom: `1px solid ${S.border}` }}>
           <motion.button whileTap={{ scale: 0.995 }}
             onClick={() => setMgmtPanelOpen(v => !v)}
@@ -489,6 +491,7 @@ export default function AssetsScreen() {
             )}
           </AnimatePresence>
         </div>
+        )}
 
         {/* ── 主内容区 ── */}
         <div className="flex-1 overflow-hidden flex">

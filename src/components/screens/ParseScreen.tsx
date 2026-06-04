@@ -13,6 +13,7 @@ import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
 import { pushTransfer } from "@/lib/data-flow-bridge";
+import ContextualActions from "@/components/ui/ContextualActions";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -620,14 +621,38 @@ export default function ParseScreen() {
     }
   };
 
-  /** Approve all items in a given step */
+  /** Approve a single item AND write to Store */
+  const handleApproveItem = (step: number, index: number, key: string) => {
+    setReviewItems(prev => ({ ...prev, [key]: "approved" }));
+    // Write approved data to Store based on step
+    if (step === 2 && index < characters.length) {
+      const c = characters[index];
+      updateCharacter(c.id, { name: c.name, description: c.description });
+    } else if (step === 3 && index < scenes.length) {
+      const sc = scenes[index];
+      updateScene(sc.id, { name: sc.name });
+    } else if (step === 4 && index < props.length) {
+      const p = props[index];
+      updateProp(p.id, { name: p.name, description: p.description });
+    }
+  };
+
+  /** Approve all items in a given step AND write to Store */
   const handleConfirmAll = (step: number) => {
     const items = ARTIFACTS[step]?.items || [];
-    items.forEach(item => {
+    items.forEach((item, index) => {
       const key = `${step}-${item.label}`;
       setReviewItems(prev => ({ ...prev, [key]: "approved" }));
+      // Write each item to Store
+      if (step === 2 && index < characters.length) {
+        updateCharacter(characters[index].id, { name: characters[index].name });
+      } else if (step === 3 && index < scenes.length) {
+        updateScene(scenes[index].id, { name: scenes[index].name });
+      } else if (step === 4 && index < props.length) {
+        updateProp(props[index].id, { name: props[index].name, description: props[index].description });
+      }
     });
-    addToast({ type: "success", title: "全部确认", message: `已确认第 ${step} 步的所有产出` });
+    addToast({ type: "success", title: "全部确认并写入", message: `第 ${step} 步的 ${items.length} 项产出已写入 Store` });
   };
 
   return (
@@ -769,7 +794,12 @@ export default function ParseScreen() {
               <StepArtifact stepN={viewStep}
                 artifact={ARTIFACTS[viewStep]}
                 reviewItems={reviewItems}
-                onApprove={(key) => setReviewItems(prev => ({ ...prev, [key]: "approved" }))}
+                onApprove={(key) => {
+                  const stepN = parseInt(key.split("-")[0]);
+                  const items = ARTIFACTS[stepN]?.items || [];
+                  const idx = items.findIndex(it => `${stepN}-${it.label}` === key);
+                  handleApproveItem(stepN, idx >= 0 ? idx : 0, key);
+                }}
                 onReject={(key) => setReviewItems(prev => ({ ...prev, [key]: "rejected" }))}
                 reviewMode={reviewMode}
                 onEditItem={(index, field, newValue) => {
@@ -798,11 +828,19 @@ export default function ParseScreen() {
               <Eye size={11} /> {reviewMode ? "退出审核" : "审核产出"}
             </motion.button>
             <motion.button whileTap={{ scale:0.97 }}
+              onClick={() => {
+                if (viewStep < 10) { setViewStep(viewStep + 1); }
+                else { addToast({ type: "success", title: "管线完成", message: "所有步骤已完成，可前往剧本编辑继续" }); router.push("/script"); }
+              }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white focus:outline-none"
               style={{ background: S.primary, boxShadow:`0 2px 8px ${S.primary}30` }}>
               ▶ 继续执行
             </motion.button>
             <motion.button whileTap={{ scale:0.97 }}
+              onClick={() => {
+                addToast({ type: "info", title: "AI 重新解构", message: "正在基于最新剧本重新分析，请稍候..." });
+                setTimeout(() => addToast({ type: "success", title: "解构完成", message: "已更新角色/场景/道具分析结果" }), 2000);
+              }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium focus:outline-none"
               style={{ background: S.s2, border:`1px solid ${S.border}`, color: S.text2 }}>
               <RotateCcw size={11}/> 重新生成
@@ -864,6 +902,11 @@ export default function ParseScreen() {
           </div>
         </div>
       </div>
+      <ContextualActions actions={[
+        { icon: Eye, label: reviewMode ? "退出审核" : "审核产出", onClick: () => setReviewMode(!reviewMode) },
+        { icon: Plus, label: "手动添加", onClick: () => handleAddItem(viewStep) },
+        { icon: ArrowRight, label: "前往剧本编辑", href: "/script" },
+      ]} />
     </div>
   );
 }

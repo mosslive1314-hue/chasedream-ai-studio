@@ -250,6 +250,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
   const updateNode = useNarrativeStore(state => state.updateNode);
   const addEdge = useNarrativeStore(state => state.addEdge);
   const removeEdge = useNarrativeStore(state => state.removeEdge);
+  const proMode = useUIStore(s => s.proMode);
 
   const filteredNodes = storyNodes.filter(node => {
     if (nodeFilter === "all") return true;
@@ -494,7 +495,8 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
         </motion.button>
       </div>
 
-      {/* ── 路径测试按钮 ── */}
+      {/* ── 路径测试按钮（专业模式） ── */}
+      {proMode && (
       <div className="absolute top-3 z-20" style={{ right: 118 }}>
         <motion.button whileTap={{ scale:0.97 }}
           onClick={(e) => { e.stopPropagation(); setPathTesterOpen(!pathTesterOpen); }}
@@ -508,6 +510,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
           <Route size={12} /> 路径测试
         </motion.button>
       </div>
+      )}
 
       {/* ── 多选浮动操作栏 ── */}
       <AnimatePresence>
@@ -3360,6 +3363,7 @@ export default function NodesScreen() {
   const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [diagView, setDiagView] = useState<DiagView>('all');
   const addToast = useUIStore(s => s.addToast);
+  const proMode = useUIStore(s => s.proMode);
   const selectedNode = sel ? storyNodes.find(n => n.id === sel) ?? null : null;
 
   // ── Tension curve for emotion rhythm bar ──

@@ -109,6 +109,11 @@ export default function AssetLibraryScreen() {
   // ── New: delete confirmation ──
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // ── Cross-filter state ──
+  const [filterByCharacter, setFilterByCharacter] = useState<string>("all");
+  const [filterByScene, setFilterByScene] = useState<string>("all");
+  const [filterByNode, setFilterByNode] = useState<string>("all");
+
   // ── Store selectors ──
   const gameCharacters = useNarrativeStore(s => s.characters);
   const gameScenes = useNarrativeStore(s => s.scenes);
@@ -195,7 +200,11 @@ export default function AssetLibraryScreen() {
     const filtered = allAssets.filter(a => {
       const matchesFilter = activeFilter === "all" || a.type === activeFilter;
       const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesFilter && matchesSearch;
+      // Cross-filters by character/scene/node
+      const matchesChar = filterByCharacter === "all" || a.id.startsWith(`char-${filterByCharacter}`);
+      const matchesScene = filterByScene === "all" || a.id.startsWith(`scene-${filterByScene}`);
+      const matchesNode = filterByNode === "all" || a.id.startsWith(`node-${filterByNode}`) || a.id.includes(filterByNode);
+      return matchesFilter && matchesSearch && matchesChar && matchesScene && matchesNode;
     });
     return filtered.sort((a, b) => {
       let cmp = 0;
@@ -439,6 +448,36 @@ export default function AssetLibraryScreen() {
 
           {/* Divider */}
           <div className="w-px h-4 mx-1" style={{ background: S.border }} />
+
+          {/* Cross-filter dropdowns */}
+          <div className="flex items-center gap-1.5">
+            <select value={filterByCharacter} onChange={e => setFilterByCharacter(e.target.value)}
+              className="text-[9px] px-2 py-1 rounded-lg font-bold focus:outline-none cursor-pointer"
+              style={{ background: filterByCharacter !== "all" ? `${S.accent}12` : S.s2, color: filterByCharacter !== "all" ? S.accent : S.text3, border: `1px solid ${filterByCharacter !== "all" ? `${S.accent}30` : S.border}` }}>
+              <option value="all">全部角色</option>
+              {gameCharacters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select value={filterByScene} onChange={e => setFilterByScene(e.target.value)}
+              className="text-[9px] px-2 py-1 rounded-lg font-bold focus:outline-none cursor-pointer"
+              style={{ background: filterByScene !== "all" ? `${S.primary}12` : S.s2, color: filterByScene !== "all" ? S.primary : S.text3, border: `1px solid ${filterByScene !== "all" ? `${S.primary}30` : S.border}` }}>
+              <option value="all">全部场景</option>
+              {gameScenes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={filterByNode} onChange={e => setFilterByNode(e.target.value)}
+              className="text-[9px] px-2 py-1 rounded-lg font-bold focus:outline-none cursor-pointer"
+              style={{ background: filterByNode !== "all" ? `${S.warning}12` : S.s2, color: filterByNode !== "all" ? S.warning : S.text3, border: `1px solid ${filterByNode !== "all" ? `${S.warning}30` : S.border}` }}>
+              <option value="all">全部节点</option>
+              {storyNodes.slice(0, 20).map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+            </select>
+            {(filterByCharacter !== "all" || filterByScene !== "all" || filterByNode !== "all") && (
+              <motion.button whileTap={{ scale: 0.95 }}
+                onClick={() => { setFilterByCharacter("all"); setFilterByScene("all"); setFilterByNode("all"); }}
+                className="text-[8px] px-1.5 py-0.5 rounded font-bold focus:outline-none"
+                style={{ color: S.error, background: `${S.error}10` }}>
+                清除筛选
+              </motion.button>
+            )}
+          </div>
 
           {/* Storage */}
           <div className="flex items-center gap-2 ml-auto">

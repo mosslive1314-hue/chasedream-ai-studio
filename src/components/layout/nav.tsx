@@ -79,7 +79,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "资产", labelKey: "asset", icon: Package,
     industryLabels: { game: "资产", tourism: "资产", education: "资产", derivative: "资产" },
-    items: [NAV[6], NAV[7], NAV[8], NAV[9]],  // 文本, 图片, 音频, 视频
+    items: [NAV[6], NAV[7], NAV[8], NAV[9],
+      { href: "/asset-library", icon: Database, label: "资产库" }],  // 文本, 图片, 音频, 视频, 资产库
   },
   {
     label: "交付", labelKey: "delivery", icon: Rocket,
@@ -90,7 +91,6 @@ const NAV_GROUPS: NavGroup[] = [
 
 // ── Bottom utility tools (below main nav groups) ────────────────────────
 const BOTTOM_TOOLS: NavItem[] = [
-  { href: "/asset-library", icon: Database,   label: "资产库" },
   { href: "/collab",        icon: Users,      label: "协作" },
   { href: "/version",       icon: GitCompare, label: "版本管理" },
 ];

@@ -17,6 +17,7 @@ import { useNarrativeStore, useUIStore, useSettingsStore, useProjectStore, useAn
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
+import { AIService } from "@/lib/ai";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -64,6 +65,13 @@ interface AISuggestion {
 
 function AIAssistantPanel() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const apiKeys = useSettingsStore(s => s.apiKeys);
+  const aiModel = useSettingsStore(s => s.aiModel);
+  const apiBaseUrl = useSettingsStore(s => s.apiBaseUrl);
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const worldRules = useNarrativeStore(s => s.worldRules);
+  const addToast = useUIStore(s => s.addToast);
 
   // ── Store selectors ─────────────────────────────────────────────────
   const storyNodes = useNarrativeStore(s => s.storyNodes);
@@ -328,15 +336,39 @@ function AIAssistantPanel() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => toast("AI 分析功能即将上线")}
+                    disabled={aiLoading === 'analyze'}
+                    onClick={async () => {
+                      setAiLoading('analyze');
+                      try {
+                        const ai = AIService.fromSettings({ apiKeys, aiModel, apiBaseUrl });
+                        const result = await ai.checkConsistency({
+                          projectName,
+                          worldRules: worldRules.map(r => r.description || r.id),
+                          newContent: storyNodes.map(n => n.label).join(', '),
+                          characters: characters.map(c => ({ name: c.name, role: c.role || '', description: c.description || '' })),
+                          existingNodes: storyNodes.map(n => n.id),
+                        });
+                        const issues = result.data || [];
+                        if (issues.length === 0) {
+                          addToast({ type: "success", title: "AI 分析完成", message: "项目状态良好，未发现明显问题" });
+                        } else {
+                          addToast({ type: "warning", title: `AI 发现 ${issues.length} 个问题`, message: issues.slice(0, 2).map((i: { description?: string; issue?: string }) => i.description || i.issue || '未知问题').join('；') });
+                        }
+                      } catch { addToast({ type: "error", title: "AI 分析失败", message: "请检查 AI 模型配置和 API Key" }); }
+                      setAiLoading(null);
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold text-white focus:outline-none"
-                    style={{ background: S.primary, boxShadow: `0 2px 6px ${S.primary}25` }}
+                    style={{ background: S.primary, boxShadow: `0 2px 6px ${S.primary}25`, opacity: aiLoading === 'analyze' ? 0.6 : 1 }}
                   >
-                    <Sparkles size={10} /> AI 分析项目
+                    <Sparkles size={10} /> {aiLoading === 'analyze' ? '分析中...' : 'AI 分析项目'}
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => toast("进度报告功能即将上线")}
+                    onClick={() => {
+                      const endingCount = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length;
+                      const report = `项目健康度: ${healthScore}%\n角色: ${characters.length} | 场景: ${scenes.length} | 节点: ${storyNodes.length}\n连线: ${nodeEdges.length} | 分支: ${branchPaths.length} | 结局: ${endingCount}`;
+                      addToast({ type: "info", title: "项目进度报告", message: report });
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
                     style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}
                   >
@@ -344,11 +376,29 @@ function AIAssistantPanel() {
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => toast("一致性检查功能即将上线")}
+                    disabled={aiLoading === 'check'}
+                    onClick={async () => {
+                      setAiLoading('check');
+                      try {
+                        const ai = AIService.fromSettings({ apiKeys, aiModel, apiBaseUrl });
+                        const result = await ai.checkConsistency({
+                          projectName,
+                          worldRules: worldRules.map(r => r.description || r.id),
+                          newContent: storyNodes.map(n => n.label).join(', '),
+                          characters: characters.map(c => ({ name: c.name, role: c.role || '', description: c.description || '' })),
+                          existingNodes: storyNodes.map(n => n.id),
+                        });
+                        const issues = result.data || [];
+                        const errors = issues.filter((i: { severity?: string }) => i.severity === 'error').length;
+                        const warnings = issues.filter((i: { severity?: string }) => i.severity === 'warning').length;
+                        addToast({ type: errors > 0 ? "error" : "success", title: "一致性检查完成", message: `${errors} 个错误, ${warnings} 个警告` });
+                      } catch { addToast({ type: "error", title: "检查失败", message: "请检查 AI 模型配置" }); }
+                      setAiLoading(null);
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
-                    style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}
+                    style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}`, opacity: aiLoading === 'check' ? 0.6 : 1 }}
                   >
-                    <Target size={10} /> 检查一致性
+                    <Target size={10} /> {aiLoading === 'check' ? '检查中...' : '检查一致性'}
                   </motion.button>
                   <Link href={nextStep.page}>
                     <motion.span
