@@ -72,13 +72,33 @@ export default function OverviewScreen() {
   const narrativeIntents = useNarrativeStore(s => s.narrativeIntents);
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
 
-  // ── Analytics Store selectors ──
+  // ── Analytics Store selectors (avoid method-style selectors — they cause infinite re-renders) ──
   const analyticsSessions = useAnalyticsStore(s => s.sessions);
-  const completionRate = useAnalyticsStore(s => s.getCompletionRate());
-  const avgDuration = useAnalyticsStore(s => s.getAvgSessionDuration());
-  const topEnding = useAnalyticsStore(s => s.getTopEnding());
   const choiceDistributions = useAnalyticsStore(s => s.choiceDistributions);
   const funnels = useAnalyticsStore(s => s.funnels);
+
+  // Compute analytics metrics locally from raw state (prevents infinite re-render loop)
+  const completionRate = useMemo(() => {
+    if (analyticsSessions.length === 0) return 0;
+    const completed = analyticsSessions.filter(s => !s.abandoned).length;
+    return completed / analyticsSessions.length;
+  }, [analyticsSessions]);
+
+  const avgDuration = useMemo(() => {
+    if (analyticsSessions.length === 0) return 0;
+    return analyticsSessions.reduce((sum, s) => sum + s.duration, 0) / analyticsSessions.length;
+  }, [analyticsSessions]);
+
+  const topEnding = useMemo(() => {
+    if (analyticsSessions.length === 0) return null;
+    const endingCounts = new Map<string, number>();
+    analyticsSessions.forEach(s => {
+      if (s.endingReached) endingCounts.set(s.endingReached, (endingCounts.get(s.endingReached) ?? 0) + 1);
+    });
+    if (endingCounts.size === 0) return null;
+    const [id, count] = [...endingCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { id, name: id, count };
+  }, [analyticsSessions]);
 
   // ── P12-#22: Dynamic STATS from store ──────────────────────────────────
   const stats = useMemo(() => {
