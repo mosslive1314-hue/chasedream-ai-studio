@@ -369,6 +369,107 @@ function AIAssistantPanel() {
   );
 }
 
+// ── E2: Progressive Disclosure Summary ──────────────────────────────────────
+function ProgressiveSummary({ projectName, characterCount, sceneCount, nodeCount, endingCount, variableCount }: {
+  projectName: string; characterCount: number; sceneCount: number; nodeCount: number; endingCount: number; variableCount: number;
+}) {
+  const viewMode = useUIStore(s => s.viewMode);
+  const setViewMode = useUIStore(s => s.setViewMode);
+
+  // Compute completion score
+  const targets = { characters: 3, scenes: 3, nodes: 10, endings: 2, variables: 2 };
+  const scores = [
+    Math.min(characterCount / targets.characters, 1),
+    Math.min(sceneCount / targets.scenes, 1),
+    Math.min(nodeCount / targets.nodes, 1),
+    Math.min(endingCount / targets.endings, 1),
+    Math.min(variableCount / targets.variables, 1),
+  ];
+  const overallScore = Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100);
+  const scoreColor = overallScore < 40 ? S.error : overallScore < 70 ? S.warning : S.success;
+
+  // Determine the most urgent next step
+  const nextStep = characterCount < targets.characters ? "完善角色设定"
+    : nodeCount < targets.nodes ? "设计更多故事节点"
+    : endingCount < targets.endings ? "添加结局节点"
+    : variableCount < targets.variables ? "配置追踪变量"
+    : "进入资产生成阶段";
+  const nextHref = characterCount < targets.characters ? "/parse"
+    : nodeCount < targets.nodes ? "/nodes"
+    : endingCount < targets.endings ? "/nodes"
+    : variableCount < targets.variables ? "/interaction"
+    : "/assets";
+
+  return (
+    <motion.div layout className="rounded-xl overflow-hidden mb-3"
+      style={{ background: S.card, border: `1px solid ${S.border}` }}>
+      <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: viewMode === "expanded" ? `1px solid ${S.border}` : "none" }}>
+        <div className="flex items-center gap-3">
+          {/* Score pill */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: `${scoreColor}10` }}>
+            <div className="w-2 h-2 rounded-full" style={{ background: scoreColor }} />
+            <span className="text-[10px] font-bold" style={{ color: scoreColor }}>{overallScore}%</span>
+          </div>
+          {/* One-line AI summary */}
+          <p className="text-[10px]" style={{ color: S.text2 }}>
+            <span className="font-bold" style={{ color: S.text }}>{projectName}</span>
+            {" — "}
+            {overallScore < 40 ? "项目初始阶段，建议先完善基础设定" :
+             overallScore < 70 ? "核心框架已建立，仍有优化空间" :
+             "项目基本完整，可进入下一阶段"}
+          </p>
+        </div>
+        {/* View mode toggle */}
+        <motion.button whileTap={{ scale: 0.95 }}
+          onClick={() => setViewMode(viewMode === "simple" ? "expanded" : "simple")}
+          className="text-[9px] px-2.5 py-1 rounded-lg font-bold focus:outline-none"
+          style={{
+            background: viewMode === "expanded" ? `${S.primary}10` : S.s2,
+            color: viewMode === "expanded" ? S.primary : S.text3,
+            border: `1px solid ${viewMode === "expanded" ? `${S.primary}25` : S.border}`,
+          }}>
+          {viewMode === "expanded" ? "收起详情" : "展开详情"}
+        </motion.button>
+      </div>
+      {/* Expanded: detailed metrics */}
+      {viewMode === "expanded" && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0 }}
+          className="px-4 py-3">
+          <div className="grid grid-cols-5 gap-2 mb-3">
+            {[
+              { label: "角色", value: characterCount, target: targets.characters },
+              { label: "场景", value: sceneCount, target: targets.scenes },
+              { label: "节点", value: nodeCount, target: targets.nodes },
+              { label: "结局", value: endingCount, target: targets.endings },
+              { label: "变量", value: variableCount, target: targets.variables },
+            ].map(m => (
+              <div key={m.label} className="text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <span className="text-sm font-bold font-mono" style={{ color: S.text }}>{m.value}</span>
+                  <span className="text-[8px]" style={{ color: S.text3 }}>/ {m.target}</span>
+                </div>
+                <div className="h-1 rounded-full overflow-hidden mx-auto" style={{ background: S.s2, maxWidth: 60 }}>
+                  <div className="h-full rounded-full" style={{
+                    width: `${Math.min(m.value / m.target * 100, 100)}%`,
+                    background: m.value >= m.target ? S.success : S.primary,
+                  }} />
+                </div>
+                <span className="text-[8px]" style={{ color: S.text3 }}>{m.label}</span>
+              </div>
+            ))}
+          </div>
+          {/* Next step */}
+          <Link href={nextHref}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold"
+            style={{ background: `${S.accent}08`, color: S.accent, border: `1px solid ${S.accent}20` }}>
+            <ArrowRight size={10} /> 下一步: {nextStep}
+          </Link>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function OverviewScreen() {
@@ -727,6 +828,16 @@ export default function OverviewScreen() {
 
         {/* ── AI 制作助手 ── */}
         <AIAssistantPanel />
+
+        {/* ── E2: Progressive Disclosure Banner ── */}
+        <ProgressiveSummary
+          projectName={projectName}
+          characterCount={characters.length}
+          sceneCount={scenes.length}
+          nodeCount={storyNodes.length}
+          endingCount={storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length}
+          variableCount={variables.length}
+        />
 
         {/* ═══════════════════ TAB 0: 项目概览 ═══════════════════ */}
         <AnimatePresence mode="wait">

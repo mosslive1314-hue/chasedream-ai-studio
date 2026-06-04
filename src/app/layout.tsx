@@ -17,6 +17,8 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { EazoBannerHider } from "@/components/ui/EazoBannerHider";
 import { AgentPanel } from "@/components/ui/AgentPanel";
 import { SkillLibraryDrawer } from "@/components/ui/SkillLibraryDrawer";
+import AIChatPanel from "@/components/ui/AIChatPanel";
+import { ProModeToggle } from "@/components/ui/ProModeToggle";
 import { StoreHydrator } from "@/store/StoreHydrator";
 import { ProjectSwitcher } from "@/store/ProjectSwitcher";
 
@@ -95,6 +97,10 @@ export default function RootLayout({
           <AgentPanel />
           {/* Global Skill Library Drawer — Cmd+Shift+K to toggle */}
           <SkillLibraryDrawer />
+          {/* Phase E: AI Chat Panel — Cmd+L to toggle */}
+          <AIChatPanel />
+          {/* Phase E: Pro Mode Toggle floating button */}
+          <ProModeToggle />
         </EazoProvider>
       </body>
     </html>

@@ -32,6 +32,16 @@ interface UIState {
   // Auto-save status
   saveStatus: 'saved' | 'saving' | 'unsaved';
   setSaveStatus: (status: 'saved' | 'saving' | 'unsaved') => void;
+
+  // ── Phase E: Progressive Disclosure + Pro Mode ──
+  viewMode: 'simple' | 'expanded';
+  setViewMode: (mode: 'simple' | 'expanded') => void;
+  proMode: boolean;
+  toggleProMode: () => void;
+
+  // ── Phase E: AI Chat Panel ──
+  aiChatOpen: boolean;
+  toggleAiChat: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -43,6 +53,9 @@ export const useUIStore = create<UIState>()(
       selectedNodeId: null,
       toasts: [],
       saveStatus: 'saved' as const,
+      viewMode: 'simple' as const,
+      proMode: false,
+      aiChatOpen: false,
 
       // --- Industry ---
       setIndustry: (industry) => {
@@ -86,6 +99,19 @@ export const useUIStore = create<UIState>()(
       // --- Auto-save status ---
       setSaveStatus: (status) => {
         set({ saveStatus: status });
+      },
+
+      // --- Phase E: View mode + Pro mode ---
+      setViewMode: (mode) => {
+        set({ viewMode: mode });
+      },
+      toggleProMode: () => {
+        set(state => ({ proMode: !state.proMode }));
+      },
+
+      // --- Phase E: AI Chat ---
+      toggleAiChat: () => {
+        set(state => ({ aiChatOpen: !state.aiChatOpen }));
       },
     }),
     {

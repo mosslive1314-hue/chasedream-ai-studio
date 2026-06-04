@@ -11,7 +11,7 @@ import {
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings, Link2, MapPin, MessageSquare,
   Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
-  Users, Clock, Lock
+  Users, Clock, Lock, Palette
 } from "lucide-react";
 import Link from "next/link";
 import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
@@ -20,6 +20,7 @@ import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 import ContextualActions from "@/components/ui/ContextualActions";
+import { ThemeSystem } from "@/components/ui/ThemeSystem";
 
 const S = {
   bg:      "#F5F6FA",
@@ -1330,6 +1331,7 @@ function UIContent() {
   const [showAuto, setShowAuto] = useState(gameUISettings.showAutoPlay);
   const [showSave, setShowSave] = useState(gameUISettings.showSaveLoad);
   const [toast, setToast] = useState<string | null>(null);
+  const [themePanelOpen, setThemePanelOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -1879,6 +1881,31 @@ function UIContent() {
                       保存修改
                     </motion.button>
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* 主题配色 */}
+          <div className="px-3 py-3 border-t" style={{ borderColor: S.border }}>
+            <motion.button whileTap={{ scale: 0.98 }}
+              onClick={() => setThemePanelOpen(!themePanelOpen)}
+              className="w-full flex items-center justify-between focus:outline-none mb-2">
+              <div className="flex items-center gap-1.5">
+                <Palette size={11} style={{ color: S.accent }} />
+                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: S.text3 }}>主题配色</p>
+              </div>
+              <ChevronDown size={10} style={{
+                color: S.text3,
+                transform: themePanelOpen ? "rotate(180deg)" : "none",
+                transition: "0.2s",
+              }} />
+            </motion.button>
+            <AnimatePresence>
+              {themePanelOpen && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                  <ThemeSystem />
                 </motion.div>
               )}
             </AnimatePresence>
