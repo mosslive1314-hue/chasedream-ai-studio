@@ -46,6 +46,8 @@ export default function PublishScreen() {
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const engineExportConfigs = useNarrativeStore(s => s.engineExportConfigs);
   const addToast = useUIStore(s => s.addToast);
+  const industry = useUIStore(s => s.industry);
+  const setIndustry = useUIStore(s => s.setIndustry);
 
   // ── Export Store selectors (safe: data only, no functions in state) ──
   const exportFormats = useExportStore(s => s.formats);
@@ -76,12 +78,8 @@ export default function PublishScreen() {
   // ── 导出状态 ──
   const [exportStates, setExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
   const [engineExportStates, setEngineExportStates] = useState<Record<string, { status: 'idle' | 'exporting' | 'done' }>>({});
-  const [industryTab, setIndustryTab] = useState(0);
-
-  // 行业导出：按当前选中的行业筛选
-  const industryFormats = getFormatsByIndustry(
-    INDUSTRY_MAP[INDUSTRY_TABS[industryTab]] ?? 'game'
-  );
+  // 行业导出：按当前选中的行业筛选（使用全局 industry）
+  const industryFormats = getFormatsByIndustry(industry);
 
   // ── Handlers ──
   const handleCopy = () => {
@@ -388,21 +386,24 @@ export default function PublishScreen() {
               </div>
               {/* Industry sub-tabs */}
               <div className="flex gap-1 mb-2 p-1 rounded-lg" style={{ background: S.s2 }}>
-                {INDUSTRY_TABS.map((tab, idx) => (
+                {INDUSTRY_TABS.map((tab) => {
+                  const tabValue = INDUSTRY_MAP[tab];
+                  return (
                   <motion.button
                     key={tab}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setIndustryTab(idx)}
+                    onClick={() => setIndustry(tabValue)}
                     className="flex-1 py-1.5 rounded-md text-[10px] font-bold focus:outline-none"
                     style={{
-                      background: industryTab === idx ? S.card : 'transparent',
-                      color: industryTab === idx ? S.primary : S.text3,
-                      boxShadow: industryTab === idx ? `0 1px 3px ${S.border}` : 'none',
+                      background: industry === tabValue ? S.card : 'transparent',
+                      color: industry === tabValue ? S.primary : S.text3,
+                      boxShadow: industry === tabValue ? `0 1px 3px ${S.border}` : 'none',
                     }}
                   >
                     {tab}
                   </motion.button>
-                ))}
+                  );
+                })}
               </div>
               {/* Format cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">

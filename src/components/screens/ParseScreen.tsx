@@ -11,8 +11,6 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { useNarrativeStore, getCurrentProject, useUIStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
-import { DataFlowBar } from "@/components/ui/DataFlowBar";
-import { pushTransfer } from "@/lib/data-flow-bridge";
 import ContextualActions from "@/components/ui/ContextualActions";
 
 const S = {
@@ -658,45 +656,12 @@ export default function ParseScreen() {
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
-      <DataFlowBar page="parse" onPushForward={() => {
-        pushTransfer('parse', 'script', 'parse→script', {
-          scriptBlocks: [], characterNames: characters.map(c => c.name),
-          sceneNames: scenes.map(s => s.name),
-        }, `解构结果（${characters.length} 角色, ${scenes.length} 场景）→ 剧本编辑`);
-      }} />
-
-      {/* ── 顶部面包屑 ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
-        style={{ background: S.card, borderBottom:`1px solid ${S.border}` }}>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold" style={{ color: S.text }}>剧本解构</span>
-          <span className="text-[9px] px-2 py-0.5 rounded-full"
-            style={{ background:`${S.accent}12`, color: S.accent }}>{projectName}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] font-mono px-2 py-0.5 rounded"
-            style={{ background: S.s2, border:`1px solid ${S.border}`, color: S.text3 }}>
-            {doneCount}/10 完成
-          </span>
-        </div>
-      </div>
 
       {/* ── 放大管线进度条 ─────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-3 border-b" style={{ borderColor: S.border, background: S.card }}>
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: S.text3 }}>
-              制作进度
-            </span>
-            {activeStep && (
-              <span className="text-[9px] px-2 py-0.5 rounded-full animate-pulse"
-                style={{ background: `${S.primary}12`, color: S.primary }}>
-                {activeStep.label} — 处理中
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-bold font-mono" style={{ color: S.primary }}>
-            {doneCount}/10
+        <div className="flex items-center mb-2.5">
+          <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: S.text3 }}>
+            制作进度
           </span>
         </div>
         <div ref={pipelineRef} className="flex items-center gap-1 overflow-x-auto pb-1">
@@ -818,15 +783,6 @@ export default function ParseScreen() {
           {/* ── 底部操作栏 ──────────────────────────────────────────── */}
           <div className="shrink-0 px-4 py-3 border-t flex items-center gap-2"
             style={{ borderColor: S.border, background: S.card }}>
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setReviewMode(!reviewMode)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold focus:outline-none"
-              style={{
-                background: reviewMode ? `${S.accent}15` : S.s2,
-                border: `1px solid ${reviewMode ? `${S.accent}30` : S.border}`,
-                color: reviewMode ? S.accent : S.text2
-              }}>
-              <Eye size={11} /> {reviewMode ? "退出审核" : "审核产出"}
-            </motion.button>
             <motion.button whileTap={{ scale:0.97 }}
               onClick={() => {
                 if (viewStep < 10) { setViewStep(viewStep + 1); }

@@ -16,7 +16,6 @@ import { INDUSTRY_LABELS, INDUSTRY_QC_RULES } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, useSettingsStore, getCurrentProject } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
-import { DataFlowBar } from "@/components/ui/DataFlowBar";
 import { AIService } from "@/lib/ai";
 
 const S = {
@@ -716,7 +715,6 @@ export default function OverviewScreen() {
   return (
     <div className="min-h-svh overflow-y-auto" style={{ background: S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
-      <DataFlowBar page="overview" />
 
       {/* ── 顶部项目信息 ── */}
       <div className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between"

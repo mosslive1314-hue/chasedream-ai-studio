@@ -2,9 +2,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Eye, Sparkles, Save, Rocket, AlertTriangle,
+  Eye, Sparkles, Rocket, AlertTriangle,
   CheckCircle2, ChevronDown, ChevronUp, Plus,
-  ZoomIn, ZoomOut, Maximize2, AlignLeft,
+  AlignLeft,
   ExternalLink, Play, FileText, Flame, Edit2,
   User, Package, Music, GitBranch, X, Loader2,
   Monitor, Star, Download, Wand2, Image as ImageIcon,
@@ -778,16 +778,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
         </div>
       </div>
 
-      {/* 缩放控件 */}
-      <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1">
-        {[{ icon:ZoomIn },{ icon:ZoomOut },{ icon:Maximize2 }].map((btn,i) => (
-          <motion.button key={i} whileTap={{ scale:0.9 }}
-            className="w-7 h-7 rounded-lg flex items-center justify-center focus:outline-none"
-            style={{ background:S.card, border:`1px solid ${S.border}`, color:S.text3 }}>
-            <btn.icon size={12} />
-          </motion.button>
-        ))}
-      </div>
+
 
       {/* 节点画布（SVG连线 + 节点卡片，布局与原站截图一致）*/}
       <div data-canvas-inner style={{ width:900, height:700, position:"relative", margin:"32px auto" }}>
@@ -826,7 +817,6 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
         {/* ── 选中节点操作栏 ── */}
         <AnimatePresence>
           {sel && selectedNode && (() => {
-            const cfg = NODE_TYPE[selectedNode.type] ?? NODE_TYPE.scene;
             return (
               <motion.div
                 key="node-action-bar"
@@ -842,10 +832,6 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                   border: `1px solid ${S.border}`,
                   boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
                 }}>
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded mr-0.5"
-                  style={{ background: cfg.bg, color: cfg.color }}>
-                  {selectedNode.id}
-                </span>
                 <motion.button whileTap={{ scale: 0.9 }}
                   onClick={() => setDetailPanelOpen(true)}
                   className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
@@ -1477,16 +1463,6 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
 
                 {/* ── Panel Footer Actions ── */}
                 <div className="shrink-0 px-4 py-3 flex gap-2" style={{ borderTop: `1px solid ${S.border}` }}>
-                  <motion.button whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      /* Save is auto via onBlur; this is a visual confirmation */
-                      setDetailPanelOpen(false);
-                    }}
-                    className="flex-1 py-2 rounded-lg text-[10px] font-bold text-white focus:outline-none flex items-center justify-center gap-1"
-                    style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
-                    <Save size={10} />
-                    保存修改
-                  </motion.button>
                   <motion.button whileTap={{ scale: 0.97 }}
                     onClick={() => handleDeleteNode(sel!)}
                     className="px-3 py-2 rounded-lg text-[10px] font-bold focus:outline-none flex items-center justify-center gap-1"
@@ -3707,14 +3683,7 @@ export default function NodesScreen() {
         />
       )}
 
-      {/* Next Step Navigation */}
-      <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
-        style={{ borderColor: S.border }}>
-        <span className="text-xs text-gray-500">下一步：预览演出效果</span>
-        <Link href="/simulator" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
-          打开演出预览 →
-        </Link>
-      </div>
+
     </div>
   );
 }

@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns, Bold, Italic, Underline as UnderlineIcon, Highlighter, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Plus, Shield, Loader2, MessageSquare, Layers, Share2 } from "lucide-react";
+import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, Columns, Bold, Italic, Underline as UnderlineIcon, Highlighter, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Plus, Shield, Loader2, MessageSquare, Layers, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -14,8 +14,6 @@ import { useNarrativeStore, getCurrentProject, useCanvasAgentStore, useSettingsS
 import { AIService } from "@/lib/ai";
 import type { ConsistencyIssue, DialogueOption } from "@/lib/ai";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
-import { DataFlowBar } from "@/components/ui/DataFlowBar";
-import { pushTransfer } from "@/lib/data-flow-bridge";
 import ContextualActions from "@/components/ui/ContextualActions";
 
 const S = {
@@ -1449,13 +1447,6 @@ export default function ScriptScreen() {
   return (
     <div className="h-svh flex flex-col overflow-hidden" style={{ background:S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
-      <DataFlowBar page="script" onPushForward={() => {
-        pushTransfer('script', 'interaction', 'script→interaction', {
-          selectedBlockIds: blocks.map(b => b.id),
-          blockTexts: blocks.slice(0, 5).map(b => b.content.slice(0, 100)),
-          suggestedNodeTypes: ['choice', 'branch'],
-        }, `剧本段落（${blocks.length} 块）→ 互动节点`);
-      }} />
       {/* 四层导航 (P0-2) */}
       <div className="flex items-center border-b shrink-0"
         style={{ background: S.card, borderColor: S.border }}>
@@ -1521,28 +1512,6 @@ export default function ScriptScreen() {
                   </motion.button>
                 ))}
               </div>
-              {/* 添加新块按钮 */}
-              <div className="shrink-0 px-2 pb-2">
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    const nb: ScriptBlock = {
-                      id: `b${Date.now()}`,
-                      type: "narr",
-                      label: "旁白",
-                      color: S.text3,
-                      content: "",
-                    };
-                    setBlocks(bs => [...bs, nb]);
-                    addScriptBlock(nb);
-                    setActiveBlockId(nb.id);
-                  }}
-                  className="w-full flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-medium border-dashed focus:outline-none"
-                  style={{ border: `1.5px dashed ${S.border}`, color: S.text3 }}
-                >
-                  <Plus size={12} /> 添加内容块
-                </motion.button>
-              </div>
             </div>
 
             {/* ── 右侧：编辑器区域 ── */}
@@ -1553,7 +1522,7 @@ export default function ScriptScreen() {
                 <div className="flex items-center gap-2">
                   <h2 className="text-xs font-bold" style={{ color: S.text }}>{chapterPlans[0]?.title || "第一章"}</h2>
                   <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
-                    {blocks.length} 段 · 约 {blocks.reduce((a, b) => a + b.content.replace(/<[^>]+>/g, "").length, 0)} 字
+                    {blocks.length} 段
                   </span>
                   {activeLayer === "linear" ? (
                     <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
@@ -1707,14 +1676,6 @@ export default function ScriptScreen() {
         ]}
       />
 
-      {/* Next Step Navigation */}
-      <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
-        style={{ borderColor: S.border }}>
-        <span className="text-xs text-gray-500">下一步：设计互动选择</span>
-        <Link href="/interaction" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
-          进入互动设计 →
-        </Link>
-      </div>
     </div>
   );
 }

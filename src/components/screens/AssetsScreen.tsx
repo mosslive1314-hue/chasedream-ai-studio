@@ -10,8 +10,6 @@ import {
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
-import { DataFlowBar } from "@/components/ui/DataFlowBar";
-import { pushTransfer } from "@/lib/data-flow-bridge";
 import ContextualActions from "@/components/ui/ContextualActions";
 import UnifiedAssetCard from "@/components/ui/UnifiedAssetCard";
 import { INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, type IndustryType, type AssetCard } from "@/lib/studio-data";
@@ -211,14 +209,6 @@ export default function AssetsScreen() {
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
-      <DataFlowBar page="assets" onPushForward={() => {
-        const readyNodes = storyNodes.filter(n => n.type === 'scene' || n.type === 'choice').slice(0, 5);
-        pushTransfer('assets', 'cinematic', 'assets→cinematic', {
-          readyNodeIds: readyNodes.map(n => n.id),
-          assetIds: assetCards.filter(a => a.hasImage).map(a => a.nodeId),
-          previewMode: 'sequence',
-        }, `资产就绪（${assetCards.filter(a => a.hasImage).length} 项有图）→ 演出预览`);
-      }} />
 
       {/* ── 顶层资产类型 Tab 栏 ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0"

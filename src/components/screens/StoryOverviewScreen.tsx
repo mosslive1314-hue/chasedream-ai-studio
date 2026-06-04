@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen, Scissors, GitBranch, Layers, Zap,
-  Trophy, ArrowRight, Target, Users, MapPin, Package,
+  Trophy, Target, Users, MapPin, Package,
   Shield, BarChart3, MessageCircle, Timer, Activity,
   Eye, Clock, Flame, Upload, FileText, Clipboard,
 } from "lucide-react";
@@ -78,7 +78,6 @@ export default function StoryOverviewScreen() {
   const qteConfigs = useNarrativeStore(s => s.qteConfigs);
   const worldRules = useNarrativeStore(s => s.worldRules);
   const worldBuilding = useNarrativeStore(s => s.worldBuilding);
-  const pipelineStages = useNarrativeStore(s => s.pipelineStages);
   const characters = useNarrativeStore(s => s.characters);
   const scenes = useNarrativeStore(s => s.scenes);
   const props = useNarrativeStore(s => s.props);
@@ -113,7 +112,6 @@ export default function StoryOverviewScreen() {
   }), [storyNodes, narrativeIntents, consequenceChains, variables]);
   const tensionStats = useMemo(() => getTensionStats(tensionCurve), [tensionCurve]);
 
-  const activeStepIdx = pipelineStages.findIndex(s => s?.status === "active");
   const qcPassed = qualityChecks.filter(q => q.status === "ok").length;
   const qcTotal = qualityChecks.length;
 
@@ -189,39 +187,6 @@ export default function StoryOverviewScreen() {
             {activeTab === "progress" && (
               <div className="space-y-5">
 
-                {/* Next action banner (12-stage pipeline) */}
-                <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-4"
-                  style={{ background: `linear-gradient(135deg, ${S.primary}08, ${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: S.primary10 }}>
-                      <Zap size={14} style={{ color: S.primary }} />
-                    </div>
-                    <div>
-                      {activeStepIdx >= 0 ? (
-                        <>
-                          <p className="text-xs font-bold" style={{ color: S.text }}>
-                            当前阶段：{pipelineStages[activeStepIdx]?.name ?? "未知"}
-                          </p>
-                          <p className="text-[9px]" style={{ color: S.text3 }}>
-                            进度 {pipelineStages[activeStepIdx]?.progress ?? 0}%
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-xs font-bold" style={{ color: S.text }}>创作流程已全部完成！</p>
-                      )}
-                    </div>
-                  </div>
-                  {activeStepIdx >= 0 && pipelineStages[activeStepIdx]?.linkedPage && (
-                    <Link href={pipelineStages[activeStepIdx].linkedPage!}>
-                      <motion.button whileTap={{ scale: 0.95 }}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white"
-                        style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
-                        前往 <ArrowRight size={11} />
-                      </motion.button>
-                    </Link>
-                  )}
-                </div>
-
                 {/* Quick metrics */}
                 <div className="grid grid-cols-4 gap-3">
                   <StatPill label="已规划章节" value={chapterPlans.length} color={S.primary} />
@@ -235,14 +200,6 @@ export default function StoryOverviewScreen() {
             {/* ── Tab 2: 叙事结构 ──────────────────────────────────────── */}
             {activeTab === "narrative" && (
               <div className="space-y-5">
-                {/* Stats row */}
-                <div className="grid grid-cols-4 gap-3">
-                  <StatPill label="章节数" value={chapterPlans.length} color={S.primary} />
-                  <StatPill label="剧本块" value={scriptBlocks.length} color={S.accent} />
-                  <StatPill label="节点数" value={storyNodes.length} color={S.warning} />
-                  <StatPill label="连线数" value={nodeEdges.length} color={S.error} />
-                </div>
-
                 {/* AI Analysis action */}
                 <div className="rounded-2xl px-4 py-3 flex items-center justify-between"
                   style={{ background: `linear-gradient(135deg, ${S.primary}08, ${S.accent}06)`, border: `1px solid ${S.primary}15` }}>
@@ -473,27 +430,6 @@ export default function StoryOverviewScreen() {
                     <StatPill label="结局型" value={consequenceChains.filter(c => c.timing === "ending").length} color={S.error} />
                   </div>
                 </div>
-
-                {/* Branch paths summary */}
-                {branchPaths.length > 0 && (
-                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                    <h3 className="text-xs font-bold mb-3 flex items-center gap-2" style={{ color: S.text }}>
-                      <GitBranch size={13} style={{ color: S.primary }} /> 分支路径概览
-                    </h3>
-                    <div className="space-y-1.5">
-                      {branchPaths.map(path => (
-                        <div key={path.id} className="flex items-center justify-between px-3 py-2 rounded-xl"
-                          style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                          <div className="flex items-center gap-2">
-                            <Trophy size={10} style={{ color: path.type === "good" ? S.success : S.error }} />
-                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{path.label}</span>
-                          </div>
-                          <span className="text-[9px] font-mono" style={{ color: S.text3 }}>{path.nodes.length} 节点</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
