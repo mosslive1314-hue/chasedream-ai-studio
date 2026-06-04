@@ -190,6 +190,7 @@ export const useCanvasAgentStore = create<CanvasAgentState>()(
     }),
     {
       name: "cd-canvas-agent",
+      skipHydration: true,
       partialize: (state) => ({
         // 持久化消息历史，不持久化运行时状态
         messages: state.messages.slice(-50), // 只保留最近 50 条

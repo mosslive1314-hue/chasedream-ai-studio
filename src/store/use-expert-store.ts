@@ -283,6 +283,7 @@ export const useExpertStore = create<ExpertState>()(
     }),
     {
       name: "cd-experts",
+      skipHydration: true,
       partialize: (state) => ({
         routingStrategy: state.routingStrategy,
         // 不持久化运行时状态（instances, suggestions, handoffs）

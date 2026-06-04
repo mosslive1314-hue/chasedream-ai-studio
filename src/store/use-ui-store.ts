@@ -116,6 +116,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'cd-ui',
+      skipHydration: true,
     }
   )
 );

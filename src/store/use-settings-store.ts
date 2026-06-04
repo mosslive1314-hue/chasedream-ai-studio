@@ -101,6 +101,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'cd-settings',
+      skipHydration: true,
     }
   )
 );

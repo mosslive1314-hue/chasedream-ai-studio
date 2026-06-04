@@ -35,6 +35,7 @@ export const useProjectDataCacheStore = create<ProjectDataCacheState>()(
     {
       name: 'cd-project-data-cache',
       version: 1,
+      skipHydration: true,
     }
   )
 );

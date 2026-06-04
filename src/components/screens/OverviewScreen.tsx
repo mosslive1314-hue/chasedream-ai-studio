@@ -6,14 +6,14 @@ import {
   GitBranch, User, MapPin, Clock, BookOpen, Zap,
   Trophy,
   Layers, Play,
-  ExternalLink, BarChart3, Sparkles,
-  Package, Rocket, Shield, Heart,
+  ExternalLink, Sparkles,
+  Package, Rocket, Shield,
   TrendingUp, AlertCircle, ArrowRight, Target
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { INDUSTRY_LABELS, INDUSTRY_QC_RULES, type IndustryType } from "@/lib/studio-data";
-import { useNarrativeStore, useUIStore, useSettingsStore, getCurrentProject, useAnalyticsStore } from "@/store";
+import { INDUSTRY_LABELS, INDUSTRY_QC_RULES } from "@/lib/studio-data";
+import { useNarrativeStore, useUIStore, useSettingsStore, getCurrentProject } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
@@ -40,15 +40,6 @@ const QC_CATEGORIES = [
   { key: "publish", label: "发布风险", icon: Rocket },
 ];
 
-
-
-// ── 行业切换配置 ────────────────────────────────────────────────────────────
-const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = [
-  { type: 'game', icon: '🎮', label: '游戏' },
-  { type: 'tourism', icon: '🏛️', label: '文旅' },
-  { type: 'education', icon: '🎓', label: '教育' },
-  { type: 'derivative', icon: '🎬', label: '衍生' },
-];
 
 // ── 素材风格一致性 — 动态从 store 计算（P12-#22）──────────────────────────
 
@@ -525,11 +516,10 @@ function ProgressiveSummary({ projectName, characterCount, sceneCount, nodeCount
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function OverviewScreen() {
   const pathname = usePathname();
-  const [activeSubTab, setActiveSubTab] = useState<Record<number, number>>({ 0: 0, 1: 0, 2: 0, 3: 0 });
+  const [activeSubTab, setActiveSubTab] = useState<Record<number, number>>({ 0: 0, 1: 0 });
 
   const [activeTab, setActiveTab] = useState(0);
   const industry = useUIStore(s => s.industry);
-  const setIndustry = useUIStore(s => s.setIndustry);
 
   // ── Store selectors ───────────────────────────────────────────────────
   const storyNodes = useNarrativeStore(s => s.storyNodes);
@@ -560,35 +550,6 @@ export default function OverviewScreen() {
     const map: Record<string, string> = { published: S.success10, in_progress: S.primary10, idle: S.s2, draft: S.warning10 };
     return map[currentProject?.status ?? ""] ?? S.primary10;
   }, [currentProject?.status]);
-  const styleLabel = genreLabel.split(/[·|]/)[0].trim() || "未设定";
-
-  // ── Analytics Store selectors (avoid method-style selectors — they cause infinite re-renders) ──
-  const analyticsSessions = useAnalyticsStore(s => s.sessions);
-  const choiceDistributions = useAnalyticsStore(s => s.choiceDistributions);
-  const funnels = useAnalyticsStore(s => s.funnels);
-
-  // Compute analytics metrics locally from raw state (prevents infinite re-render loop)
-  const completionRate = useMemo(() => {
-    if (analyticsSessions.length === 0) return 0;
-    const completed = analyticsSessions.filter(s => !s.abandoned).length;
-    return completed / analyticsSessions.length;
-  }, [analyticsSessions]);
-
-  const avgDuration = useMemo(() => {
-    if (analyticsSessions.length === 0) return 0;
-    return analyticsSessions.reduce((sum, s) => sum + s.duration, 0) / analyticsSessions.length;
-  }, [analyticsSessions]);
-
-  const topEnding = useMemo(() => {
-    if (analyticsSessions.length === 0) return null;
-    const endingCounts = new Map<string, number>();
-    analyticsSessions.forEach(s => {
-      if (s.endingReached) endingCounts.set(s.endingReached, (endingCounts.get(s.endingReached) ?? 0) + 1);
-    });
-    if (endingCounts.size === 0) return null;
-    const [id, count] = [...endingCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-    return { id, name: id, count };
-  }, [analyticsSessions]);
 
   // ── P12-#22: Dynamic STATS from store ──────────────────────────────────
   const stats = useMemo(() => {
@@ -725,33 +686,6 @@ export default function OverviewScreen() {
     [narrativeScores]
   );
 
-  // ── P12-#22: Dynamic STYLE_CONSISTENCY from store ──────────────────────
-  const styleConsistency = useMemo(() => {
-    if (assetCards.length > 0) {
-      return assetCards.map(card => ({
-        nodeId: card.nodeId,
-        assetType: card.hasImage ? '场景图片' : card.hasBgm ? 'BGM' : card.hasVoice ? '配音' : '资产',
-        style: styleLabel,
-        consistent: card.hasImage,
-        warning: !card.hasImage ? '缺少图片资产' : !card.hasBgm ? '缺少 BGM' : undefined,
-      }));
-    }
-    // Fallback: generate from storyNodes (non-ending nodes)
-    return storyNodes
-      .filter(n => n.type !== 'ending_good' && n.type !== 'ending_bad')
-      .map(n => ({
-        nodeId: n.id, assetType: '场景图片', style: styleLabel, consistent: true, warning: undefined,
-      }));
-  }, [assetCards, storyNodes, styleLabel]);
-
-  const styleSummary = useMemo(() => {
-    const totalAssets = styleConsistency.length;
-    const consistentCount = styleConsistency.filter(s => s.consistent).length;
-    const inconsistentCount = totalAssets - consistentCount;
-    const consistencyRate = totalAssets > 0 ? Math.round((consistentCount / totalAssets) * 100) : 100;
-    return { dominant: styleLabel, totalAssets, consistentCount, inconsistentCount, consistencyRate };
-  }, [styleConsistency]);
-
   // ── Derived data ────────────────────────────────────────────────────────
   function t(key: string): string {
     const map = INDUSTRY_LABELS[key];
@@ -826,36 +760,11 @@ export default function OverviewScreen() {
 
       <div className="max-w-3xl mx-auto px-5 py-4 space-y-4">
 
-        {/* ── 行业模式切换 ── */}
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] font-bold" style={{ color: S.text3 }}>行业模式</span>
-          <div className="flex items-center gap-2">
-            {INDUSTRY_OPTIONS.map(opt => (
-              <button
-                key={opt.type}
-                onClick={() => setIndustry(opt.type)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors focus:outline-none"
-                style={{
-                  background: industry === opt.type ? S.primary : S.s2,
-                  color: industry === opt.type ? '#fff' : S.text2,
-                  border: `1px solid ${industry === opt.type ? S.primary : S.border}`,
-                  fontSize: '12px',
-                }}
-              >
-                <span>{opt.icon}</span>
-                <span>{opt.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* ── 标签页切换 ── */}
         <div className="flex items-center gap-2 flex-wrap">
           {[
-            { label: "项目概览", icon: BarChart3 },
+            { label: "项目概览", icon: Layers },
             { label: "质量检查", icon: Shield },
-            { label: "风格一致性", icon: Heart },
-            { label: "数据分析", icon: BarChart3 },
           ].map((tab, i) => {
             const TabIcon = tab.icon;
             return (
@@ -1043,83 +952,6 @@ export default function OverviewScreen() {
           )}
         </AnimatePresence>
 
-        {/* ═══════════════════ TAB 2: 风格一致性 ═══════════════════ */}
-        <AnimatePresence mode="wait">
-          {activeTab === 2 && (
-            <motion.div key="tab-2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                    <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-[9px] font-bold" style={{ color: S.text }}>{styleSummary.consistentCount}/{styleSummary.totalAssets} 项资产风格统一</p>
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                            <div className="h-full rounded-full" style={{ width: `${styleSummary.consistencyRate}%`, background: styleSummary.consistencyRate >= 80 ? S.success : styleSummary.consistencyRate >= 60 ? S.warning : S.error }} />
-                          </div>
-                          <span className="text-[9px] font-mono font-bold" style={{ color: styleSummary.consistencyRate >= 80 ? S.success : styleSummary.consistencyRate >= 60 ? S.warning : S.error }}>{styleSummary.consistencyRate}%</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 mb-3">
-                        {[
-                          { label: '主风格', value: styleSummary.dominant, color: S.primary },
-                          { label: '总资产', value: styleSummary.totalAssets, color: S.text2 },
-                          { label: '一致', value: styleSummary.consistentCount, color: S.success },
-                          { label: '不一致', value: styleSummary.inconsistentCount, color: styleSummary.inconsistentCount > 0 ? S.error : S.success },
-                        ].map((item, i) => (
-                          <div key={i} className="p-2 rounded-lg text-center" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                            <p className="text-sm font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
-                            <p className="text-[8px]" style={{ color: S.text3 }}>{item.label}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
-                        <div className="grid grid-cols-4 gap-1 px-3 py-2" style={{ background: S.s3 }}>
-                          <span className="text-[8px] font-bold" style={{ color: S.text3 }}>节点</span>
-                          <span className="text-[8px] font-bold" style={{ color: S.text3 }}>资产类型</span>
-                          <span className="text-[8px] font-bold" style={{ color: S.text3 }}>风格</span>
-                          <span className="text-[8px] font-bold text-right" style={{ color: S.text3 }}>状态</span>
-                        </div>
-                        {styleConsistency.map((item, i) => (
-                          <div key={i} className="grid grid-cols-4 gap-1 px-3 py-2 items-center" style={{ background: item.consistent ? 'transparent' : `${S.error}06`, borderTop: `1px solid ${S.border}` }}>
-                            <span className="text-[9px] font-mono font-bold" style={{ color: S.text }}>{item.nodeId}</span>
-                            <span className="text-[9px]" style={{ color: S.text2 }}>{item.assetType}</span>
-                            <span className="text-[8px] px-1.5 py-0.5 rounded-full w-fit" style={{ background: item.consistent ? S.primary10 : `${S.error}12`, color: item.consistent ? S.primary : S.error, border: `1px solid ${item.consistent ? `${S.primary}20` : `${S.error}20`}` }}>{item.style}</span>
-                            <div className="flex items-center justify-end gap-1">
-                              {item.consistent ? <CheckCircle2 size={10} style={{ color: S.success }} /> : <AlertTriangle size={10} style={{ color: S.error }} />}
-                              <span className="text-[8px]" style={{ color: item.consistent ? S.success : S.error }}>{item.consistent ? '一致' : '不一致'}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {styleSummary.inconsistentCount > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {styleConsistency.filter(s => !s.consistent && s.warning).map((item, i) => (
-                            <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}20` }}>
-                              <AlertTriangle size={12} style={{ color: S.warning, marginTop: 1, flexShrink: 0 }} />
-                              <div>
-                                <p className="text-[9px] font-bold" style={{ color: S.warning }}>{item.nodeId} · {item.assetType}</p>
-                                <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>{item.warning}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="mt-3 p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Sparkles size={11} style={{ color: S.primary }} />
-                          <span className="text-[10px] font-bold" style={{ color: S.text }}>风格统一建议</span>
-                        </div>
-                        <p className="text-[9px] leading-relaxed" style={{ color: S.text2 }}>
-                          {(() => {
-                            const inconsistentItem = styleConsistency.find(s => !s.consistent);
-                            const charRef = inconsistentItem ? `${inconsistentItem.nodeId} 立绘` : '部分角色立绘';
-                            return `建议将${charRef}统一为${styleLabel}风格，或调整角色设定以兼容当前风格。保持视觉风格一致性有助于提升玩家的沉浸感和整体体验品质。`;
-                          })()}
-                        </p>
-                      </div>
-                    </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* ═══════════════════ TAB 1: 质量检查 ═══════════════════ */}
         <AnimatePresence mode="wait">
           {activeTab === 1 && (
@@ -1197,7 +1029,7 @@ export default function OverviewScreen() {
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <Shield size={10} style={{ color: industry === 'game' ? S.text3 : S.primary }} />
                           <span className="text-[9px] font-bold" style={{ color: S.text }}>
-                            {INDUSTRY_OPTIONS.find(o => o.type === industry)?.icon} 行业专属检查
+                            行业专属检查
                           </span>
                         </div>
                         {industry === 'game' ? (
@@ -1275,119 +1107,6 @@ export default function OverviewScreen() {
 
         <div className="h-6" />
       </div>
-
-      {/* ═══════════════════ TAB 3: 数据分析 ═══════════════════ */}
-      <AnimatePresence mode="wait">
-        {activeTab === 3 && (
-          <motion.div key="tab-3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}
-            className="max-w-3xl mx-auto px-5 pb-4 space-y-3">
-
-            {/* 核心指标 */}
-            <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: S.primary10 }}>
-                  <BarChart3 size={13} style={{ color: S.primary }} />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold" style={{ color: S.text }}>玩家行为指标</h3>
-                  <p className="text-[9px]" style={{ color: S.text3 }}>基于 {analyticsSessions.length} 个测试会话</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { label: '测试会话', value: analyticsSessions.length, color: S.primary },
-                  { label: '完成率', value: `${Math.round(completionRate * 100)}%`, color: completionRate >= 0.8 ? S.success : S.warning },
-                  { label: '平均时长', value: `${Math.round(avgDuration / 60)}min`, color: S.accent },
-                  { label: '热门结局', value: topEnding?.name ?? '无', color: S.primary },
-                ].map((item, i) => (
-                  <div key={i} className="p-2 rounded-xl text-center" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                    <p className="text-sm font-bold font-mono" style={{ color: item.color }}>{item.value}</p>
-                    <p className="text-[8px]" style={{ color: S.text3 }}>{item.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 选择分布 */}
-            {choiceDistributions.length > 0 && (
-              <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <h3 className="text-xs font-bold mb-2" style={{ color: S.text }}>选择分布</h3>
-                <div className="space-y-2">
-                  {choiceDistributions.slice(0, 4).map(dist => (
-                    <div key={dist.nodeId} className="p-2 rounded-lg" style={{ background: S.s2 }}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold" style={{ color: S.text }}>{dist.nodeName}</span>
-                        <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{dist.totalChoices} 次选择</span>
-                      </div>
-                      <div className="space-y-1">
-                        {dist.optionStats.map((opt, oi) => (
-                          <div key={oi} className="flex items-center gap-2">
-                            <span className="text-[9px] flex-1 truncate" style={{ color: S.text2 }}>{opt.choiceText}</span>
-                            <div className="w-20 h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${opt.ratio * 100}%` }}
-                                transition={{ duration: 0.5, delay: oi * 0.1 }}
-                                className="h-full rounded-full"
-                                style={{ background: opt.ratio >= 0.6 ? S.primary : S.accent }}
-                              />
-                            </div>
-                            <span className="text-[8px] font-mono w-8 text-right" style={{ color: S.text3 }}>
-                              {Math.round(opt.ratio * 100)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 漏斗 */}
-            {funnels.length > 0 && (
-              <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                <h3 className="text-xs font-bold mb-2" style={{ color: S.text }}>转化漏斗</h3>
-                {funnels.map((funnel, fi) => (
-                  <div key={fi} className="mb-2">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{funnel.name}</span>
-                      <span className="text-[9px] font-mono font-bold" style={{ color: S.primary }}>
-                        {Math.round(funnel.conversionRate * 100)}% 转化
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {funnel.steps.map((step, si) => {
-                        const maxReached = funnel.totalEntries || 1;
-                        const widthPct = (step.reached / maxReached) * 100;
-                        return (
-                          <div key={si} className="flex items-center gap-2">
-                            <span className="text-[9px] w-16 shrink-0 truncate" style={{ color: S.text2 }}>{step.name}</span>
-                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.max(widthPct, 5)}%` }}
-                                transition={{ duration: 0.4, delay: si * 0.08 }}
-                                className="h-full rounded-full flex items-center justify-end pr-1"
-                                style={{ background: `${S.primary}40` }}
-                              >
-                                <span className="text-[7px] font-bold" style={{ color: S.primary }}>{step.reached}</span>
-                              </motion.div>
-                            </div>
-                            {step.dropped > 0 && (
-                              <span className="text-[8px] shrink-0" style={{ color: S.error }}>-{step.dropped}</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Next Step Navigation */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"

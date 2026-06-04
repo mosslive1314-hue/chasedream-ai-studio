@@ -169,18 +169,6 @@ function PipelineMiniNav({
   stages: { id: string; order: number; name: string; icon: string; status: string; progress: number; linkedPage?: string }[];
   open: boolean;
 }) {
-  const industry = useUIStore(s => s.industry);
-  const setIndustry = useUIStore(s => s.setIndustry);
-  const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
-
-  const INDUSTRY_ICONS_LOCAL: { type: IndustryType; icon: string }[] = [
-    { type: "game", icon: "\u{1F3AE}" },
-    { type: "tourism", icon: "\u{1F3DB}\uFE0F" },
-    { type: "education", icon: "\u{1F393}" },
-    { type: "derivative", icon: "\u{1F3AC}" },
-  ];
-  const currentIcon = INDUSTRY_ICONS_LOCAL.find(i => i.type === industry)?.icon || "\u{1F3AE}";
-
   const overallPct = stages.length > 0
     ? Math.round(stages.reduce((sum, s) => sum + s.progress, 0) / stages.length)
     : 0;
@@ -231,47 +219,6 @@ function PipelineMiniNav({
           <span className="text-[10px] font-semibold truncate" style={{ color: "#1A1D2E" }}>
             制作管线
           </span>
-        </div>
-
-        {/* Industry switcher */}
-        <div className="relative shrink-0">
-          <motion.button
-            whileTap={{ scale: 0.93 }}
-            onClick={() => setIndustryDropdownOpen(v => !v)}
-            className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-medium focus:outline-none"
-            style={{ color: "#5E50E8", background: "rgba(94,80,232,0.08)" }}
-            title={`当前场景：${INDUSTRY_LABELS.pipeline[industry]}`}
-          >
-            <span className="text-[9px]">{currentIcon}</span>
-            <ChevronDown size={7} />
-          </motion.button>
-          <AnimatePresence>
-            {industryDropdownOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 4, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                transition={{ duration: 0.12 }}
-                className="absolute right-0 top-full mt-1 z-50 p-0.5 rounded-lg shadow-lg"
-                style={{ background: "#fff", border: "1px solid #E2E5F0", minWidth: 100 }}
-              >
-                {INDUSTRY_ICONS_LOCAL.map(item => (
-                  <motion.button
-                    key={item.type}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => { setIndustry(item.type); setIndustryDropdownOpen(false); }}
-                    className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-left"
-                    style={{ background: industry === item.type ? "rgba(94,80,232,0.1)" : "transparent" }}
-                  >
-                    <span className="text-[10px]">{item.icon}</span>
-                    <span className="text-[9px] font-medium" style={{ color: industry === item.type ? "#5E50E8" : "#1A1D2E" }}>
-                      {INDUSTRY_LABELS.pipeline[item.type]}
-                    </span>
-                  </motion.button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">

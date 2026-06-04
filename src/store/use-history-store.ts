@@ -62,6 +62,7 @@ export const useHistoryStore = create<HistoryState>()(
     }),
     {
       name: 'cd-history',
+      skipHydration: true,
       // Don't persist the actual stacks to avoid bloating localStorage
       partialize: () => ({} as HistoryState),
     }
