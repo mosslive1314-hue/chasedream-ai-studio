@@ -13,6 +13,8 @@ interface SettingsState {
   aiLang: 'zh' | 'en' | 'ja';
   aiAutoSave: boolean;
   aiFrequency: 'active' | 'moderate' | 'conservative';
+  apiKeys: Record<string, string>;
+  apiBaseUrl: string;
 
   // Export & backup
   exportFormat: 'json' | 'webgal' | 'custom';
@@ -35,6 +37,8 @@ interface SettingsState {
   setAiLang: (v: 'zh' | 'en' | 'ja') => void;
   setAiAutoSave: (v: boolean) => void;
   setAiFrequency: (v: 'active' | 'moderate' | 'conservative') => void;
+  setApiKey: (model: string, key: string) => void;
+  setApiBaseUrl: (v: string) => void;
 
   // Actions — Export
   setExportFormat: (v: 'json' | 'webgal' | 'custom') => void;
@@ -60,6 +64,8 @@ export const useSettingsStore = create<SettingsState>()(
       aiLang: 'zh',
       aiAutoSave: true,
       aiFrequency: 'moderate',
+      apiKeys: {},
+      apiBaseUrl: '',
 
       exportFormat: 'json',
       autoBackup: false,
@@ -80,6 +86,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAiLang: (v) => set({ aiLang: v }),
       setAiAutoSave: (v) => set({ aiAutoSave: v }),
       setAiFrequency: (v) => set({ aiFrequency: v }),
+      setApiKey: (model, key) => set((state) => ({ apiKeys: { ...state.apiKeys, [model]: key } })),
+      setApiBaseUrl: (v) => set({ apiBaseUrl: v }),
 
       // Export actions
       setExportFormat: (v) => set({ exportFormat: v }),

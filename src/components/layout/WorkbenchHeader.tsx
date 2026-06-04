@@ -1,12 +1,11 @@
 "use client";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Plus, ChevronDown, MessageSquare,
+  Plus, MessageSquare, Key,
 } from "lucide-react";
-import { useUIStore, useCanvasAgentStore } from "@/store";
+import { useCanvasAgentStore, useSettingsStore } from "@/store";
 
 const S = {
   card: "#FFFFFF",
@@ -16,11 +15,12 @@ const S = {
 };
 
 export function WorkbenchHeader() {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const addToast = useUIStore(s => s.addToast);
   const pathname = usePathname();
   const setPanelOpen = useCanvasAgentStore(s => s.setPanelOpen);
   const panelOpen = useCanvasAgentStore(s => s.panelOpen);
+  const aiModel = useSettingsStore(s => s.aiModel);
+  const apiKey = useSettingsStore(s => s.apiKeys?.[aiModel]);
+  const hasKey = !!apiKey && apiKey.trim().length > 0;
 
   return (
     <header className="flex items-center h-11 px-4 gap-1 border-b shrink-0"
@@ -41,43 +41,20 @@ export function WorkbenchHeader() {
             </motion.span>
           </Link>
         ))}
-
-        {/* 开发者设置下拉 */}
-        <div className="relative">
-          <motion.button whileTap={{ scale: 0.97 }}
-            onClick={() => setMoreOpen(o => !o)}
-            className="flex items-center gap-0.5 px-2.5 py-1 rounded-lg text-xs font-medium focus:outline-none"
-            style={{ color: S.text3 }}>
-            开发者设置 <ChevronDown size={10} />
-          </motion.button>
-          <AnimatePresence>
-            {moreOpen && (
-              <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
-                className="absolute top-full left-0 mt-1 rounded-xl py-1 min-w-[120px] z-50"
-                style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}>
-                <Link href="/settings">
-                  <div className="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50"
-                    style={{ color: S.text2 }} onClick={() => setMoreOpen(false)}>
-                    开发者设置
-                  </div>
-                </Link>
-                <Link href="/settings">
-                  <div className="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50"
-                    style={{ color: S.text2 }} onClick={() => setMoreOpen(false)}>
-                    AI Key 管理
-                  </div>
-                </Link>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </nav>
 
-      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg ml-1"
-        style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}>
-        Key已配置
-      </span>
+      <Link href="/settings">
+        <motion.span whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg ml-1 cursor-pointer"
+          style={{
+            background: hasKey ? "rgba(5,150,105,0.10)" : "rgba(217,119,6,0.10)",
+            color: hasKey ? "#059669" : "#D97706",
+            border: `1px solid ${hasKey ? "rgba(5,150,105,0.20)" : "rgba(217,119,6,0.20)"}`,
+          }}>
+          <Key size={9} />
+          {hasKey ? "Key已配置" : "配置Key"}
+        </motion.span>
+      </Link>
 
       <div className="flex-1" />
 

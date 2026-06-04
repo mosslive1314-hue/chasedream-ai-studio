@@ -299,10 +299,10 @@ export default function OverviewScreen() {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center"
             style={{ background: `linear-gradient(135deg,${S.primary},${S.accent})` }}>
-            <span className="text-white text-xs font-black">幽</span>
+            <span className="text-white text-xs font-black" suppressHydrationWarning>{projectName.charAt(0)}</span>
           </div>
           <div>
-            <h2 className="text-sm font-bold" style={{ color: S.text }}>{projectName}</h2>
+            <h2 className="text-sm font-bold" style={{ color: S.text }} suppressHydrationWarning>{projectName}</h2>
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
                 赛博朋克 · 间谍惊悚
@@ -449,7 +449,7 @@ export default function OverviewScreen() {
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: S.text3 }}>故事基础</p>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-bold" style={{ color: S.primary }}>{projectName}</span>
+                          <span className="text-xs font-bold" style={{ color: S.primary }} suppressHydrationWarning>{projectName}</span>
                         </div>
                         <div className="grid grid-cols-5 gap-2">
                           {[

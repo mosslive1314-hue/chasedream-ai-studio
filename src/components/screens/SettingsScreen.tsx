@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings, Cpu, Download, Code2,
   ChevronDown, Save, CloudUpload, RotateCcw,
-  Globe, Shield, Bot, Zap,
+  Globe, Shield, Bot, Zap, Eye, EyeOff, Key, CheckCircle2,
 } from "lucide-react";
 import { useSettingsStore } from "@/store";
 
@@ -156,6 +156,11 @@ export default function SettingsScreen() {
   const setAiAutoSave = useSettingsStore(s => s.setAiAutoSave);
   const aiFrequency = useSettingsStore(s => s.aiFrequency);
   const setAiFrequency = useSettingsStore(s => s.setAiFrequency);
+  const apiKeys = useSettingsStore(s => s.apiKeys);
+  const setApiKey = useSettingsStore(s => s.setApiKey);
+  const apiBaseUrl = useSettingsStore(s => s.apiBaseUrl);
+  const setApiBaseUrl = useSettingsStore(s => s.setApiBaseUrl);
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   /* 导出与备份 */
   const exportFormat = useSettingsStore(s => s.exportFormat);
@@ -238,58 +243,144 @@ export default function SettingsScreen() {
     </div>
   );
 
-  const renderAiTab = () => (
-    <div
-      className="rounded-xl p-5"
-      style={{ background: S.card, border: `1px solid ${S.border}` }}
-    >
-      <CardTitle icon={Cpu} title="AI 配置" subtitle="模型选择与 AI 辅助参数" />
+  const renderAiTab = () => {
+    const MODEL_OPTIONS = [
+      { label: "GPT-4", value: "gpt4" as const, placeholder: "sk-..." },
+      { label: "Claude", value: "claude" as const, placeholder: "sk-ant-..." },
+      { label: "通义千问", value: "qwen" as const, placeholder: "sk-..." },
+    ];
 
-      {/* AI 模型选择 */}
-      <SettingRow label="AI 模型">
-        <SelectField
-          value={aiModel}
-          onChange={setAiModel}
-          options={[
-            { label: "GPT-4", value: "gpt4" },
-            { label: "Claude", value: "claude" },
-            { label: "通义千问", value: "qwen" },
-          ]}
-        />
-      </SettingRow>
+    return (
+      <div className="space-y-4">
+        {/* 基础 AI 配置卡片 */}
+        <div
+          className="rounded-xl p-5"
+          style={{ background: S.card, border: `1px solid ${S.border}` }}
+        >
+          <CardTitle icon={Cpu} title="AI 配置" subtitle="模型选择与 AI 辅助参数" />
 
-      {/* AI 语言 */}
-      <SettingRow label="AI 语言">
-        <SelectField
-          value={aiLang}
-          onChange={setAiLang}
-          options={[
-            { label: "中文", value: "zh" },
-            { label: "English", value: "en" },
-            { label: "日本語", value: "ja" },
-          ]}
-        />
-      </SettingRow>
+          {/* AI 模型选择 */}
+          <SettingRow label="AI 模型">
+            <SelectField
+              value={aiModel}
+              onChange={setAiModel}
+              options={[
+                { label: "GPT-4", value: "gpt4" },
+                { label: "Claude", value: "claude" },
+                { label: "通义千问", value: "qwen" },
+              ]}
+            />
+          </SettingRow>
 
-      {/* 自动保存 AI 产出 */}
-      <SettingRow label="自动保存 AI 产出">
-        <Toggle value={aiAutoSave} onChange={setAiAutoSave} />
-      </SettingRow>
+          {/* AI 语言 */}
+          <SettingRow label="AI 语言">
+            <SelectField
+              value={aiLang}
+              onChange={setAiLang}
+              options={[
+                { label: "中文", value: "zh" },
+                { label: "English", value: "en" },
+                { label: "日本語", value: "ja" },
+              ]}
+            />
+          </SettingRow>
 
-      {/* AI 建议频率 */}
-      <SettingRow label="AI 建议频率">
-        <SelectField
-          value={aiFrequency}
-          onChange={setAiFrequency}
-          options={[
-            { label: "积极", value: "active" },
-            { label: "适中", value: "moderate" },
-            { label: "保守", value: "conservative" },
-          ]}
-        />
-      </SettingRow>
-    </div>
-  );
+          {/* 自动保存 AI 产出 */}
+          <SettingRow label="自动保存 AI 产出">
+            <Toggle value={aiAutoSave} onChange={setAiAutoSave} />
+          </SettingRow>
+
+          {/* AI 建议频率 */}
+          <SettingRow label="AI 建议频率">
+            <SelectField
+              value={aiFrequency}
+              onChange={setAiFrequency}
+              options={[
+                { label: "积极", value: "active" },
+                { label: "适中", value: "moderate" },
+                { label: "保守", value: "conservative" },
+              ]}
+            />
+          </SettingRow>
+        </div>
+
+        {/* API Key 管理卡片 */}
+        <div
+          className="rounded-xl p-5"
+          style={{ background: S.card, border: `1px solid ${S.border}` }}
+        >
+          <CardTitle icon={Key} title="API Key 管理" subtitle="为各模型配置独立的 API 密钥" />
+
+          <div className="space-y-3">
+            {MODEL_OPTIONS.map(({ label, value, placeholder }) => {
+              const key = apiKeys[value] || "";
+              const isVisible = showKeys[value];
+              const isConfigured = key.trim().length > 0;
+              return (
+                <div key={value} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold" style={{ color: S.text }}>{label}</span>
+                      {isConfigured && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: S.success10, color: S.success }}>
+                          <CheckCircle2 size={9} /> 已配置
+                        </span>
+                      )}
+                    </div>
+                    {key && (
+                      <button
+                        onClick={() => setShowKeys(prev => ({ ...prev, [value]: !prev[value] }))}
+                        className="p-1 rounded hover:bg-gray-200 transition-colors"
+                        title={isVisible ? "隐藏密钥" : "显示密钥"}
+                      >
+                        {isVisible ? <EyeOff size={12} style={{ color: S.text3 }} /> : <Eye size={12} style={{ color: S.text3 }} />}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type={isVisible ? "text" : "password"}
+                    value={key}
+                    onChange={(e) => setApiKey(value, e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full px-3 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none"
+                    style={{
+                      background: S.card,
+                      border: `1px solid ${isConfigured ? S.success : S.border}`,
+                      color: S.text,
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 自定义 API Base URL */}
+          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${S.border}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[11px] font-bold" style={{ color: S.text }}>自定义 API Base URL</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>可选</span>
+            </div>
+            <input
+              type="text"
+              value={apiBaseUrl}
+              onChange={(e) => setApiBaseUrl(e.target.value)}
+              placeholder="https://api.openai.com/v1"
+              className="w-full px-3 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none"
+              style={{
+                background: S.s2,
+                border: `1px solid ${S.border}`,
+                color: S.text,
+              }}
+            />
+            <p className="text-[9px] mt-1.5" style={{ color: S.text3 }}>
+              留空使用默认端点，支持 OpenAI 兼容 API 格式
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderAgentTab = () => (
     <div
