@@ -15,7 +15,7 @@ import {
   type SubgraphLock, type GameVariable, type NarrativeState,
 } from "@/lib/studio-data";
 import { evaluateCondition } from "@/lib/condition-engine";
-import { useNarrativeStore, useProjectStore } from "@/store";
+import { useNarrativeStore, getCurrentProject } from "@/store";
 
 const S = {
   primary: "#6355D8",
@@ -114,7 +114,7 @@ export default function SimulatorScreen() {
   const pathname = usePathname();
 
   // ── Store selectors ──
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const playableGraph = useNarrativeStore(s => s.playableGraph);
   const initVariables = useNarrativeStore(s => s.initVariables);
   const pathTestResults = useNarrativeStore(s => s.pathTestResults);

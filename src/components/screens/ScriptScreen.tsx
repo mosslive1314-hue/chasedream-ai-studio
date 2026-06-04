@@ -10,7 +10,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
 import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
-import { useNarrativeStore, useProjectStore, useCanvasAgentStore, useSettingsStore, useUIStore } from "@/store";
+import { useNarrativeStore, getCurrentProject, useCanvasAgentStore, useSettingsStore, useUIStore } from "@/store";
 import { AIService } from "@/lib/ai";
 import type { ConsistencyIssue, DialogueOption } from "@/lib/ai";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
@@ -129,7 +129,7 @@ const NARRATIVE_TEMPLATES: NarrativeTemplate[] = [
 
 // ── 章节规划内容组件（P3-2）──
 function ChapterPlanContent() {
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const chapterPlans = useNarrativeStore(state => state.chapterPlans);
   const [expandedChapter, setExpandedChapter] = useState<string | null>(chapterPlans[0]?.id ?? null);
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
@@ -734,7 +734,7 @@ function TiptapEditorPanel({
   const characters = useNarrativeStore(s => s.characters);
   const worldRules = useNarrativeStore(s => s.worldRules);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const addToast = useUIStore(s => s.addToast);
 
   // ── AI Assist: state ──
@@ -1311,7 +1311,7 @@ function TiptapEditorPanel({
 
 export default function ScriptScreen() {
   const pathname = usePathname();
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const narrativeTemplates = NARRATIVE_TEMPLATES.map(t =>
     t.id === 'three-act' ? { ...t, examples: `《${projectName}》当前结构接近三幕式` } : t
   );

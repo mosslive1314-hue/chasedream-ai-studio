@@ -1,4 +1,4 @@
-export { useProjectStore } from './use-project-store';
+export { useProjectStore, getCurrentProject } from './use-project-store';
 export { useNarrativeStore } from './use-narrative-store';
 export { useUIStore } from './use-ui-store';
 export { useHistoryStore } from './use-history-store';

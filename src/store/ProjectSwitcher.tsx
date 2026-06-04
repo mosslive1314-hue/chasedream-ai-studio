@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useProjectStore } from "./use-project-store";
+import { useProjectStore, getCurrentProject } from "./use-project-store";
 import { useNarrativeStore } from "./use-narrative-store";
 import { useSettingsStore } from "./use-settings-store";
 import { useProjectDataCacheStore } from "./use-project-data-cache-store";
@@ -66,7 +66,7 @@ export function ProjectSwitcher() {
       }
 
       // 3. Sync settings store projectName with the new project title
-      const project = useProjectStore.getState().currentProject();
+      const project = getCurrentProject();
       if (project) {
         useSettingsStore.getState().setProjectName(project.title);
       }

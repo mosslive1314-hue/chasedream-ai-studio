@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,7 +9,7 @@ import {
   Shield, BarChart3, MessageCircle, Timer, Activity,
   Eye, Clock, Flame, Upload, FileText, Clipboard,
 } from "lucide-react";
-import { useNarrativeStore, useProjectStore, useUIStore, useWardrobeStore } from "@/store";
+import { useNarrativeStore, getCurrentProject, useUIStore, useWardrobeStore } from "@/store";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { WardrobeEditor } from "@/components/ui/WardrobeEditor";
@@ -57,7 +57,10 @@ function StatPill({ label, value, color }: { label: string; value: number | stri
 // ── Main Component ──────────────────────────────────────────────────────
 export default function StoryOverviewScreen() {
   const pathname = usePathname();
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const displayName = mounted ? projectName : "当前项目";
   const [activeTab, setActiveTab] = useState<TabId>("progress");
   const addToast = useUIStore(s => s.addToast);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,7 +131,7 @@ export default function StoryOverviewScreen() {
           <div>
             <h2 className="text-sm font-bold" style={{ color: S.text }}>
               剧本总览
-              <span className="ml-1.5 text-[10px] font-medium" style={{ color: S.text3 }}>{projectName}</span>
+              <span className="ml-1.5 text-[10px] font-medium" style={{ color: S.text3 }}>{displayName}</span>
             </h2>
             <p className="text-[9px]" style={{ color: S.text3 }}>创作进度 · 叙事结构 · 互动设计 · 角色世界 · 项目统计</p>
           </div>

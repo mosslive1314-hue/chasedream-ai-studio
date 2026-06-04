@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
-import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
+import { useNarrativeStore, useUIStore, getCurrentProject } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
@@ -1663,8 +1663,8 @@ function UIContent() {
   const updateGameUISettings = useNarrativeStore(state => state.updateGameUISettings);
   const updateUITemplate = useNarrativeStore(state => state.updateUITemplate);
   const addUITemplate = useNarrativeStore(state => state.addUITemplate);
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
-  const projectGenre = useProjectStore(s => s.currentProject()?.genre) || "互动叙事";
+  const projectName = getCurrentProject()?.title || "当前项目";
+  const projectGenre = getCurrentProject()?.genre || "互动叙事";
   const characters = useNarrativeStore(state => state.characters);
   const genrePrefix = useMemo(() => {
     // Extract a short style prefix from the project genre (first token before · or space)
@@ -3355,7 +3355,7 @@ export default function NodesScreen() {
   const updateNode = useNarrativeStore(state => state.updateNode);
   const addEdge = useNarrativeStore(state => state.addEdge);
   const removeEdge = useNarrativeStore(state => state.removeEdge);
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const [activeTab, setActiveTab] = useState<TabId>("canvas");
   const [sel, setSel] = useState<string|null>(null);
   const [aiModal, setAiModal] = useState<"write"|"node"|"bgm"|"portrait"|null>(null);

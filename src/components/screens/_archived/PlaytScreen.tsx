@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { SkipBack, RefreshCw, ChevronRight } from "lucide-react";
-import { useProjectStore } from "@/store";
+import { getCurrentProject } from "@/store";
 
 const S = {
   card:"#FFFFFF", s2:"#F4F6FC", border:"#E2E5F0",
@@ -23,7 +23,7 @@ const NODES: Record<string,{text:string;char:string;choices?:{label:string;next:
 const INIT = { stealth_score:55, alert_level:30, trust_lineman:20, truth:0 };
 
 export default function PlaytScreen() {
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const [nodeId, setNodeId] = useState("N01");
   const [vars, setVars] = useState({...INIT});
   const [path, setPath] = useState(["N01"]);

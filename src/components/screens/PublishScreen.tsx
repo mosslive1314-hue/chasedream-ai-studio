@@ -1,15 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, Copy, ExternalLink,
   ChevronRight, Rocket,
   Download, Upload, Globe, Package, Layers,
 } from "lucide-react";
-import { useNarrativeStore, useUIStore, useProjectStore, useExportStore } from "@/store";
+import { useNarrativeStore, useUIStore, getCurrentProject, useExportStore } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
-import { EXPORT_CATEGORY_LABELS } from "@/lib/seed/export-formats-seed";
+import { EXPORT_CATEGORY_LABELS, getFormatsByIndustry } from "@/lib/seed/export-formats-seed";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -42,16 +42,23 @@ const INDUSTRY_MAP: Record<string, 'game' | 'tourism' | 'education' | 'derivativ
 export default function PublishScreen() {
   const pathname = usePathname();
   // ── Store selectors ──
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const engineExportConfigs = useNarrativeStore(s => s.engineExportConfigs);
   const addToast = useUIStore(s => s.addToast);
 
-  // ── Export Store selectors ──
+  // ── Export Store selectors (safe: data only, no functions in state) ──
   const exportFormats = useExportStore(s => s.formats);
-  const getFormatsByIndustry = useExportStore(s => s.getFormatsByIndustry);
-  const runExport = useExportStore(s => s.runExport);
-  const recentJobs = useExportStore(s => s.getRecentJobs(10));
+  const exportJobs = useExportStore(s => s.jobs);
+  const recentJobs = useMemo(
+    () => [...exportJobs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10),
+    [exportJobs],
+  );
+  const runExport = useCallback(
+    (formatId: string, options?: Record<string, string | boolean | number>) =>
+      useExportStore.getState().runExport(formatId as any, options),
+    [],
+  );
 
   // 多端导出：只取主要格式（script + interactive + package 类别）
   const mainExportFormats = exportFormats.filter(f =>

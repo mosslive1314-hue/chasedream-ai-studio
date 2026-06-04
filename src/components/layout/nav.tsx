@@ -14,7 +14,7 @@ import {
 import { INDUSTRY_LABELS, type IndustryType } from "@/lib/studio-data";
 import { useUIStore } from "@/store";
 import { useNarrativeStore } from "@/store";
-import { PipelineStatus } from "@/components/ui/PipelineStatus";
+
 import { auth } from "@eazo/sdk";
 import { useEazo } from "@eazo/sdk/react";
 
@@ -989,37 +989,6 @@ export function SideNav() {
               </Link>
             );
           })}
-
-          {/* Separator */}
-          <div className="my-1.5 mx-2" style={{ height: 1, background: "#E2E5F0" }} />
-
-          {/* Pipeline Status Widget (compact) */}
-          <AnimatePresence>
-            {open && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                className="overflow-hidden"
-              >
-                <PipelineStatus compact={true} showNextStep={true} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Separator after pipeline status */}
-          <AnimatePresence>
-            {open && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="my-1.5 mx-2"
-                style={{ height: 1, background: "#E2E5F0" }}
-              />
-            )}
-          </AnimatePresence>
 
           {/* Settings link */}
           <Link href="/settings" title={"设置"}>

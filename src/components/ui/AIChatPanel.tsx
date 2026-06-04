@@ -6,7 +6,7 @@ import {
   ArrowRight, Lightbulb, Zap, Target, FileText,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useUIStore, useNarrativeStore, useProjectStore, useSettingsStore } from "@/store";
+import { useUIStore, useNarrativeStore, getCurrentProject, useSettingsStore } from "@/store";
 import { AIService } from "@/lib/ai";
 
 const S = {
@@ -50,7 +50,7 @@ export default function AIChatPanel() {
   const aiChatOpen = useUIStore(s => s.aiChatOpen);
   const toggleAiChat = useUIStore(s => s.toggleAiChat);
   const addToast = useUIStore(s => s.addToast);
-  const projectName = useProjectStore(s => s.currentProject()?.title) ?? "当前项目";
+  const projectName = getCurrentProject()?.title ?? "当前项目";
   const characters = useNarrativeStore(s => s.characters);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const scenes = useNarrativeStore(s => s.scenes);

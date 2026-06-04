@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { INDUSTRY_LABELS, INDUSTRY_QC_RULES, type IndustryType } from "@/lib/studio-data";
-import { useNarrativeStore, useUIStore, useSettingsStore, useProjectStore, useAnalyticsStore } from "@/store";
+import { useNarrativeStore, useUIStore, useSettingsStore, getCurrentProject, useAnalyticsStore } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
@@ -69,7 +69,7 @@ function AIAssistantPanel() {
   const apiKeys = useSettingsStore(s => s.apiKeys);
   const aiModel = useSettingsStore(s => s.aiModel);
   const apiBaseUrl = useSettingsStore(s => s.apiBaseUrl);
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const worldRules = useNarrativeStore(s => s.worldRules);
   const addToast = useUIStore(s => s.addToast);
 
@@ -543,8 +543,8 @@ export default function OverviewScreen() {
   const assetCards = useNarrativeStore(s => s.assetCards);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const narrativeIntents = useNarrativeStore(s => s.narrativeIntents);
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
-  const currentProject = useProjectStore(s => s.currentProject());
+  const projectName = getCurrentProject()?.title || "当前项目";
+  const currentProject = getCurrentProject();
 
   // ── Project-derived labels ──────────────────────────────────────────
   const genreLabel = currentProject?.genre ?? "未设定";

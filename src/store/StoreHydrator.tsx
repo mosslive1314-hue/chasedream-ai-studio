@@ -5,6 +5,7 @@ import { useAnalyticsStore } from "./use-analytics-store";
 import { useVersionStore } from "./use-version-store";
 import { useSkillStore } from "./use-skill-store";
 import { useWardrobeStore } from "./use-wardrobe-store";
+import { useProjectStore } from "./use-project-store";
 
 /**
  * Client-only component that triggers Zustand persist rehydration
@@ -16,6 +17,7 @@ import { useWardrobeStore } from "./use-wardrobe-store";
  */
 export function StoreHydrator() {
   useEffect(() => {
+    useProjectStore.persist.rehydrate();
     useExportStore.persist.rehydrate();
     useAnalyticsStore.persist.rehydrate();
     useVersionStore.persist.rehydrate();

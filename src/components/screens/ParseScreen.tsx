@@ -9,7 +9,7 @@ import {
   Pencil, Plus, Save, CheckCheck,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
-import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
+import { useNarrativeStore, getCurrentProject, useUIStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { DataFlowBar } from "@/components/ui/DataFlowBar";
 import { pushTransfer } from "@/lib/data-flow-bridge";
@@ -391,7 +391,7 @@ function generateAgentLogs(stepIndex: number) {
 export default function ParseScreen() {
   const router = useRouter();
   const pathname = usePathname();
-  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const projectName = getCurrentProject()?.title || "当前项目";
   const worldRules = useNarrativeStore(s => s.worldRules);
   const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);
   const addToast = useUIStore(s => s.addToast);
@@ -405,7 +405,7 @@ export default function ParseScreen() {
   const addProp = useNarrativeStore(s => s.addProp);
 
   // ── Store data for artifact derivation ─────────────────────────────────
-  const currentProject = useProjectStore(s => s.currentProject());
+  const currentProject = getCurrentProject();
   const characters = useNarrativeStore(s => s.characters);
   const scenes = useNarrativeStore(s => s.scenes);
   const props = useNarrativeStore(s => s.props);

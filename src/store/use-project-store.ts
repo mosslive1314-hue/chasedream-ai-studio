@@ -10,9 +10,6 @@ interface ProjectState {
   projects: Project[];
   currentProjectId: string | null;
 
-  // Computed
-  currentProject: () => Project | null;
-
   // Actions
   createProject: (project: Omit<Project, 'id'>) => void;
   deleteProject: (id: string) => void;
@@ -20,18 +17,18 @@ interface ProjectState {
   setCurrentProject: (id: string) => void;
 }
 
+/** Standalone helper — safe for both SSR and client, no function-in-state. */
+export function getCurrentProject(): Project | null {
+  const { projects, currentProjectId } = useProjectStore.getState();
+  return projects.find(p => p.id === currentProjectId) ?? null;
+}
+
 export const useProjectStore = create<ProjectState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // --- Initial state from seed ---
       projects: SEED_PROJECTS,
       currentProjectId: SEED_PROJECTS.length > 0 ? SEED_PROJECTS[0].id : null,
-
-      // --- Computed ---
-      currentProject: () => {
-        const { projects, currentProjectId } = get();
-        return projects.find(p => p.id === currentProjectId) ?? null;
-      },
 
       // --- Actions ---
       createProject: (projectData) => {
@@ -63,6 +60,7 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'cd-projects',
+      skipHydration: true,
     }
   )
 );
