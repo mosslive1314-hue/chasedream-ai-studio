@@ -5,7 +5,8 @@ import {
   Camera, Video, Mic, Music, Clock, ArrowRight, Play, Film,
   ChevronDown, Move, Eye, Volume2, Zap, Sparkles, Star,
   CircleDot, Scissors, Sun, Waves, Users, Crosshair,
-  ZoomIn, ZoomOut, Aperture, BookOpen,
+  ZoomIn, ZoomOut, Aperture, BookOpen, Activity, Image, Clapperboard,
+  Plus, Trash2, ChevronUp, GripVertical,
 } from "lucide-react";
 import {
   type CinematicDirection, type CameraShotType, type CameraMovement,
@@ -95,7 +96,7 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 };
 
 // ── Section tab definitions ──────────────────────────────────────────────
-type SectionTabId = "camera" | "performance" | "pacing" | "audio" | "pov" | "timeline" | "lens_preset";
+type SectionTabId = "camera" | "performance" | "pacing" | "audio" | "pov" | "timeline" | "lens_preset" | "storyboard" | "rhythm" | "scene_config";
 const SECTION_TABS: { id: SectionTabId; label: string; icon: typeof Camera; color: string }[] = [
   { id: "camera",      label: "镜头设计",   icon: Camera, color: "#0EA5E9" },
   { id: "performance", label: "表演指导",   icon: Users,  color: "#8B5CF6" },
@@ -104,6 +105,9 @@ const SECTION_TABS: { id: SectionTabId; label: string; icon: typeof Camera; colo
   { id: "pov",         label: "POV 视角",   icon: Eye,    color: "#06B6D4" },
   { id: "timeline",    label: "节点时间线", icon: Film,   color: "#8B5CF6" },
   { id: "lens_preset", label: "镜头预设库", icon: Aperture, color: "#E11D48" },
+  { id: "storyboard",  label: "分镜序列",   icon: Clapperboard, color: "#F97316" },
+  { id: "rhythm",      label: "节奏时间轴", icon: Activity, color: "#EC4899" },
+  { id: "scene_config",label: "场景配置",   icon: Image,  color: "#059669" },
 ];
 
 // ── Chapter filter options ─────────────────────────────────────────────
@@ -131,6 +135,8 @@ export default function CinematicEditorScreen() {
   const characters = useNarrativeStore(s => s.characters);
   const povConfigs = useNarrativeStore(s => s.povConfigs);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
+  const scenes = useNarrativeStore(s => s.scenes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const updateCinematicDirection = useNarrativeStore(s => s.updateCinematicDirection);
   const addToast = useUIStore(s => s.addToast);
 
@@ -148,6 +154,53 @@ export default function CinematicEditorScreen() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [sectionTab, setSectionTab] = useState<SectionTabId>("camera");
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>("all");
+
+  // ── Storyboard state ──
+  interface StoryboardShot {
+    id: string; type: string; duration: number; description: string;
+    cameraMovement: string; focusTarget: string; transition: string; notes: string; emotionLevel: number;
+  }
+  const [storyboardShots, setStoryboardShots] = useState<Record<string, StoryboardShot[]>>({});
+  const [selectedShotIdx, setSelectedShotIdx] = useState<number>(0);
+
+  const SHOT_TYPES = [
+    { id: "wide", label: "远景", emoji: "\u{1F3D4}\u{FE0F}", desc: "展示场景全貌" },
+    { id: "medium", label: "中景", emoji: "\u{1F464}", desc: "角色上半身" },
+    { id: "closeup", label: "特写", emoji: "\u{1F441}\u{FE0F}", desc: "面部表情/细节" },
+    { id: "dialogue", label: "对白", emoji: "\u{1F4AC}", desc: "角色对话" },
+    { id: "reaction", label: "反应", emoji: "\u{1F62E}", desc: "角色反应" },
+    { id: "action", label: "动作", emoji: "\u26A1", desc: "动作/战斗" },
+    { id: "transition", label: "转场", emoji: "\u{1F504}", desc: "场景过渡" },
+    { id: "establishing", label: "建立", emoji: "\u{1F306}", desc: "环境建立" },
+  ];
+  const CAMERA_MOVEMENTS = ["固定", "推进", "拉远", "平移", "跟随", "环绕"];
+  const TRANSITIONS = ["切", "淡入淡出", "溶解", "闪白", "闪黑"];
+  const LIGHTING_PRESETS = ["日光", "黄昏", "夜晚", "室内暖光", "室内冷光", "霓虹", "烛光"];
+
+  const getShots = (nodeId: string): StoryboardShot[] => storyboardShots[nodeId] ?? [];
+  const addShot = (nodeId: string) => {
+    const shots = getShots(nodeId);
+    const newShot: StoryboardShot = { id: `shot-${Date.now()}`, type: "wide", duration: 3, description: "", cameraMovement: "固定", focusTarget: "", transition: "切", notes: "", emotionLevel: 3 };
+    setStoryboardShots(prev => ({ ...prev, [nodeId]: [...shots, newShot] }));
+    setSelectedShotIdx(shots.length);
+  };
+  const updateShot = (nodeId: string, idx: number, updates: Partial<StoryboardShot>) => {
+    const shots = [...getShots(nodeId)];
+    if (shots[idx]) { shots[idx] = { ...shots[idx], ...updates }; setStoryboardShots(prev => ({ ...prev, [nodeId]: shots })); }
+  };
+  const removeShot = (nodeId: string, idx: number) => {
+    const shots = getShots(nodeId).filter((_, i) => i !== idx);
+    setStoryboardShots(prev => ({ ...prev, [nodeId]: shots }));
+    setSelectedShotIdx(Math.max(0, selectedShotIdx - 1));
+  };
+  const moveShot = (nodeId: string, idx: number, dir: -1 | 1) => {
+    const shots = [...getShots(nodeId)];
+    const target = idx + dir;
+    if (target < 0 || target >= shots.length) return;
+    [shots[idx], shots[target]] = [shots[target], shots[idx]];
+    setStoryboardShots(prev => ({ ...prev, [nodeId]: shots }));
+    setSelectedShotIdx(target);
+  };
 
   // Map nodeId to its cinematic direction
   const directionMap = useMemo(() => {
@@ -455,6 +508,403 @@ export default function CinematicEditorScreen() {
 
               {sectionTab === "lens_preset" && (
                 <LensPresetLibrary characters={characters} />
+              )}
+
+              {/* ══════ Storyboard Sequence ══════ */}
+              {sectionTab === "storyboard" && (
+                <div className="flex gap-5 h-full min-h-0">
+                  {/* Left — shot timeline */}
+                  <div className="w-[300px] shrink-0 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold" style={{ color: S.text }}>分镜序列</h3>
+                      <motion.button whileTap={{ scale: 0.9 }}
+                        onClick={() => addShot(selectedNodeId)}
+                        className="text-[9px] px-2.5 py-1 rounded-lg font-bold text-white focus:outline-none"
+                        style={{ background: "#F97316" }}>
+                        <Plus size={10} className="inline mr-1" />添加镜头
+                      </motion.button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-1.5">
+                      {getShots(selectedNodeId).length === 0 && (
+                        <div className="rounded-xl p-6 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                          <Clapperboard size={22} className="mx-auto mb-2" style={{ color: S.text3 }} />
+                          <p className="text-[10px]" style={{ color: S.text3 }}>该节点暂无分镜</p>
+                          <p className="text-[9px] mt-1" style={{ color: S.text3 }}>点击上方按钮添加第一个镜头</p>
+                        </div>
+                      )}
+                      {getShots(selectedNodeId).map((shot, i) => {
+                        const shotType = SHOT_TYPES.find(st => st.id === shot.type) ?? SHOT_TYPES[0];
+                        const isSelected = selectedShotIdx === i;
+                        return (
+                          <motion.button key={shot.id} whileTap={{ scale: 0.97 }}
+                            onClick={() => setSelectedShotIdx(i)}
+                            className="w-full text-left p-3 rounded-xl focus:outline-none flex items-start gap-2.5"
+                            style={{
+                              background: isSelected ? `${shotType.id === "wide" ? "#0EA5E9" : "#F97316"}08` : S.card,
+                              border: `1.5px solid ${isSelected ? "#F97316" : S.border}`,
+                            }}>
+                            <div className="flex flex-col items-center gap-0.5 shrink-0">
+                              <GripVertical size={10} style={{ color: S.text3 }} />
+                              <span className="w-6 h-6 rounded-lg flex items-center justify-center text-sm" style={{ background: S.s2 }}>
+                                {shotType.emoji}
+                              </span>
+                              <span className="text-[8px] font-bold" style={{ color: S.text3 }}>#{i + 1}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[10px] font-bold" style={{ color: S.text }}>{shotType.label}</span>
+                                <span className="text-[8px] px-1.5 py-0.5 rounded font-mono" style={{ background: S.s2, color: S.text3 }}>{shot.duration}s</span>
+                              </div>
+                              <p className="text-[9px] truncate" style={{ color: S.text3 }}>{shot.description || "未添加描述"}</p>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[8px]" style={{ color: S.text3 }}>{shot.cameraMovement}</span>
+                                <span className="text-[8px]" style={{ color: S.border2 }}>→ {shot.transition}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-0.5 shrink-0">
+                              <motion.button whileTap={{ scale: 0.85 }} onClick={e => { e.stopPropagation(); moveShot(selectedNodeId, i, -1); }}
+                                className="p-0.5 rounded focus:outline-none" style={{ color: i === 0 ? S.border2 : S.text3 }}>
+                                <ChevronUp size={10} />
+                              </motion.button>
+                              <motion.button whileTap={{ scale: 0.85 }} onClick={e => { e.stopPropagation(); moveShot(selectedNodeId, i, 1); }}
+                                className="p-0.5 rounded focus:outline-none" style={{ color: i === getShots(selectedNodeId).length - 1 ? S.border2 : S.text3 }}>
+                                <ChevronDown size={10} />
+                              </motion.button>
+                              <motion.button whileTap={{ scale: 0.85 }} onClick={e => { e.stopPropagation(); removeShot(selectedNodeId, i); }}
+                                className="p-0.5 rounded focus:outline-none" style={{ color: S.error }}>
+                                <Trash2 size={10} />
+                              </motion.button>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* Right — shot editor */}
+                  <div className="flex-1 overflow-y-auto">
+                    {(() => {
+                      const shots = getShots(selectedNodeId);
+                      const shot = shots[selectedShotIdx];
+                      if (!shot) return (
+                        <div className="h-full flex items-center justify-center">
+                          <p className="text-xs" style={{ color: S.text3 }}>← 选择或添加一个镜头</p>
+                        </div>
+                      );
+                      return (
+                        <div className="rounded-xl p-5 space-y-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                          <h3 className="text-sm font-bold" style={{ color: S.text }}>镜头 #{selectedShotIdx + 1} 编辑</h3>
+                          {/* Shot type grid */}
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider block mb-2" style={{ color: S.text3 }}>镜头类型</label>
+                            <div className="grid grid-cols-4 gap-2">
+                              {SHOT_TYPES.map(st => (
+                                <motion.button key={st.id} whileTap={{ scale: 0.95 }}
+                                  onClick={() => updateShot(selectedNodeId, selectedShotIdx, { type: st.id })}
+                                  className="p-2.5 rounded-xl text-center focus:outline-none"
+                                  style={{
+                                    background: shot.type === st.id ? `${S.primary}12` : S.s2,
+                                    border: `1.5px solid ${shot.type === st.id ? S.primary : S.border}`,
+                                  }}>
+                                  <span className="text-lg block">{st.emoji}</span>
+                                  <span className="text-[9px] font-bold block mt-0.5" style={{ color: shot.type === st.id ? S.primary : S.text2 }}>{st.label}</span>
+                                  <span className="text-[8px]" style={{ color: S.text3 }}>{st.desc}</span>
+                                </motion.button>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Duration slider */}
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider block mb-2" style={{ color: S.text3 }}>
+                              时长 <span className="font-mono ml-1" style={{ color: S.primary }}>{shot.duration}s</span>
+                            </label>
+                            <input type="range" min={0.5} max={10} step={0.5} value={shot.duration}
+                              onChange={e => updateShot(selectedNodeId, selectedShotIdx, { duration: Number(e.target.value) })}
+                              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                              style={{ accentColor: S.primary, background: S.s2 }} />
+                            <div className="flex justify-between text-[8px] mt-0.5" style={{ color: S.text3 }}>
+                              <span>0.5s</span><span>10s</span>
+                            </div>
+                          </div>
+                          {/* Description */}
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>描述</label>
+                            <textarea rows={2} value={shot.description}
+                              onChange={e => updateShot(selectedNodeId, selectedShotIdx, { description: e.target.value })}
+                              placeholder="描述这个镜头的内容..."
+                              className="w-full text-[10px] rounded-lg px-3 py-2 resize-none focus:outline-none"
+                              style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                          </div>
+                          {/* Camera movement + focus + transition row */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>运镜方式</label>
+                              <select value={shot.cameraMovement}
+                                onChange={e => updateShot(selectedNodeId, selectedShotIdx, { cameraMovement: e.target.value })}
+                                className="w-full text-[10px] rounded-lg px-2 py-1.5 focus:outline-none"
+                                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                                {CAMERA_MOVEMENTS.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>焦点目标</label>
+                              <select value={shot.focusTarget}
+                                onChange={e => updateShot(selectedNodeId, selectedShotIdx, { focusTarget: e.target.value })}
+                                className="w-full text-[10px] rounded-lg px-2 py-1.5 focus:outline-none"
+                                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                                <option value="">—</option>
+                                <option value="环境">环境</option>
+                                {characters.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>转场方式</label>
+                              <select value={shot.transition}
+                                onChange={e => updateShot(selectedNodeId, selectedShotIdx, { transition: e.target.value })}
+                                className="w-full text-[10px] rounded-lg px-2 py-1.5 focus:outline-none"
+                                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                                {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          {/* Director notes */}
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>导演备注</label>
+                            <textarea rows={2} value={shot.notes}
+                              onChange={e => updateShot(selectedNodeId, selectedShotIdx, { notes: e.target.value })}
+                              placeholder="补充导演意图..."
+                              className="w-full text-[10px] rounded-lg px-3 py-2 resize-none focus:outline-none"
+                              style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* ══════ Pacing Timeline ══════ */}
+              {sectionTab === "rhythm" && (() => {
+                const shots = getShots(selectedNodeId);
+                const totalDuration = shots.reduce((s, sh) => s + sh.duration, 0);
+                const avgDuration = shots.length > 0 ? totalDuration / shots.length : 0;
+                const paceLabel = avgDuration < 2 ? "快节奏" : avgDuration < 4 ? "中等" : "慢节奏";
+                const paceColor = avgDuration < 2 ? S.error : avgDuration < 4 ? S.warning : S.success;
+                const shotTypeColors: Record<string, string> = {
+                  wide: "#0EA5E9", medium: "#22C55E", closeup: "#F43F5E", dialogue: "#8B5CF6",
+                  reaction: "#F59E0B", action: "#EF4444", transition: "#6B7280", establishing: "#06B6D4",
+                };
+                const maxEmotion = 5;
+                const emotionPoints = shots.map(sh => sh.emotionLevel);
+                const svgWidth = Math.max(shots.length * 80, 400);
+                const svgHeight = 120;
+
+                return (
+                  <div className="space-y-5">
+                    {/* Stats row */}
+                    <div className="grid grid-cols-5 gap-3">
+                      <div className="rounded-xl p-3 text-center" style={{ background: `${S.primary}08`, border: `1px solid ${S.primary}20` }}>
+                        <span className="text-base font-bold" style={{ color: S.primary }}>{shots.length}</span>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>镜头数</p>
+                      </div>
+                      <div className="rounded-xl p-3 text-center" style={{ background: `${S.accent}08`, border: `1px solid ${S.accent}20` }}>
+                        <span className="text-base font-bold" style={{ color: S.accent }}>{totalDuration.toFixed(1)}s</span>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>总时长</p>
+                      </div>
+                      <div className="rounded-xl p-3 text-center" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <span className="text-base font-bold" style={{ color: S.text2 }}>{avgDuration.toFixed(1)}s</span>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>平均时长</p>
+                      </div>
+                      <div className="rounded-xl p-3 text-center" style={{ background: `${paceColor}08`, border: `1px solid ${paceColor}20` }}>
+                        <span className="text-base font-bold" style={{ color: paceColor }}>{paceLabel}</span>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>节奏</p>
+                      </div>
+                      <div className="rounded-xl p-3 text-center" style={{ background: `${S.purple}08`, border: `1px solid ${S.purple}20` }}>
+                        <span className="text-base font-bold" style={{ color: S.purple }}>
+                          {emotionPoints.length > 0 ? `${Math.min(...emotionPoints)}-${Math.max(...emotionPoints)}` : "—"}
+                        </span>
+                        <p className="text-[8px]" style={{ color: S.text3 }}>情绪范围</p>
+                      </div>
+                    </div>
+
+                    {shots.length > 0 ? (
+                      <>
+                        {/* Horizontal timeline */}
+                        <div className="rounded-xl p-4 overflow-x-auto" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>镜头时间轴</h4>
+                          <div className="flex items-end gap-0.5" style={{ minWidth: svgWidth }}>
+                            {shots.map((shot, i) => {
+                              const color = shotTypeColors[shot.type] ?? S.text3;
+                              const shotType = SHOT_TYPES.find(st => st.id === shot.type);
+                              return (
+                                <motion.button key={shot.id} whileHover={{ y: -2 }} whileTap={{ scale: 0.95 }}
+                                  onClick={() => setSelectedShotIdx(i)}
+                                  className="flex flex-col items-center gap-1 focus:outline-none"
+                                  style={{ minWidth: Math.max(shot.duration * 16, 40) }}>
+                                  <div className="w-full rounded-t-lg relative" style={{ height: Math.max(shot.duration * 12, 20), background: `${color}20`, borderTop: `3px solid ${color}` }}>
+                                    <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold" style={{ color }}>
+                                      {shot.duration}s
+                                    </span>
+                                  </div>
+                                  <span className="text-sm">{shotType?.emoji}</span>
+                                  <span className="text-[7px] font-medium" style={{ color: S.text3 }}>#{i + 1}</span>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Emotion curve */}
+                        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>情绪曲线</h4>
+                          <svg width={svgWidth} height={svgHeight} className="overflow-visible">
+                            {/* Grid lines */}
+                            {[1, 2, 3, 4, 5].map(level => (
+                              <line key={level} x1={0} y1={svgHeight - (level / maxEmotion) * svgHeight} x2={svgWidth} y2={svgHeight - (level / maxEmotion) * svgHeight}
+                                stroke={S.border} strokeDasharray="4 4" strokeWidth={0.5} />
+                            ))}
+                            {/* Emotion path */}
+                            {emotionPoints.length > 1 && (
+                              <polyline
+                                fill="none"
+                                stroke={S.primary}
+                                strokeWidth={2}
+                                opacity={0.7}
+                                points={emotionPoints.map((level, i) => {
+                                  const x = (i / (emotionPoints.length - 1)) * svgWidth;
+                                  const y = svgHeight - (level / maxEmotion) * svgHeight;
+                                  return `${x},${y}`;
+                                }).join(" ")}
+                              />
+                            )}
+                            {/* Points */}
+                            {emotionPoints.map((level, i) => {
+                              const x = emotionPoints.length > 1 ? (i / (emotionPoints.length - 1)) * svgWidth : svgWidth / 2;
+                              const y = svgHeight - (level / maxEmotion) * svgHeight;
+                              return (
+                                <g key={i}>
+                                  <circle cx={x} cy={y} r={5} fill={S.primary} stroke="#fff" strokeWidth={2} />
+                                  <text x={x} y={y - 10} textAnchor="middle" fontSize={8} fill={S.text3}>{level}</text>
+                                </g>
+                              );
+                            })}
+                            {/* Y axis labels */}
+                            {[1, 2, 3, 4, 5].map(level => (
+                              <text key={level} x={-16} y={svgHeight - (level / maxEmotion) * svgHeight + 3} fontSize={7} fill={S.text3}>{level}</text>
+                            ))}
+                          </svg>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="text-[8px] px-2 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>点击镜头可调整情绪值</span>
+                          </div>
+                          {/* Emotion level editor for selected shot */}
+                          {shots[selectedShotIdx] && (
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="text-[9px] font-bold" style={{ color: S.text3 }}>
+                                镜头 #{selectedShotIdx + 1} 情绪:
+                              </span>
+                              {[1, 2, 3, 4, 5].map(level => (
+                                <motion.button key={level} whileTap={{ scale: 0.85 }}
+                                  onClick={() => updateShot(selectedNodeId, selectedShotIdx, { emotionLevel: level })}
+                                  className="w-6 h-6 rounded-full text-[9px] font-bold focus:outline-none"
+                                  style={{
+                                    background: shots[selectedShotIdx].emotionLevel >= level ? S.primary : S.s2,
+                                    color: shots[selectedShotIdx].emotionLevel >= level ? "#fff" : S.text3,
+                                    border: `1px solid ${shots[selectedShotIdx].emotionLevel >= level ? S.primary : S.border}`,
+                                  }}>
+                                  {level}
+                                </motion.button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-xl p-10 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                        <Activity size={24} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                        <p className="text-xs font-bold" style={{ color: S.text2 }}>暂无分镜数据</p>
+                        <p className="text-[10px] mt-1" style={{ color: S.text3 }}>请先在"分镜序列"标签页添加镜头</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ══════ Scene Configuration ══════ */}
+              {sectionTab === "scene_config" && (
+                <div className="space-y-5">
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>场景配置管理</h3>
+                  {scenes.length === 0 ? (
+                    <div className="rounded-xl p-10 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                      <Image size={24} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                      <p className="text-xs font-bold" style={{ color: S.text2 }}>暂无场景数据</p>
+                      <p className="text-[10px] mt-1" style={{ color: S.text3 }}>场景将在剧本解构阶段自动生成</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      {scenes.map(scene => {
+                        const relatedNodes = storyNodes.filter(n => scene.refNodes.includes(n.id));
+                        const atmosphereColors: Record<string, string> = {
+                          "紧张": "#EF4444", "温馨": "#F59E0B", "神秘": "#8B5CF6", "阴冷": "#0EA5E9",
+                          "压抑": "#6B7280", "浪漫": "#EC4899", "恐怖": "#DC2626", "欢快": "#22C55E",
+                        };
+                        const mainColor = atmosphereColors[scene.atmosphere] ?? S.accent;
+                        return (
+                          <motion.div key={scene.id} layout className="rounded-xl overflow-hidden"
+                            style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                            {/* Scene header with gradient */}
+                            <div className="p-4 relative" style={{ background: `linear-gradient(135deg, ${mainColor}15, ${mainColor}05)` }}>
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="text-xs font-bold" style={{ color: S.text }}>{scene.name}</h4>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${mainColor}15`, color: mainColor }}>
+                                      {scene.atmosphere}
+                                    </span>
+                                    <span className="text-[9px]" style={{ color: S.text3 }}>{scene.location}</span>
+                                  </div>
+                                </div>
+                                <span className="text-[9px] font-mono px-2 py-0.5 rounded shrink-0" style={{ background: S.s2, color: S.text3 }}>
+                                  {scene.refNodes.length} 节点
+                                </span>
+                              </div>
+                              {/* Color palette dots */}
+                              <div className="flex items-center gap-1.5 mt-2">
+                                <span className="text-[8px]" style={{ color: S.text3 }}>色彩:</span>
+                                {[mainColor, S.primary, S.accent].map((c, i) => (
+                                  <div key={i} className="w-3 h-3 rounded-full" style={{ background: c, border: `1px solid ${S.border}` }} />
+                                ))}
+                              </div>
+                            </div>
+                            {/* Scene details */}
+                            <div className="p-4 space-y-3">
+                              <div>
+                                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>灯光预设</label>
+                                <select defaultValue={scene.lighting || "日光"}
+                                  className="w-full text-[10px] rounded-lg px-2.5 py-1.5 focus:outline-none"
+                                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                                  {LIGHTING_PRESETS.map(lp => <option key={lp} value={lp}>{lp}</option>)}
+                                </select>
+                              </div>
+                              {/* Related nodes */}
+                              <div>
+                                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>关联节点</label>
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {relatedNodes.length > 0 ? relatedNodes.map(n => (
+                                    <span key={n.id} className="text-[8px] px-2 py-0.5 rounded font-medium"
+                                      style={{ background: `${S.primary}10`, color: S.primary }}>
+                                      {n.label}
+                                    </span>
+                                  )) : (
+                                    <span className="text-[9px]" style={{ color: S.text3 }}>暂无关联节点</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
             </motion.div>
           </AnimatePresence>

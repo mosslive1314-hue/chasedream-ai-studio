@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Zap, TestTube, TestTube2, Filter, ChevronDown, ChevronUp,
+  Zap, TestTube, TestTube2, Filter, ChevronDown, ChevronUp, Sliders,
   AlertTriangle, CheckCircle2, ArrowRight, Target, Layers,
   BarChart3, ShieldAlert, TrendingUp, TrendingDown, Minus,
   Eye, GitBranch, FlaskConical, BookOpen, Sparkles,
@@ -42,7 +42,7 @@ function emotionColor(v: number): { color: string; bg: string; label: string } {
 }
 
 // ── Tab types ────────────────────────────────────────────────────────────
-type ViewTab = "interactions" | "dialogue" | "consequences" | "timed" | "suggestions" | "qte";
+type ViewTab = "interactions" | "dialogue" | "consequences" | "timed" | "suggestions" | "qte" | "branches" | "variables" | "endings";
 
 // ── Display style mapping for timed decisions ─────────────────────────────
 const TIMED_DISPLAY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -84,8 +84,30 @@ export default function InteractionScreen() {
   const qteConfigs = useNarrativeStore(s => s.qteConfigs);
   const hotspotConfigs = useNarrativeStore(s => s.hotspotConfigs);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+  const variables = useNarrativeStore(s => s.variables);
+  const branchPaths = useNarrativeStore(s => s.branchPaths);
   const updateInteractionPoint = useNarrativeStore(s => s.updateInteractionPoint);
+  const updateNode = useNarrativeStore(s => s.updateNode);
+  const addEdge = useNarrativeStore(s => s.addEdge);
+  const removeEdge = useNarrativeStore(s => s.removeEdge);
+  const updateVariable = useNarrativeStore(s => s.updateVariable);
+  const addVariable = useNarrativeStore(s => s.addVariable);
   const addToast = useUIStore(s => s.addToast);
+
+  // ── Branch/Variable/Ending designer state ───────────────────────────
+  const [branchSelectedNodeId, setBranchSelectedNodeId] = useState<string | null>(storyNodes[0]?.id ?? null);
+  const [branchSelectedEdgeIdx, setBranchSelectedEdgeIdx] = useState<number>(0);
+  const [varSearchQuery, setVarSearchQuery] = useState("");
+  const [expandedVarId, setExpandedVarId] = useState<string | null>(null);
+  const [newVarOpen, setNewVarOpen] = useState(false);
+  const [newVarName, setNewVarName] = useState("");
+  const [newVarDesc, setNewVarDesc] = useState("");
+  const [newVarInit, setNewVarInit] = useState(0);
+  const [condFormOpen, setCondFormOpen] = useState(false);
+  const [condVarId, setCondVarId] = useState("");
+  const [condOp, setCondOp] = useState(">");
+  const [condVal, setCondVal] = useState(0);
 
   // ── Toggle test status and persist ────────────────────────────────────
   const toggleTested = (id: string, current: boolean) => {
@@ -222,6 +244,9 @@ export default function InteractionScreen() {
           <TabButton active={activeTab === "timed"} onClick={() => setActiveTab("timed")} label="限时选择" icon={<Timer size={14} />} badge={timedDecisions.length > 0 ? timedDecisions.length : undefined} />
           <TabButton active={activeTab === "suggestions"} onClick={() => setActiveTab("suggestions")} label="设计建议" icon={<Sparkles size={14} />} />
           <TabButton active={activeTab === "qte"} onClick={() => setActiveTab("qte")} label="QTE / 热区" icon={<Gamepad2 size={14} />} badge={qteConfigs.length + hotspotConfigs.length > 0 ? qteConfigs.length + hotspotConfigs.length : undefined} />
+          <TabButton active={activeTab === "branches"} onClick={() => setActiveTab("branches")} label="分支设计" icon={<GitBranch size={14} />} badge={nodeEdges.length > 0 ? nodeEdges.length : undefined} />
+          <TabButton active={activeTab === "variables"} onClick={() => setActiveTab("variables")} label="变量管理" icon={<Sliders size={14} />} badge={variables.length > 0 ? variables.length : undefined} />
+          <TabButton active={activeTab === "endings"} onClick={() => setActiveTab("endings")} label="结局设计" icon={<Target size={14} />} badge={storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length > 0 ? storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length : undefined} />
         </div>
 
         {/* ════════════ TAB: Interaction Points ════════════ */}
@@ -1390,6 +1415,582 @@ export default function InteractionScreen() {
               </div>
 
             </motion.div>
+            );
+          })()}
+
+          {/* ════════════ TAB: Branch Designer ════════════ */}
+          {activeTab === "branches" && (
+            <motion.div key="branches" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex gap-5 h-full min-h-0">
+              {/* Left panel — Node selector + edge list */}
+              <div className="w-[340px] shrink-0 flex flex-col gap-3">
+                <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <label className="text-[10px] font-bold uppercase tracking-wider block mb-2" style={{ color: S.text3 }}>选择节点</label>
+                  <select
+                    value={branchSelectedNodeId ?? ""}
+                    onChange={e => { setBranchSelectedNodeId(e.target.value || null); setBranchSelectedEdgeIdx(0); }}
+                    className="w-full text-xs rounded-lg px-3 py-2 focus:outline-none"
+                    style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
+                  >
+                    <option value="">— 选择节点 —</option>
+                    {storyNodes.map(n => (
+                      <option key={n.id} value={n.id}>{n.label} ({n.type})</option>
+                    ))}
+                  </select>
+                </div>
+                {/* Outgoing edges */}
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {branchSelectedNodeId && (() => {
+                    const edges = nodeEdges.filter(e => e.from === branchSelectedNodeId);
+                    if (edges.length === 0) return (
+                      <div className="rounded-xl p-6 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                        <GitBranch size={20} className="mx-auto mb-2" style={{ color: S.text3 }} />
+                        <p className="text-[10px]" style={{ color: S.text3 }}>该节点没有出口连线</p>
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            addEdge({ from: branchSelectedNodeId, to: storyNodes.find(n => n.id !== branchSelectedNodeId)?.id ?? "N02", label: "新分支" });
+                            addToast({ type: "success", title: "已添加分支", message: "新分支已创建" });
+                          }}
+                          className="mt-2 text-[9px] px-3 py-1.5 rounded-lg font-bold text-white focus:outline-none"
+                          style={{ background: S.primary }}>
+                          + 添加分支
+                        </motion.button>
+                      </div>
+                    );
+                    return edges.map((edge, i) => {
+                      const targetNode = storyNodes.find(n => n.id === edge.to);
+                      const isSelected = branchSelectedEdgeIdx === i;
+                      return (
+                        <motion.button key={i} whileTap={{ scale: 0.97 }}
+                          onClick={() => setBranchSelectedEdgeIdx(i)}
+                          className="w-full text-left p-3 rounded-xl focus:outline-none"
+                          style={{
+                            background: isSelected ? `${S.primary}08` : S.card,
+                            border: `1.5px solid ${isSelected ? S.primary : S.border}`,
+                          }}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-bold" style={{ color: S.text }}>{edge.label ?? "未命名分支"}</span>
+                            {edge.condition && (
+                              <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
+                                条件
+                              </span>
+                            )}
+                            {edge.edgeType && (
+                              <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>
+                                {edge.edgeType}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[9px]" style={{ color: S.text3 }}>
+                            <ArrowRight size={9} />
+                            <span>{targetNode?.label ?? edge.to}</span>
+                          </div>
+                        </motion.button>
+                      );
+                    });
+                  })()}
+                  {branchSelectedNodeId && (
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        addEdge({ from: branchSelectedNodeId, to: storyNodes.find(n => n.id !== branchSelectedNodeId)?.id ?? "N02", label: "新分支" });
+                        addToast({ type: "success", title: "已添加分支", message: "新分支已创建" });
+                      }}
+                      className="w-full text-[9px] py-2 rounded-xl font-bold focus:outline-none"
+                      style={{ background: `${S.accent}08`, border: `1.5px dashed ${S.accent}40`, color: S.accent }}>
+                      + 添加新分支
+                    </motion.button>
+                  )}
+                </div>
+              </div>
+              {/* Right panel — Edge detail editor */}
+              <div className="flex-1 overflow-y-auto">
+                {branchSelectedNodeId && (() => {
+                  const edges = nodeEdges.filter(e => e.from === branchSelectedNodeId);
+                  const edge = edges[branchSelectedEdgeIdx];
+                  if (!edge) return (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-xs" style={{ color: S.text3 }}>← 选择一条分支进行编辑</p>
+                    </div>
+                  );
+                  const targetNode = storyNodes.find(n => n.id === edge.to);
+                  // Find variables used in conditions
+                  const condVarNames = edge.condition ? Object.keys(edge.condition) : [];
+                  return (
+                    <div className="rounded-xl p-5 space-y-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                      <h3 className="text-sm font-bold" style={{ color: S.text }}>分支详情编辑</h3>
+                      {/* Edge label */}
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>选项文本</label>
+                        <input
+                          defaultValue={edge.label ?? ""}
+                          onBlur={e => {
+                            removeEdge(edge.from, edge.to);
+                            addEdge({ ...edge, label: e.target.value });
+                            addToast({ type: "success", title: "分支已更新" });
+                          }}
+                          className="w-full text-xs rounded-lg px-3 py-2 focus:outline-none"
+                          style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
+                          placeholder="输入分支选项文本..."
+                        />
+                      </div>
+                      {/* Target node */}
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>目标节点</label>
+                        <select
+                          value={edge.to}
+                          onChange={e => {
+                            removeEdge(edge.from, edge.to);
+                            addEdge({ ...edge, to: e.target.value });
+                            addToast({ type: "success", title: "目标已更新" });
+                          }}
+                          className="w-full text-xs rounded-lg px-3 py-2 focus:outline-none"
+                          style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}
+                        >
+                          {storyNodes.filter(n => n.id !== edge.from).map(n => (
+                            <option key={n.id} value={n.id}>{n.label} ({n.type})</option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Edge type */}
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>边类型</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {(["causal", "conditional", "parallel", "exclusive", "implied"] as const).map(t => (
+                            <motion.button key={t} whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                removeEdge(edge.from, edge.to);
+                                addEdge({ ...edge, edgeType: t });
+                              }}
+                              className="text-[9px] px-2.5 py-1 rounded-lg font-bold focus:outline-none"
+                              style={{
+                                background: edge.edgeType === t ? `${S.primary}15` : S.s2,
+                                color: edge.edgeType === t ? S.primary : S.text3,
+                                border: `1px solid ${edge.edgeType === t ? `${S.primary}30` : S.border}`,
+                              }}>
+                              {t === "causal" ? "因果" : t === "conditional" ? "条件" : t === "parallel" ? "并行" : t === "exclusive" ? "互斥" : "暗示"}
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Condition preview */}
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: S.text3 }}>条件预览</label>
+                        {edge.condition ? (
+                          <div className="p-3 rounded-lg text-xs font-mono" style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}25`, color: S.warning }}>
+                            {JSON.stringify(edge.condition, null, 0).substring(0, 200)}
+                          </div>
+                        ) : (
+                          <p className="text-[10px]" style={{ color: S.text3 }}>无条件限制（所有路径均可通行）</p>
+                        )}
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          onClick={() => setCondFormOpen(!condFormOpen)}
+                          className="mt-2 text-[9px] px-2.5 py-1 rounded-lg font-bold focus:outline-none"
+                          style={{ background: `${S.accent}10`, color: S.accent, border: `1px solid ${S.accent}30` }}>
+                          {condFormOpen ? "关闭" : "+ 添加条件"}
+                        </motion.button>
+                        {condFormOpen && (
+                          <div className="mt-2 p-3 rounded-lg space-y-2" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                            <select value={condVarId} onChange={e => setCondVarId(e.target.value)}
+                              className="w-full text-[10px] rounded px-2 py-1.5 focus:outline-none" style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }}>
+                              <option value="">选择变量</option>
+                              {variables.map(v => <option key={v.id} value={v.name}>{v.name} ({v.label})</option>)}
+                            </select>
+                            <div className="flex gap-2">
+                              <select value={condOp} onChange={e => setCondOp(e.target.value)}
+                                className="text-[10px] rounded px-2 py-1.5 focus:outline-none" style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }}>
+                                {[">", "<", ">=", "<=", "==", "!="].map(op => <option key={op} value={op}>{op}</option>)}
+                              </select>
+                              <input type="number" value={condVal} onChange={e => setCondVal(Number(e.target.value))}
+                                className="w-20 text-[10px] rounded px-2 py-1.5 focus:outline-none" style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }} />
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  if (!condVarId) return;
+                                  const condObj = { type: "atomic" as const, targetId: condVarId, targetType: "variable" as const, operator: condOp as any, value: condVal };
+                                  removeEdge(edge.from, edge.to);
+                                  addEdge({ ...edge, condition: condObj });
+                                  setCondFormOpen(false);
+                                  addToast({ type: "success", title: "条件已添加", message: `如果 ${condVarId} ${condOp} ${condVal}` });
+                                }}
+                                className="text-[9px] px-2.5 py-1 rounded font-bold text-white focus:outline-none"
+                                style={{ background: S.primary }}>
+                                确认
+                              </motion.button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {/* Preview text */}
+                      {edge.condition && (
+                        <div className="p-3 rounded-lg" style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
+                          <p className="text-[10px] font-bold mb-1" style={{ color: S.primary }}>条件效果</p>
+                          <p className="text-[10px] font-mono" style={{ color: S.text2 }}>
+                            满足条件时，跳转到 {targetNode?.label ?? edge.to}
+                          </p>
+                        </div>
+                      )}
+                      {/* Delete */}
+                      <motion.button whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          removeEdge(edge.from, edge.to);
+                          setBranchSelectedEdgeIdx(0);
+                          addToast({ type: "info", title: "分支已删除" });
+                        }}
+                        className="text-[9px] px-3 py-1.5 rounded-lg font-bold focus:outline-none"
+                        style={{ background: `${S.error}10`, color: S.error, border: `1px solid ${S.error}25` }}>
+                        删除此分支
+                      </motion.button>
+                    </div>
+                  );
+                })()}
+                {!branchSelectedNodeId && (
+                  <div className="h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <GitBranch size={28} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                      <p className="text-xs font-bold" style={{ color: S.text2 }}>选择一个节点</p>
+                      <p className="text-[10px] mt-1" style={{ color: S.text3 }}>查看和编辑该节点的分支设计</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ════════════ TAB: Variable Manager ════════════ */}
+          {activeTab === "variables" && (
+            <motion.div key="variables" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+              {/* Search + Add */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 relative">
+                  <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: S.text3 }} />
+                  <input
+                    value={varSearchQuery}
+                    onChange={e => setVarSearchQuery(e.target.value)}
+                    placeholder="搜索变量..."
+                    className="w-full text-xs pl-8 pr-3 py-2 rounded-lg focus:outline-none"
+                    style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={() => setNewVarOpen(!newVarOpen)}
+                  className="text-[10px] px-3 py-2 rounded-lg font-bold text-white focus:outline-none"
+                  style={{ background: S.primary }}>
+                  + 添加变量
+                </motion.button>
+              </div>
+              {/* New variable form */}
+              {newVarOpen && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0 }}
+                  className="rounded-xl p-4 space-y-3" style={{ background: S.card, border: `1.5px solid ${S.accent}40` }}>
+                  <h4 className="text-xs font-bold" style={{ color: S.accent }}>新建变量</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>变量名 (English)</label>
+                      <input value={newVarName} onChange={e => setNewVarName(e.target.value)}
+                        placeholder="trust_lineman" className="w-full text-[10px] rounded px-2.5 py-1.5 focus:outline-none"
+                        style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>初始值</label>
+                      <input type="number" value={newVarInit} onChange={e => setNewVarInit(Number(e.target.value))}
+                        className="w-full text-[10px] rounded px-2.5 py-1.5 focus:outline-none"
+                        style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>描述</label>
+                    <input value={newVarDesc} onChange={e => setNewVarDesc(e.target.value)}
+                      placeholder="对线人的信任度" className="w-full text-[10px] rounded px-2.5 py-1.5 focus:outline-none"
+                      style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        if (!newVarName.trim()) return;
+                        addVariable({ id: `var-${Date.now()}`, name: newVarName, label: newVarDesc || newVarName, initialValue: newVarInit, description: newVarDesc, modifiedBy: [], readBy: [] });
+                        setNewVarName(""); setNewVarDesc(""); setNewVarInit(0); setNewVarOpen(false);
+                        addToast({ type: "success", title: "变量已创建", message: newVarName });
+                      }}
+                      className="text-[10px] px-4 py-1.5 rounded-lg font-bold text-white focus:outline-none"
+                      style={{ background: S.accent }}>
+                      创建
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={() => setNewVarOpen(false)}
+                      className="text-[10px] px-4 py-1.5 rounded-lg font-bold focus:outline-none"
+                      style={{ background: S.s2, color: S.text3, border: `1px solid ${S.border}` }}>
+                      取消
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+              {/* Variable list */}
+              <div className="space-y-2">
+                {variables
+                  .filter(v => !varSearchQuery || v.name.toLowerCase().includes(varSearchQuery.toLowerCase()) || v.label.toLowerCase().includes(varSearchQuery.toLowerCase()))
+                  .map(v => {
+                    const isExpanded = expandedVarId === v.id;
+                    // Find edges that reference this variable in conditions
+                    const usedEdges = nodeEdges.filter(e => {
+                      const condStr = JSON.stringify(e.condition ?? {});
+                      return condStr.includes(v.name);
+                    });
+                    const usedNodes = new Set([...v.modifiedBy, ...v.readBy, ...usedEdges.map(e => e.from)]);
+                    return (
+                      <motion.div key={v.id} layout className="rounded-xl overflow-hidden"
+                        style={{ background: S.card, border: `1px solid ${isExpanded ? S.primary : S.border}` }}>
+                        <motion.button whileTap={{ scale: 0.99 }}
+                          onClick={() => setExpandedVarId(isExpanded ? null : v.id)}
+                          className="w-full flex items-center gap-3 p-3.5 text-left focus:outline-none">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: `${S.accent}12` }}>
+                            <span className="text-[10px] font-bold font-mono" style={{ color: S.accent }}>
+                              {v.name.substring(0, 2).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold" style={{ color: S.text }}>{v.name}</span>
+                              <span className="text-[9px]" style={{ color: S.text3 }}>{v.label}</span>
+                            </div>
+                            <p className="text-[9px] truncate mt-0.5" style={{ color: S.text3 }}>{v.description}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[9px] px-2 py-0.5 rounded font-mono" style={{ background: `${S.primary}10`, color: S.primary }}>
+                              初始: {v.initialValue}
+                            </span>
+                            <span className="text-[9px] px-2 py-0.5 rounded" style={{ background: `${S.accent}10`, color: S.accent }}>
+                              {usedNodes.size} 节点
+                            </span>
+                            {isExpanded ? <ChevronUp size={12} style={{ color: S.text3 }} /> : <ChevronDown size={12} style={{ color: S.text3 }} />}
+                          </div>
+                        </motion.button>
+                        {isExpanded && (
+                          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                            className="px-4 pb-4 space-y-3" style={{ borderTop: `1px solid ${S.border}` }}>
+                            {/* Edit form */}
+                            <div className="pt-3 grid grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>变量名</label>
+                                <input defaultValue={v.name}
+                                  onBlur={e => updateVariable(v.id, { name: e.target.value })}
+                                  className="w-full text-[10px] rounded px-2 py-1.5 focus:outline-none"
+                                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                              </div>
+                              <div>
+                                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>描述/标签</label>
+                                <input defaultValue={v.label}
+                                  onBlur={e => updateVariable(v.id, { label: e.target.value })}
+                                  className="w-full text-[10px] rounded px-2 py-1.5 focus:outline-none"
+                                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                              </div>
+                              <div>
+                                <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>初始值</label>
+                                <input type="number" defaultValue={v.initialValue}
+                                  onBlur={e => updateVariable(v.id, { initialValue: Number(e.target.value) })}
+                                  className="w-full text-[10px] rounded px-2 py-1.5 focus:outline-none"
+                                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                              </div>
+                            </div>
+                            {/* Usage tracking */}
+                            <div>
+                              <label className="text-[8px] font-bold uppercase tracking-wider block mb-2" style={{ color: S.text3 }}>使用追踪</label>
+                              {usedNodes.size > 0 ? (
+                                <div className="space-y-1">
+                                  {[...usedNodes].map(nodeId => {
+                                    const node = storyNodes.find(n => n.id === nodeId);
+                                    const relatedEdges = usedEdges.filter(e => e.from === nodeId || e.to === nodeId);
+                                    return (
+                                      <div key={nodeId} className="flex items-center gap-2 p-2 rounded-lg text-[9px]"
+                                        style={{ background: S.s2 }}>
+                                        <span className="font-bold" style={{ color: S.text }}>{node?.label ?? nodeId}</span>
+                                        <span style={{ color: S.text3 }}>·</span>
+                                        {relatedEdges.map((e, i) => (
+                                          <span key={i} className="px-1.5 py-0.5 rounded" style={{ background: `${S.warning}12`, color: S.warning }}>
+                                            {e.condition ? "条件" : "引用"}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-[9px]" style={{ color: S.text3 }}>该变量尚未被任何节点引用</p>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                {variables.length === 0 && (
+                  <div className="rounded-xl p-10 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <Sliders size={24} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                    <p className="text-xs font-bold" style={{ color: S.text2 }}>尚未定义追踪变量</p>
+                    <p className="text-[10px] mt-1" style={{ color: S.text3 }}>变量用于追踪玩家选择对剧情的影响</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ════════════ TAB: Ending Designer ════════════ */}
+          {activeTab === "endings" && (() => {
+            const endingNodes = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad");
+            const goodEndings = endingNodes.filter(n => n.type === "ending_good");
+            const badEndings = endingNodes.filter(n => n.type === "ending_bad");
+            // Trace paths to each ending
+            const pathsToEnding = (endingId: string, visited = new Set<string>()): string[][] => {
+              if (visited.has(endingId)) return [];
+              visited.add(endingId);
+              const incoming = nodeEdges.filter(e => e.to === endingId);
+              if (incoming.length === 0) return [[endingId]];
+              const paths: string[][] = [];
+              for (const edge of incoming) {
+                const subPaths = pathsToEnding(edge.from, new Set(visited));
+                for (const sp of subPaths) {
+                  paths.push([...sp, endingId]);
+                }
+              }
+              return paths;
+            };
+            // Check for unreachable nodes
+            const reachableFromStart = new Set<string>();
+            const startNode = storyNodes.find(n => n.type === "start");
+            if (startNode) {
+              const queue = [startNode.id];
+              while (queue.length > 0) {
+                const curr = queue.shift()!;
+                if (reachableFromStart.has(curr)) continue;
+                reachableFromStart.add(curr);
+                nodeEdges.filter(e => e.from === curr).forEach(e => queue.push(e.to));
+              }
+            }
+            const unreachableNodes = storyNodes.filter(n => !reachableFromStart.has(n.id) && n.type !== "start");
+
+            return (
+              <motion.div key="endings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+                {/* Stats */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="rounded-xl p-4 text-center" style={{ background: `${S.success}08`, border: `1px solid ${S.success}20` }}>
+                    <span className="text-lg font-bold" style={{ color: S.success }}>{goodEndings.length}</span>
+                    <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>好结局</p>
+                  </div>
+                  <div className="rounded-xl p-4 text-center" style={{ background: `${S.error}08`, border: `1px solid ${S.error}20` }}>
+                    <span className="text-lg font-bold" style={{ color: S.error }}>{badEndings.length}</span>
+                    <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>坏结局</p>
+                  </div>
+                  <div className="rounded-xl p-4 text-center" style={{ background: `${S.primary}08`, border: `1px solid ${S.primary}20` }}>
+                    <span className="text-lg font-bold" style={{ color: S.primary }}>{endingNodes.length}</span>
+                    <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>结局总数</p>
+                  </div>
+                  <div className="rounded-xl p-4 text-center" style={{ background: unreachableNodes.length > 0 ? `${S.warning}08` : `${S.success}08`, border: `1px solid ${unreachableNodes.length > 0 ? `${S.warning}20` : `${S.success}20`}` }}>
+                    <span className="text-lg font-bold" style={{ color: unreachableNodes.length > 0 ? S.warning : S.success }}>{unreachableNodes.length}</span>
+                    <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>孤立节点</p>
+                  </div>
+                </div>
+                {/* Ending cards */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold" style={{ color: S.text }}>结局列表</h3>
+                  {endingNodes.map(node => {
+                    const isGood = node.type === "ending_good";
+                    const paths = pathsToEnding(node.id);
+                    return (
+                      <motion.div key={node.id} layout className="rounded-xl overflow-hidden"
+                        style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] px-2 py-0.5 rounded font-bold"
+                                style={{ background: isGood ? `${S.success}12` : `${S.error}12`, color: isGood ? S.success : S.error }}>
+                                {isGood ? "好结局" : "坏结局"}
+                              </span>
+                              <span className="text-xs font-bold" style={{ color: S.text }}>{node.label}</span>
+                            </div>
+                            <span className="text-[9px] font-mono px-2 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
+                              {paths.length} 条路径
+                            </span>
+                          </div>
+                          {/* Edit label */}
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>结局名称</label>
+                              <input defaultValue={node.label}
+                                onBlur={e => updateNode(node.id, { label: e.target.value })}
+                                className="w-full text-[10px] rounded px-2.5 py-1.5 focus:outline-none"
+                                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }} />
+                            </div>
+                            <div>
+                              <label className="text-[8px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.text3 }}>结局类型</label>
+                              <select defaultValue={node.type}
+                                onChange={e => updateNode(node.id, { type: e.target.value as any })}
+                                className="w-full text-[10px] rounded px-2.5 py-1.5 focus:outline-none"
+                                style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                                <option value="ending_good">好结局</option>
+                                <option value="ending_bad">坏结局</option>
+                              </select>
+                            </div>
+                          </div>
+                          {/* Paths */}
+                          {paths.length > 0 && (
+                            <div>
+                              <label className="text-[8px] font-bold uppercase tracking-wider block mb-2" style={{ color: S.text3 }}>达成路径</label>
+                              <div className="space-y-1.5">
+                                {paths.slice(0, 5).map((path, i) => (
+                                  <div key={i} className="flex items-center gap-1 flex-wrap p-2 rounded-lg text-[9px]"
+                                    style={{ background: S.s2 }}>
+                                    {path.map((nodeId, j) => {
+                                      const n = storyNodes.find(sn => sn.id === nodeId);
+                                      return (
+                                        <span key={j} className="flex items-center gap-1">
+                                          {j > 0 && <ArrowRight size={8} style={{ color: S.text3 }} />}
+                                          <span className="px-1.5 py-0.5 rounded font-medium"
+                                            style={{ background: j === path.length - 1 ? (isGood ? `${S.success}15` : `${S.error}15`) : S.card, color: j === path.length - 1 ? (isGood ? S.success : S.error) : S.text2 }}>
+                                            {n?.label ?? nodeId}
+                                          </span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                ))}
+                                {paths.length > 5 && (
+                                  <p className="text-[8px] px-2" style={{ color: S.text3 }}>...还有 {paths.length - 5} 条路径</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {endingNodes.length === 0 && (
+                    <div className="rounded-xl p-10 text-center" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                      <Target size={24} className="mx-auto mb-3" style={{ color: S.text3 }} />
+                      <p className="text-xs font-bold" style={{ color: S.text2 }}>尚未设计结局节点</p>
+                      <p className="text-[10px] mt-1" style={{ color: S.text3 }}>在节点图中添加 ending_good 或 ending_bad 类型的节点</p>
+                      <Link href="/nodes" className="inline-flex items-center gap-1 mt-3 text-[10px] px-3 py-1.5 rounded-lg font-bold text-white"
+                        style={{ background: S.primary }}>
+                        前往节点图 <ArrowRight size={10} />
+                      </Link>
+                    </div>
+                  )}
+                </div>
+                {/* Coverage check */}
+                {unreachableNodes.length > 0 && (
+                  <div className="rounded-xl p-4" style={{ background: `${S.warning}06`, border: `1px solid ${S.warning}25` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle size={13} style={{ color: S.warning }} />
+                      <h4 className="text-[10px] font-bold" style={{ color: S.warning }}>覆盖检查</h4>
+                    </div>
+                    <p className="text-[9px] mb-2" style={{ color: S.text2 }}>以下节点无法从起点到达：</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {unreachableNodes.map(n => (
+                        <span key={n.id} className="text-[8px] px-2 py-0.5 rounded font-medium"
+                          style={{ background: `${S.warning}12`, color: S.warning }}>
+                          {n.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
             );
           })()}
         </AnimatePresence>
