@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  Database, Search, Image, Video, Music, Monitor,
+  Database, Search, Image, Video, Music, Monitor, FileText,
   Upload, Grid, List, ChevronLeft, ChevronRight,
   Filter, Download, Trash2, Eye, MoreHorizontal,
 } from "lucide-react";
@@ -16,7 +16,7 @@ const S = {
 };
 
 // ── Mock asset data ────────────────────────────────────────────────────────
-type AssetType = "image" | "video" | "audio" | "ui";
+type AssetType = "image" | "video" | "audio" | "ui" | "text";
 type AssetStatus = "approved" | "pending" | "archived";
 
 interface Asset {
@@ -42,6 +42,8 @@ const SEED_ASSETS: Asset[] = [
   { id: "a10", name: "旁白_序章_女声.mp3",         type: "audio", size: "3.5 MB",  date: "2025-05-19", status: "approved"  },
   { id: "a11", name: "天台_月光_背景.png",         type: "image", size: "3.1 MB",  date: "2025-05-18", status: "archived"  },
   { id: "a12", name: "结局A_过场动画.mp4",         type: "video", size: "18.4 MB", date: "2025-05-17", status: "pending"   },
+  { id: "seed-text-1", name: "主线剧本·第一章",       type: "text",  size: "2.4KB",   date: "2025-01-15", status: "approved"  },
+  { id: "seed-text-2", name: "艾拉·对话台词集",       type: "text",  size: "1.8KB",   date: "2025-01-16", status: "approved"  },
 ];
 
 // ── Type / status config ───────────────────────────────────────────────────
@@ -50,6 +52,7 @@ const TYPE_CONFIG: Record<AssetType, { label: string; icon: typeof Image; color:
   video: { label: "视频",  icon: Video,   color: "#F59E0B" },
   audio: { label: "音频",  icon: Music,   color: "#00A99D" },
   ui:    { label: "UI模板", icon: Monitor, color: "#EF4444" },
+  text:  { label: "文字",   icon: FileText, color: "#8B5CF6" },
 };
 
 const STATUS_CONFIG: Record<AssetStatus, { label: string; bg: string; color: string }> = {
@@ -65,15 +68,17 @@ const FILTERS: { key: AssetType | "all"; label: string }[] = [
   { key: "video", label: "视频"    },
   { key: "audio", label: "音频"    },
   { key: "ui",    label: "UI模板"  },
+  { key: "text",  label: "文字"    },
 ];
 
 // ── Statistics config ──────────────────────────────────────────────────────
 const STATS = [
-  { label: "总资产",  value: 47,          color: S.primary },
+  { label: "总资产",  value: 49,          color: S.primary },
   { label: "图片资产", value: 23,          color: "#7C6CF5" },
   { label: "视频资产", value: 8,           color: "#F59E0B" },
   { label: "音频资产", value: 12,          color: "#00A99D" },
   { label: "UI模板",   value: 4,           color: "#EF4444" },
+  { label: "文字资产", value: 2,           color: "#8B5CF6" },
 ];
 
 const STORAGE_USED = 128;
@@ -90,6 +95,8 @@ export default function AssetLibraryScreen() {
   const gameScenes = useNarrativeStore(s => s.scenes);
   const gameProps = useNarrativeStore(s => s.props);
   const assetCards = useNarrativeStore(s => s.assetCards);
+  const scriptBlocks = useNarrativeStore(s => s.scriptBlocks);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
 
   // ── Derive unified asset list from store (seed fallback) ──
   const allAssets = useMemo<Asset[]>(() => {
@@ -122,8 +129,30 @@ export default function AssetLibraryScreen() {
         size: "—", date: "—", status: ac.hasImage ? "approved" : "pending",
       });
     });
+    // Script blocks → text assets
+    scriptBlocks.forEach(sb => {
+      storeAssets.push({
+        id: `script-${sb.id}`,
+        name: `剧本·${sb.label || sb.id}`,
+        type: "text" as const,
+        size: `${(sb.content?.length || 0)}字`,
+        date: "—",
+        status: "approved" as const,
+      });
+    });
+    // Story nodes → text assets (dialogue-bearing nodes)
+    storyNodes.forEach(node => {
+      storeAssets.push({
+        id: `node-${node.id}`,
+        name: `台词·${node.label}`,
+        type: "text" as const,
+        size: "—",
+        date: "—",
+        status: "approved" as const,
+      });
+    });
     return storeAssets.length > 0 ? storeAssets : SEED_ASSETS;
-  }, [gameCharacters, gameScenes, gameProps, assetCards]);
+  }, [gameCharacters, gameScenes, gameProps, assetCards, scriptBlocks, storyNodes]);
 
   // ── Dynamic statistics ──
   const stats = useMemo(() => {
@@ -131,12 +160,14 @@ export default function AssetLibraryScreen() {
     const vid = allAssets.filter(a => a.type === "video").length;
     const aud = allAssets.filter(a => a.type === "audio").length;
     const ui = allAssets.filter(a => a.type === "ui").length;
+    const txt = allAssets.filter(a => a.type === "text").length;
     return [
       { label: "总资产", value: allAssets.length, color: S.primary },
       { label: "图片资产", value: img, color: "#7C6CF5" },
       { label: "视频资产", value: vid, color: "#F59E0B" },
       { label: "音频资产", value: aud, color: "#00A99D" },
       { label: "UI模板", value: ui, color: "#EF4444" },
+      { label: "文字资产", value: txt, color: "#8B5CF6" },
     ];
   }, [allAssets]);
 

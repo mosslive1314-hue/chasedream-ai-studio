@@ -44,14 +44,15 @@ const NAV: NavItem[] = [
   { href: "/interaction",    icon: MousePointer, label: "互动设计", labelKey: "interaction" },    // 3
   { href: "/cinematic",      icon: Film,         label: "演出设计", labelKey: "cinematic" },      // 4
   { href: "/nodes",          icon: Network,      label: "剧情节点", labelKey: "node" },           // 5
-  // 资产 (indices 6-8)
+  // 资产 (indices 6-9)
   { href: "/assets?tab=image", icon: ImageIcon,  label: "图片" },                                 // 6
   { href: "/assets?tab=video", icon: Video,      label: "视频" },                                 // 7
   { href: "/assets?tab=audio", icon: Music,      label: "音频" },                                 // 8
-  // 交付 (indices 9-11)
-  { href: "/simulator",      icon: Play,         label: "演出预览", labelKey: "simulator" },      // 9
-  { href: "/overview",       icon: Activity,     label: "质检总览", labelKey: "overview" },       // 10
-  { href: "/publish",        icon: Rocket,       label: "发布",     labelKey: "publish" },        // 11
+  { href: "/assets?tab=text",  icon: FileText,   label: "文字" },                                 // 9
+  // 交付 (indices 10-12)
+  { href: "/simulator",      icon: Play,         label: "演出预览", labelKey: "simulator" },      // 10
+  { href: "/overview",       icon: Activity,     label: "质检总览", labelKey: "overview" },       // 11
+  { href: "/publish",        icon: Rocket,       label: "发布",     labelKey: "publish" },        // 12
 ];
 
 // ── Navigation Groups ──────────────────────────────────────────────────
@@ -77,12 +78,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "资产", labelKey: "asset", icon: Package,
     industryLabels: { game: "资产", tourism: "资产", education: "资产", derivative: "资产" },
-    items: [NAV[6], NAV[7], NAV[8]],  // 图片, 视频, 音频
+    items: [NAV[6], NAV[7], NAV[8], NAV[9]],  // 图片, 视频, 音频, 文字
   },
   {
     label: "交付", labelKey: "delivery", icon: Rocket,
     industryLabels: { game: "交付", tourism: "交付", education: "交付", derivative: "交付" },
-    items: [NAV[9], NAV[10], NAV[11]],  // 演出预览, 质检总览, 发布
+    items: [NAV[10], NAV[11], NAV[12]],  // 演出预览, 质检总览, 发布
   },
 ];
 

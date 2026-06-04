@@ -47,5 +47,6 @@ export interface AssetCard {
   hasBgm: boolean;
   hasVoice: boolean;
   hasVideo: boolean;
+  hasScript?: boolean;
   imageUrl?: string;
 }

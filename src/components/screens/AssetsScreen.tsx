@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
   User, MapPin, Package, Sparkles, Play, ArrowRight,
   Image, Music, Mic, Film, Plus, Edit2, Check, Headphones,
-  Volume2, Waves, Radio, Library, Search, Shirt,
+  Volume2, Waves, Radio, Library, Search, Shirt, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
@@ -184,6 +184,7 @@ export default function AssetsScreen() {
   const gameCharacters = useNarrativeStore(s => s.characters);
   const gameProps = useNarrativeStore(s => s.props);
   const assetCards = useNarrativeStore(s => s.assetCards);
+  const scriptBlocks = useNarrativeStore(s => s.scriptBlocks);
   const industry = useUIStore(s => s.industry);
   const setIndustry = useUIStore(s => s.setIndustry);
   const searchParams = useSearchParams();
@@ -283,6 +284,93 @@ export default function AssetsScreen() {
     }, 1800);
   };
 
+  // ── Dynamic video pipeline data (Task 2) ─────────────────────────────────────
+  const videoPipeline = useMemo(() => {
+    // Opening: first story node as opening sequence
+    const openingItems = storyNodes.length > 0
+      ? [{ name: storyNodes[0].label || storyNodes[0].id, duration: "01:30", status: "待渲染", statusColor: S.text3 }]
+      : [];
+
+    // Transitions: from nodeEdges
+    const transitionItems = nodeEdges.length > 0
+      ? nodeEdges.slice(0, 5).map(edge => {
+          const fromNode = storyNodes.find(n => n.id === edge.from);
+          const toNode = storyNodes.find(n => n.id === edge.to);
+          const fromLabel = fromNode?.label || edge.from;
+          const toLabel = toNode?.label || edge.to;
+          const transTypes = ["淡入", "溶解", "硬切"];
+          const t = transTypes[Math.floor(Math.random() * transTypes.length)];
+          return { name: `${fromLabel}→${toLabel} ${t}`, duration: "00:04", status: "待渲染", statusColor: S.text3 };
+        })
+      : [];
+
+    // QTE: nodes with qte type or QTE-related labels
+    const qteNodes = storyNodes.filter(n => n.type === "qte" || n.label.includes("QTE"));
+    const qteItems = qteNodes.length > 0
+      ? qteNodes.map(n => ({ name: `${n.label} QTE`, duration: "00:45", status: "待渲染", statusColor: S.text3 }))
+      : [];
+
+    // Cutscene: ending nodes
+    const endingNodes = storyNodes.filter(n => n.type.startsWith("ending"));
+    const cutsceneItems = endingNodes.length > 0
+      ? endingNodes.map(n => ({ name: `${n.label} CG`, duration: "00:25", status: "待渲染", statusColor: S.text3 }))
+      : [];
+
+    return [
+      { id: "opening", icon: Film, label: "开场/结尾动画", desc: "序章和结局的标志性动画片段", items: openingItems },
+      { id: "transition", icon: ArrowRight, label: "转场动画", desc: "节点之间的过渡动画与镜头运动", items: transitionItems },
+      { id: "qte", icon: Play, label: "QTE 动作片段", desc: "限时选择和快速反应的动作演出", items: qteItems },
+      { id: "cutscene", icon: Sparkles, label: "过场 CG", desc: "关键剧情的高品质 CG 动画", items: cutsceneItems },
+    ];
+  }, [storyNodes, nodeEdges]);
+
+  // ── Dynamic audio category data (Task 3) ───────────────────────────────────
+  const audioCategories = useMemo(() => {
+    // BGM: non-ending story nodes
+    const nonEndingNodes = storyNodes.filter(n => !n.type.startsWith("ending"));
+    const bgmItems = nonEndingNodes.length > 0
+      ? nonEndingNodes.slice(0, 6).map(n => ({
+          name: `BGM·${n.label}`, duration: "02:00", mood: "待定", status: "待混音", statusColor: S.text3,
+        }))
+      : [];
+
+    // SFX: based on node types
+    const typeSfxMap: Record<string, string> = {
+      qte: "QTE 反馈音效", choice: "选择点击音效", condition: "条件触发音效",
+      start: "开场音效", scene: "场景切换音效", ending_good: "胜利音效", ending_bad: "失败音效",
+    };
+    const seenTypes = new Set<string>();
+    const sfxItems: { name: string; duration: string; mood: string; status: string; statusColor: string }[] = [];
+    storyNodes.forEach(n => {
+      const sfxName = typeSfxMap[n.type];
+      if (sfxName && !seenTypes.has(n.type)) {
+        seenTypes.add(n.type);
+        sfxItems.push({ name: sfxName, duration: "00:03", mood: n.type, status: "待制作", statusColor: S.text3 });
+      }
+    });
+
+    // Voice: one entry per character
+    const voiceItems = gameCharacters.length > 0
+      ? gameCharacters.map(c => ({
+          name: `${c.name}·配音集`, duration: "05:00", mood: c.role, status: "待录制", statusColor: S.text3,
+        }))
+      : [];
+
+    // Ambient: one entry per scene
+    const ambientItems = gameScenes.length > 0
+      ? gameScenes.map(sc => ({
+          name: `${sc.name}·环境音`, duration: "03:00", mood: sc.atmosphere || "沉浸", status: "待录制", statusColor: S.text3,
+        }))
+      : [];
+
+    return [
+      { id: "bgm", label: "BGM 背景音乐", icon: Music, color: "#8B5CF6", items: bgmItems },
+      { id: "sfx", label: "SFX 音效", icon: Waves, color: "#F59E0B", items: sfxItems },
+      { id: "voice", label: "Voice 配音", icon: Mic, color: S.accent, items: voiceItems },
+      { id: "ambient", label: "Ambient 环境音", icon: Radio, color: "#06B6D4", items: ambientItems },
+    ];
+  }, [storyNodes, gameCharacters, gameScenes]);
+
   const char = characters[selectedChar];
   const scene = scenes[selectedScene];
 
@@ -316,6 +404,7 @@ export default function AssetsScreen() {
           { id: "video", label: "视频", icon: Film },
           { id: "audio", label: "音频", icon: Music },
           { id: "library", label: "资产库", icon: Library },
+          { id: "text", label: "文字", icon: FileText },
         ].map(tab => (
           <Link key={tab.id} href={`/assets?tab=${tab.id}`}>
             <motion.button whileTap={{ scale: 0.96 }}
@@ -1097,29 +1186,13 @@ export default function AssetsScreen() {
           <div>
             <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>视频生产流水线</h3>
             <div className="grid grid-cols-4 gap-3">
-              {[
-                { id: "opening", icon: Film, label: "开场/结尾动画", desc: "序章和结局的标志性动画片段", count: 2,
-                  items: [
-                    { name: "序章·霓虹夜幕", duration: "01:24", status: "已渲染", statusColor: S.success },
-                    { name: "结局·幽灵归来", duration: "02:10", status: "待渲染", statusColor: S.text3 },
-                  ]},
-                { id: "transition", icon: ArrowRight, label: "转场动画", desc: "节点之间的过渡动画与镜头运动", count: assetCards.filter(a => !a.hasVideo).length,
-                  items: [
-                    { name: "N01→N02 淡入", duration: "00:04", status: "已渲染", statusColor: S.success },
-                    { name: "N03→N05 溶解", duration: "00:06", status: "渲染中", statusColor: S.warning },
-                    { name: "N07→N08 硬切", duration: "00:02", status: "待渲染", statusColor: S.text3 },
-                  ]},
-                { id: "qte", icon: Play, label: "QTE 动作片段", desc: "限时选择和快速反应的动作演出", count: 3,
-                  items: [
-                    { name: "N06 警卫追逐 QTE", duration: "00:48", status: "渲染中", statusColor: S.warning },
-                    { name: "N07 潜行判定 QTE", duration: "00:35", status: "待渲染", statusColor: S.text3 },
-                  ]},
-                { id: "cutscene", icon: Sparkles, label: "过场 CG", desc: "关键剧情的高品质 CG 动画", count: 4,
-                  items: [
-                    { name: "身份揭露 CG", duration: "00:22", status: "待渲染", statusColor: S.text3 },
-                    { name: "天台对峙 CG", duration: "00:30", status: "待渲染", statusColor: S.text3 },
-                  ]},
-              ].map(step => {
+              {storyNodes.length === 0 && (
+              <div className="text-center py-6 col-span-4">
+                <Film size={20} className="mx-auto mb-2" style={{ color: S.text3 }} />
+                <p className="text-xs" style={{ color: S.text3 }}>暂无视频资产，请先创建故事节点</p>
+              </div>
+            )}
+            {storyNodes.length > 0 && videoPipeline.map(step => {
                 const doneCount = step.items.filter(i => i.statusColor === S.success).length;
                 return (
                   <div key={step.id} className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
@@ -1266,28 +1339,13 @@ export default function AssetsScreen() {
 
           {/* 4 分类筛选 + 内容 */}
           <div className="flex items-center gap-2">
-            {[
-              { id: "bgm", label: "BGM 背景音乐", icon: Music, color: "#8B5CF6", items: [
-                { name: "主题曲·霓虹追忆", duration: "03:22", mood: "史诗", status: "已混音", statusColor: S.success },
-                { name: "紧张 BGM·暗流", duration: "01:45", mood: "紧张", status: "已就绪", statusColor: S.success },
-                { name: "结局 BGM·黎明", duration: "02:48", mood: "温暖", status: "待混音", statusColor: S.text3 },
-              ]},
-              { id: "sfx", label: "SFX 音效", icon: Waves, color: "#F59E0B", items: [
-                { name: "战斗碰撞", duration: "00:03", mood: "打击", status: "已就绪", statusColor: S.success },
-                { name: "门锁开启", duration: "00:02", mood: "机关", status: "已就绪", statusColor: S.success },
-                { name: "警报蜂鸣", duration: "00:05", mood: "紧迫", status: "待制作", statusColor: S.text3 },
-                { name: "数据下载完成", duration: "00:01", mood: "电子", status: "待制作", statusColor: S.text3 },
-              ]},
-              { id: "voice", label: "Voice 配音", icon: Mic, color: S.accent, items: [
-                { name: "艾拉·全集配音", duration: "12:08", mood: "女主", status: "录制中", statusColor: S.warning },
-                { name: "线人·关键台词", duration: "02:15", mood: "NPC", status: "待录制", statusColor: S.text3 },
-              ]},
-              { id: "ambient", label: "Ambient 环境音", icon: Radio, color: "#06B6D4", items: [
-                { name: "雨夜都市", duration: "05:00", mood: "沉浸", status: "待录制", statusColor: S.text3 },
-                { name: "地下酒吧嘈杂", duration: "03:30", mood: "氛围", status: "已就绪", statusColor: S.success },
-                { name: "天台风声", duration: "02:00", mood: "空旷", status: "已就绪", statusColor: S.success },
-              ]},
-            ].map(cat => {
+            {storyNodes.length === 0 && gameCharacters.length === 0 && gameScenes.length === 0 && (
+              <div className="flex-1 text-center py-6">
+                <Headphones size={20} className="mx-auto mb-2" style={{ color: S.text3 }} />
+                <p className="text-xs" style={{ color: S.text3 }}>暂无音频资产，请先创建故事节点、角色和场景</p>
+              </div>
+            )}
+            {(storyNodes.length > 0 || gameCharacters.length > 0 || gameScenes.length > 0) && audioCategories.map(cat => {
               const doneCount = cat.items.filter(i => i.statusColor === S.success).length;
               const CatIcon = cat.icon;
               return (
@@ -1380,13 +1438,13 @@ export default function AssetsScreen() {
 
           {/* 音量混合面板 */}
           <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>音量混合预设</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: S.text3 }}>音量混合 — 默认混音预设</h3>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: "BGM", level: 65, color: "#8B5CF6" },
-                { label: "SFX", level: 80, color: "#F59E0B" },
-                { label: "Voice", level: 100, color: S.accent },
-                { label: "Ambient", level: 40, color: "#06B6D4" },
+                { label: "BGM (默认)", level: 65, color: "#8B5CF6" },
+                { label: "SFX (默认)", level: 80, color: "#F59E0B" },
+                { label: "Voice (默认)", level: 100, color: S.accent },
+                { label: "Ambient (默认)", level: 40, color: "#06B6D4" },
               ].map(ch => (
                 <div key={ch.label} className="text-center">
                   <div className="h-20 rounded-lg flex items-end justify-center p-1.5 mb-1.5" style={{ background: S.s2 }}>
@@ -1533,6 +1591,155 @@ export default function AssetsScreen() {
               }} />
             </div>
             <span className="text-[9px] font-mono" style={{ color: S.text3 }}>340 MB / 1 GB</span>
+          </div>
+        </div>
+      </>)}
+
+      {/* ── 文字 Tab ── */}
+      {activeTab === "text" && (<>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${S.primary}12` }}>
+              <FileText size={20} style={{ color: S.primary }} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-bold" style={{ color: S.text }}>文字资产管理</h2>
+              <p className="text-[10px]" style={{ color: S.text3 }}>剧本、台词、节点文案三大分类管理</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {[
+                { label: "剧本块", value: scriptBlocks.length, color: S.primary },
+                { label: "角色", value: gameCharacters.length, color: S.accent },
+                { label: "节点", value: storyNodes.length, color: "#F59E0B" },
+              ].map(stat => (
+                <div key={stat.label} className="text-center px-3 py-1.5 rounded-lg" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                  <span className="text-xs font-bold font-mono block" style={{ color: stat.color }}>{stat.value}</span>
+                  <span className="text-[8px]" style={{ color: S.text3 }}>{stat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 剧本 (Script) */}
+          <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${S.primary}15` }}>
+                <FileText size={12} style={{ color: S.primary }} />
+              </div>
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>剧本 (Script)</h3>
+              <span className="text-[9px] px-2 py-0.5 rounded" style={{ background: `${S.primary}12`, color: S.primary }}>
+                {scriptBlocks.length} 个剧本块
+              </span>
+            </div>
+            {scriptBlocks.length === 0 ? (
+              <p className="text-xs text-center py-4" style={{ color: S.text3 }}>暂无剧本块，请先在剧本编辑器中创建</p>
+            ) : (
+              <div className="space-y-1.5">
+                {scriptBlocks.map(block => (
+                  <div key={block.id} className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded font-bold shrink-0"
+                      style={{ background: `${block.color}20`, color: block.color }}>
+                      {block.type}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[9px] font-bold block truncate" style={{ color: S.text }}>{block.label}</span>
+                      <span className="text-[8px] block truncate" style={{ color: S.text3 }}>
+                        {block.content.length > 50 ? block.content.slice(0, 50) + "..." : block.content}
+                      </span>
+                    </div>
+                    {block.char && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded shrink-0" style={{ background: `${S.accent}12`, color: S.accent }}>
+                        {block.char}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 台词 (Dialogue Lines) */}
+          <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${S.accent}15` }}>
+                <Mic size={12} style={{ color: S.accent }} />
+              </div>
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>台词 (Dialogue Lines)</h3>
+              <span className="text-[9px] px-2 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>
+                {gameCharacters.length} 个角色
+              </span>
+            </div>
+            {gameCharacters.length === 0 ? (
+              <p className="text-xs text-center py-4" style={{ color: S.text3 }}>暂无角色，请先创建角色</p>
+            ) : (
+              <div className="space-y-2">
+                {gameCharacters.map(char => (
+                  <div key={char.id} className="p-3 rounded-lg" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${char.color}20` }}>
+                        <User size={10} style={{ color: char.color }} />
+                      </div>
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{char.name}</span>
+                      <span className="text-[8px]" style={{ color: S.text3 }}>{char.role}</span>
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {char.emotionStates.length > 0 ? char.emotionStates.map((emotion, i) => (
+                        <span key={i} className="text-[8px] px-2 py-0.5 rounded-lg"
+                          style={{ background: emotion.done ? `${S.success}12` : `${S.warning}10`, color: emotion.done ? S.success : S.warning, border: `1px solid ${emotion.done ? `${S.success}25` : `${S.warning}20`}` }}>
+                          {emotion.label} {emotion.done ? "✓" : ""}
+                        </span>
+                      )) : (
+                        <span className="text-[8px]" style={{ color: S.text3 }}>未设置情感状态</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 节点文案 (Node Copy) */}
+          <div className="p-4 rounded-xl" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `#F59E0B15` }}>
+                <Library size={12} style={{ color: "#F59E0B" }} />
+              </div>
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>节点文案 (Node Copy)</h3>
+              <span className="text-[9px] px-2 py-0.5 rounded" style={{ background: `#F59E0B12`, color: "#F59E0B" }}>
+                {storyNodes.length} 个节点
+              </span>
+            </div>
+            {storyNodes.length === 0 ? (
+              <p className="text-xs text-center py-4" style={{ color: S.text3 }}>暂无故事节点，请先在节点编辑器中创建</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {storyNodes.map(node => {
+                  const hasScript = scriptBlocks.some(b => b.label.includes(node.label) || b.id.includes(node.id));
+                  const hasDialogue = gameCharacters.some(c => c.appearNodes.includes(node.id));
+                  return (
+                    <div key={node.id} className="p-2.5 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[9px] font-bold" style={{ color: S.text }}>{node.label}</span>
+                        <span className="text-[7px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>
+                          {node.type}
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        <span className="text-[7px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: hasScript ? `${S.success}12` : `${S.error}08`, color: hasScript ? S.success : S.error }}>
+                          {hasScript ? "✓ 剧本" : "✗ 剧本"}
+                        </span>
+                        <span className="text-[7px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: hasDialogue ? `${S.success}12` : `${S.error}08`, color: hasDialogue ? S.success : S.error }}>
+                          {hasDialogue ? "✓ 台词" : "✗ 台词"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </>)}

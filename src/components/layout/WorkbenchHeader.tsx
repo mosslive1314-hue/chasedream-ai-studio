@@ -28,7 +28,6 @@ export function WorkbenchHeader() {
       <nav className="flex items-center gap-0.5">
         {[
           { label: "我的作品", href: "/my-works" },
-          { label: "我的资产", href: "/assets" },
         ].map(item => (
           <Link key={item.label} href={item.href}>
             <motion.span whileTap={{ scale: 0.97 }}
