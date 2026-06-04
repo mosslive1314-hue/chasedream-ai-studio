@@ -13,6 +13,8 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { DataFlowBar } from "@/components/ui/DataFlowBar";
+import { pushTransfer } from "@/lib/data-flow-bridge";
 import {
   type InteractionPoint, type InteractionOption,
   type ConsequenceChain, type ConsequenceTiming,
@@ -215,6 +217,17 @@ export default function InteractionScreen() {
   return (
     <div className="min-h-screen" style={{ background: S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
+      <DataFlowBar page="interaction" onPushForward={() => {
+        const reqs = interactionPoints.slice(0, 10).map(ip => ({
+          nodeId: ip.nodeId, type: 'image' as const,
+          description: `互动点 ${ip.name || ip.id} 的视觉资产`,
+          priority: 'medium' as const,
+        }));
+        pushTransfer('interaction', 'assets', 'interaction→assets', {
+          nodeIds: interactionPoints.map(ip => ip.nodeId),
+          assetRequirements: reqs,
+        }, `互动节点（${interactionPoints.length} 个）→ 资产需求`);
+      }} />
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
         {/* ── A. Top Stats Bar ───────────────────────────────────────────── */}

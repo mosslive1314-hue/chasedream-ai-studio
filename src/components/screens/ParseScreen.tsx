@@ -11,6 +11,8 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { DataFlowBar } from "@/components/ui/DataFlowBar";
+import { pushTransfer } from "@/lib/data-flow-bridge";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -631,6 +633,12 @@ export default function ParseScreen() {
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
+      <DataFlowBar page="parse" onPushForward={() => {
+        pushTransfer('parse', 'script', 'parse→script', {
+          scriptBlocks: [], characterNames: characters.map(c => c.name),
+          sceneNames: scenes.map(s => s.name),
+        }, `解构结果（${characters.length} 角色, ${scenes.length} 场景）→ 剧本编辑`);
+      }} />
 
       {/* ── 顶部面包屑 ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-2.5 shrink-0"

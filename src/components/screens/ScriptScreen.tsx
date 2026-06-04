@@ -14,6 +14,8 @@ import { useNarrativeStore, useProjectStore, useCanvasAgentStore, useSettingsSto
 import { AIService } from "@/lib/ai";
 import type { ConsistencyIssue, DialogueOption } from "@/lib/ai";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { DataFlowBar } from "@/components/ui/DataFlowBar";
+import { pushTransfer } from "@/lib/data-flow-bridge";
 import ContextualActions from "@/components/ui/ContextualActions";
 
 const S = {
@@ -1447,6 +1449,13 @@ export default function ScriptScreen() {
   return (
     <div className="h-svh flex flex-col overflow-hidden" style={{ background:S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
+      <DataFlowBar page="script" onPushForward={() => {
+        pushTransfer('script', 'interaction', 'script→interaction', {
+          selectedBlockIds: blocks.map(b => b.id),
+          blockTexts: blocks.slice(0, 5).map(b => b.content.slice(0, 100)),
+          suggestedNodeTypes: ['choice', 'branch'],
+        }, `剧本段落（${blocks.length} 块）→ 互动节点`);
+      }} />
       {/* 四层导航 (P0-2) */}
       <div className="flex items-center border-b shrink-0"
         style={{ background: S.card, borderColor: S.border }}>

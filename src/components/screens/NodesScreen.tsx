@@ -11,7 +11,7 @@ import {
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings, Link2, MapPin, MessageSquare,
   Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
-  Users, Clock, Lock, Palette
+  Users, Clock, Lock, Palette, Route, ChevronRight, MousePointer2
 } from "lucide-react";
 import Link from "next/link";
 import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
@@ -326,6 +326,41 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
   const connectMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
   const connectEndRef = useRef<((e: MouseEvent) => void) | null>(null);
 
+  // ── Path Tester (路径测试器) ──
+  const [pathTesterOpen, setPathTesterOpen] = useState(false);
+  const [pathStartNode, setPathStartNode] = useState<string | null>(null);
+  const [simulatedPath, setSimulatedPath] = useState<string[]>([]);
+
+  const handleSimulatePath = () => {
+    if (!pathStartNode) return;
+    const path: string[] = [pathStartNode];
+    const visited = new Set<string>([pathStartNode]);
+    let current = pathStartNode;
+    for (let i = 0; i < 20; i++) {
+      const outgoing = nodeEdges.filter(e => e.from === current);
+      if (outgoing.length === 0) break;
+      const next = outgoing[0].to;
+      if (visited.has(next)) break;
+      path.push(next);
+      visited.add(next);
+      current = next;
+      const node = storyNodes.find(n => n.id === next);
+      if (node && node.type.startsWith('ending')) break;
+    }
+    setSimulatedPath(path);
+  };
+
+  // ── Multi-select (多选) ──
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const [batchTypeOpen, setBatchTypeOpen] = useState(false);
+
+  // ── Variable Modification Rules (变量修改规则) ──
+  const [varModRules, setVarModRules] = useState<Record<string, { variableId: string; operation: string; value: number }[]>>({});
+  const [addRuleFormOpen, setAddRuleFormOpen] = useState(false);
+  const [newRuleVarId, setNewRuleVarId] = useState("");
+  const [newRuleOp, setNewRuleOp] = useState("set");
+  const [newRuleValue, setNewRuleValue] = useState("0");
+
   const NODE_TYPE_LABELS: Record<string, string> = {
     scene: "新场景", choice: "新选择", condition: "新条件",
     qte: "新QTE", ending_good: "新好结局", ending_bad: "新坏结局",
@@ -443,7 +478,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
 
   return (
     <div ref={canvasRef} className="relative w-full h-full overflow-auto"
-      onClick={() => { setSel(null); setDetailPanelOpen(false); }}
+      onClick={() => { setSel(null); setDetailPanelOpen(false); setMultiSelected(new Set()); setBatchTypeOpen(false); }}
       style={{
         backgroundColor: S.canvas,
         backgroundImage: `linear-gradient(${S.cGrid} 1px,transparent 1px),linear-gradient(90deg,${S.cGrid} 1px,transparent 1px)`,
@@ -458,6 +493,97 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
           ≡ 整理布局
         </motion.button>
       </div>
+
+      {/* ── 路径测试按钮 ── */}
+      <div className="absolute top-3 z-20" style={{ right: 118 }}>
+        <motion.button whileTap={{ scale:0.97 }}
+          onClick={(e) => { e.stopPropagation(); setPathTesterOpen(!pathTesterOpen); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium focus:outline-none"
+          style={{
+            background: pathTesterOpen ? `${S.primary}10` : S.card,
+            border: `1px solid ${pathTesterOpen ? S.primary : S.border}`,
+            color: pathTesterOpen ? S.primary : S.text2,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          }}>
+          <Route size={12} /> 路径测试
+        </motion.button>
+      </div>
+
+      {/* ── 多选浮动操作栏 ── */}
+      <AnimatePresence>
+        {multiSelected.size > 1 && (
+          <motion.div
+            key="multi-select-bar"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-2 rounded-xl"
+            style={{ background: S.card, border: `1px solid ${S.accent}`, boxShadow: `0 4px 16px ${S.accent}20` }}>
+            <MousePointer2 size={11} style={{ color: S.accent }} />
+            <span className="text-[10px] font-bold" style={{ color: S.accent }}>已选 {multiSelected.size} 个节点</span>
+            <div className="w-px h-3" style={{ background: S.border }} />
+            <motion.button whileTap={{ scale: 0.95 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                multiSelected.forEach(id => removeNode(id));
+                setMultiSelected(new Set());
+                setSel(null);
+                setDetailPanelOpen(false);
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold focus:outline-none"
+              style={{ background: `${S.error}10`, color: S.error }}>
+              <Trash2 size={9} /> 批量删除
+            </motion.button>
+            <div className="relative">
+              <motion.button whileTap={{ scale: 0.95 }}
+                onClick={(e) => { e.stopPropagation(); setBatchTypeOpen(!batchTypeOpen); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold focus:outline-none"
+                style={{ background: `${S.primary}10`, color: S.primary }}>
+                <Settings size={9} /> 批量修改类型 <ChevronDown size={8} />
+              </motion.button>
+              <AnimatePresence>
+                {batchTypeOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.1 }}
+                    className="absolute top-full left-0 mt-1 w-[120px] rounded-lg overflow-hidden"
+                    style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 50 }}>
+                    {Object.entries(NODE_TYPE).map(([type, cfg]) => (
+                      <motion.button key={type} whileTap={{ scale: 0.97 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          multiSelected.forEach(id => updateNode(id, { type: type as any }));
+                          setBatchTypeOpen(false);
+                          setMultiSelected(new Set());
+                        }}
+                        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left text-[9px] font-medium focus:outline-none"
+                        style={{ color: S.text, borderBottom: `1px solid ${S.border}` }}>
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+                        {cfg.label}
+                      </motion.button>
+                    ))}
+                    <motion.button whileTap={{ scale: 0.97 }}
+                      onClick={(e) => { e.stopPropagation(); setBatchTypeOpen(false); }}
+                      className="w-full px-2.5 py-1.5 text-center text-[9px] font-medium focus:outline-none"
+                      style={{ color: S.text3 }}>
+                      取消
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <motion.button whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); setMultiSelected(new Set()); setBatchTypeOpen(false); }}
+              className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
+              style={{ background: S.s2, color: S.text3 }}>
+              <X size={9} />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 诊断信息面板 */}
       {diagView !== 'all' && (
@@ -756,13 +882,15 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
               }}>
               <motion.button
                 onMouseDown={(e) => handleStartDrag(e, node.id)}
-                onClick={(e) => { e.stopPropagation(); if (node.id === sel) { setSel(null); setDetailPanelOpen(false); } else { setSel(node.id); setDetailPanelOpen(true); } }}
+                onClick={(e) => { e.stopPropagation(); if (e.shiftKey) { setMultiSelected(prev => { const next = new Set(prev); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next; }); } else { setMultiSelected(new Set()); setBatchTypeOpen(false); if (node.id === sel) { setSel(null); setDetailPanelOpen(false); } else { setSel(node.id); setDetailPanelOpen(true); } } }}
                 className="w-full rounded-xl text-left focus:outline-none"
                 style={{
                   padding:"8px 10px",
                   background: S.card,
-                  border: `1px solid ${isSelected ? S.primary : (node as any).hasError ? S.error : cfg.border}`,
-                  boxShadow: isSelected
+                  border: `1px solid ${multiSelected.has(node.id) ? S.accent : isSelected ? S.primary : (node as any).hasError ? S.error : cfg.border}`,
+                  boxShadow: multiSelected.has(node.id)
+                    ? `0 0 0 2px ${S.accent}30, 0 2px 8px ${S.accent}20`
+                    : isSelected
                     ? `0 0 0 2px ${S.primary}30, 0 2px 12px rgba(124,108,245,0.15)`
                     : isDragging
                     ? `0 4px 20px rgba(124,108,245,0.25)`
@@ -1200,6 +1328,115 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                     );
                   })()}
 
+                  {/* ── 变量修改规则 ── */}
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <BarChart3 size={9} style={{ color: S.accent }} />
+                      <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: S.accent }}>变量修改规则</span>
+                    </div>
+                    {/* Existing rules for this node */}
+                    {(varModRules[sel!] || []).length > 0 ? (
+                      <div className="space-y-1 mb-2">
+                        {(varModRules[sel!] || []).map((rule, idx) => {
+                          const varObj = variables.find(v => v.id === rule.variableId);
+                          return (
+                            <div key={idx} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg"
+                              style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ background: `${S.accent}12`, color: S.accent }}>
+                                {varObj?.label || rule.variableId}
+                              </span>
+                              <span className="text-[8px] font-mono px-1 rounded"
+                                style={{ background: `${S.primary}08`, color: S.primary }}>
+                                {rule.operation === "set" ? "=" : rule.operation === "add" ? "+=" : "-="}
+                              </span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text }}>{rule.value}</span>
+                              <div className="flex-1" />
+                              <motion.button whileTap={{ scale: 0.9 }}
+                                onClick={() => {
+                                  setVarModRules(prev => ({
+                                    ...prev,
+                                    [sel!]: (prev[sel!] || []).filter((_, i) => i !== idx),
+                                  }));
+                                }}
+                                className="w-4 h-4 rounded flex items-center justify-center focus:outline-none"
+                                style={{ color: S.text3 }}>
+                                <X size={7} />
+                              </motion.button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[8px] mb-2" style={{ color: S.text3 }}>此节点暂无变量修改规则</p>
+                    )}
+                    {/* Add rule form */}
+                    <AnimatePresence>
+                      {addRuleFormOpen ? (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                          <div className="p-2 rounded-lg space-y-1.5" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                            <select value={newRuleVarId} onChange={e => setNewRuleVarId(e.target.value)}
+                              className="w-full px-2 py-1 rounded text-[9px] focus:outline-none"
+                              style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }}>
+                              <option value="">选择变量...</option>
+                              {variables.map(v => (
+                                <option key={v.id} value={v.id}>{v.label}</option>
+                              ))}
+                            </select>
+                            <div className="flex gap-1.5">
+                              <select value={newRuleOp} onChange={e => setNewRuleOp(e.target.value)}
+                                className="flex-1 px-2 py-1 rounded text-[9px] focus:outline-none"
+                                style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }}>
+                                <option value="set">=  设为</option>
+                                <option value="add">+= 增加</option>
+                                <option value="sub">-= 减少</option>
+                              </select>
+                              <input type="number" value={newRuleValue} onChange={e => setNewRuleValue(e.target.value)}
+                                className="w-16 px-2 py-1 rounded text-[9px] focus:outline-none"
+                                style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }} />
+                            </div>
+                            <div className="flex gap-1.5">
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  if (!newRuleVarId) return;
+                                  setVarModRules(prev => ({
+                                    ...prev,
+                                    [sel!]: [...(prev[sel!] || []), {
+                                      variableId: newRuleVarId,
+                                      operation: newRuleOp,
+                                      value: Number(newRuleValue),
+                                    }],
+                                  }));
+                                  setNewRuleVarId("");
+                                  setNewRuleOp("set");
+                                  setNewRuleValue("0");
+                                  setAddRuleFormOpen(false);
+                                }}
+                                className="flex-1 py-1 rounded text-[9px] font-bold text-white focus:outline-none"
+                                style={{ background: S.accent }}>
+                                添加规则
+                              </motion.button>
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => setAddRuleFormOpen(false)}
+                                className="px-2 py-1 rounded text-[9px] font-medium focus:outline-none"
+                                style={{ background: S.s2, color: S.text3, border: `1px solid ${S.border}` }}>
+                                取消
+                              </motion.button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <motion.button whileTap={{ scale: 0.96 }}
+                          onClick={() => setAddRuleFormOpen(true)}
+                          className="w-full py-1.5 rounded-lg text-[9px] font-bold focus:outline-none flex items-center justify-center gap-1"
+                          style={{ background: `${S.accent}08`, color: S.accent, border: `1px solid ${S.accent}20` }}>
+                          <Plus size={9} /> 添加变量修改
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                   {/* ── Error Status ── */}
                   {(selectedNode as any).hasError && (
                     <div className="p-2.5 rounded-lg" style={{ background: `${S.error}08`, border: `1px solid ${S.error}20` }}>
@@ -1259,6 +1496,126 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
             </>
           );
         })()}
+      </AnimatePresence>
+
+      {/* ── 路径测试器面板 ── */}
+      <AnimatePresence>
+        {pathTesterOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-[500px] rounded-xl overflow-hidden"
+            style={{ background: S.card, border: `1px solid ${S.primary}30`, boxShadow: `0 8px 32px ${S.primary}15` }}>
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: `${S.primary}06`, borderBottom: `1px solid ${S.border}` }}>
+              <Route size={13} style={{ color: S.primary }} />
+              <span className="text-[10px] font-bold" style={{ color: S.text }}>路径测试器</span>
+              <div className="flex-1" />
+              <motion.button whileTap={{ scale: 0.9 }}
+                onClick={() => { setPathTesterOpen(false); setSimulatedPath([]); }}
+                className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
+                style={{ background: S.s2, color: S.text3 }}>
+                <X size={9} />
+              </motion.button>
+            </div>
+            {/* Body */}
+            <div className="p-4 space-y-3">
+              {/* Start node selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold shrink-0" style={{ color: S.text2 }}>起始节点</span>
+                <select value={pathStartNode || ""} onChange={e => setPathStartNode(e.target.value || null)}
+                  className="flex-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium focus:outline-none appearance-none"
+                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
+                  <option value="">选择起始节点...</option>
+                  {storyNodes.filter(n => !n.type.startsWith("ending")).map(n => (
+                    <option key={n.id} value={n.id}>{n.id} - {n.label}</option>
+                  ))}
+                </select>
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={handleSimulatePath}
+                  disabled={!pathStartNode}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white focus:outline-none shrink-0"
+                  style={{ background: pathStartNode ? S.primary : S.text3 }}>
+                  开始模拟
+                </motion.button>
+              </div>
+
+              {/* Simulated path display */}
+              {simulatedPath.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1 mb-2">
+                    <span className="text-[9px] font-bold" style={{ color: S.success }}>模拟路径</span>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.success}12`, color: S.success }}>
+                      {simulatedPath.length} 步
+                    </span>
+                    {storyNodes.find(n => n.id === simulatedPath[simulatedPath.length - 1])?.type.startsWith("ending") && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>
+                        到达结局
+                      </span>
+                    )}
+                  </div>
+                  {/* Path visualization */}
+                  <div className="flex items-center gap-0.5 overflow-x-auto pb-2">
+                    {simulatedPath.map((nodeId, i) => {
+                      const node = storyNodes.find(n => n.id === nodeId);
+                      const nodeType = node ? NODE_TYPE[node.type] : null;
+                      const isEnd = i === simulatedPath.length - 1;
+                      return (
+                        <div key={nodeId} className="flex items-center shrink-0">
+                          <div className="px-2 py-1 rounded-lg text-center"
+                            style={{
+                              background: `${nodeType?.color || S.primary}12`,
+                              border: `1px solid ${nodeType?.color || S.primary}30`,
+                              minWidth: 60,
+                            }}>
+                            <span className="text-[7px] font-mono block" style={{ color: S.text3 }}>{nodeId}</span>
+                            <span className="text-[8px] font-bold block truncate max-w-[70px]" style={{ color: S.text }}>
+                              {node?.label || nodeId}
+                            </span>
+                          </div>
+                          {!isEnd && (
+                            <ChevronRight size={10} className="mx-0.5 shrink-0" style={{ color: S.text3 }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Variable state along path */}
+                  {variables.length > 0 && (
+                    <div className="mt-2 p-2 rounded-lg" style={{ background: S.s2 }}>
+                      <span className="text-[8px] font-bold block mb-1" style={{ color: S.text3 }}>路径涉及变量</span>
+                      <div className="flex flex-wrap gap-1">
+                        {variables.filter(v =>
+                          v.modifiedBy.some(id => simulatedPath.includes(id)) ||
+                          v.readBy.some(id => simulatedPath.includes(id))
+                        ).map(v => (
+                          <span key={v.id} className="text-[8px] font-mono px-1.5 py-0.5 rounded"
+                            style={{ background: `${S.accent}12`, color: S.accent, border: `1px solid ${S.accent}20` }}>
+                            {v.label}
+                          </span>
+                        ))}
+                        {variables.filter(v =>
+                          v.modifiedBy.some(id => simulatedPath.includes(id)) ||
+                          v.readBy.some(id => simulatedPath.includes(id))
+                        ).length === 0 && (
+                          <span className="text-[8px]" style={{ color: S.text3 }}>此路径不涉及变量变化</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {simulatedPath.length === 0 && pathStartNode && (
+                <p className="text-[9px] text-center py-2" style={{ color: S.text3 }}>
+                  点击「开始模拟」以追踪从该节点出发的路径
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

@@ -58,3 +58,20 @@ export type {
   HumanInputRequestEvent,
   HumanInputResponseEvent,
 } from "./ag-ui-events";
+
+export {
+  generateImage,
+  generateCharacterPortrait,
+  generateSceneBackground,
+  generatePropImage,
+  ImageGenQueue,
+  STYLE_PRESETS,
+} from "./ai-image-service";
+export type {
+  ImageProvider,
+  ImageGenRequest,
+  ImageGenResult,
+  ImageGenQueueItem,
+  ImageGenConfig,
+  StylePreset,
+} from "./ai-image-service";

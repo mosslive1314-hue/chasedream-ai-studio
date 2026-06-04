@@ -2,14 +2,16 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CheckCircle2, AlertTriangle, ChevronRight,
-  Package, Sparkles, ArrowRight,
+  CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
+  Package, Sparkles, ArrowRight, Users, MapPin, Wrench,
   Image, Music, Mic, Film, Edit2,
   Library, Search, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { DataFlowBar } from "@/components/ui/DataFlowBar";
+import { pushTransfer } from "@/lib/data-flow-bridge";
 import ContextualActions from "@/components/ui/ContextualActions";
 import UnifiedAssetCard from "@/components/ui/UnifiedAssetCard";
 import { INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, type IndustryType, type AssetCard } from "@/lib/studio-data";
@@ -98,6 +100,7 @@ export default function AssetsScreen() {
 
   const [viewMode, setViewMode] = useState<"pipeline" | "by-node">("pipeline");
   const [activeAssetFilter, setActiveAssetFilter] = useState<string | null>(null);
+  const [mgmtPanelOpen, setMgmtPanelOpen] = useState(false);
 
   // ── Dynamic video pipeline data ─────────────────────────────────────────
   const videoPipeline = useMemo(() => {
@@ -207,6 +210,14 @@ export default function AssetsScreen() {
   return (
     <div className="h-svh flex flex-col" style={{ background:S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
+      <DataFlowBar page="assets" onPushForward={() => {
+        const readyNodes = storyNodes.filter(n => n.type === 'scene' || n.type === 'choice').slice(0, 5);
+        pushTransfer('assets', 'cinematic', 'assets→cinematic', {
+          readyNodeIds: readyNodes.map(n => n.id),
+          assetIds: assetCards.filter(a => a.hasImage).map(a => a.nodeId),
+          previewMode: 'sequence',
+        }, `资产就绪（${assetCards.filter(a => a.hasImage).length} 项有图）→ 演出预览`);
+      }} />
 
       {/* ── 顶层资产类型 Tab 栏 ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0"
@@ -308,6 +319,175 @@ export default function AssetsScreen() {
           <div className="ml-auto text-[9px]" style={{ color: S.text3 }}>
             {INDUSTRY_LABELS.asset[industry]} · {INDUSTRY_LABELS.pipeline[industry]}
           </div>
+        </div>
+
+        {/* ── 资产管理面板（可折叠）── */}
+        <div className="shrink-0" style={{ borderBottom: `1px solid ${S.border}` }}>
+          <motion.button whileTap={{ scale: 0.995 }}
+            onClick={() => setMgmtPanelOpen(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-2 focus:outline-none"
+            style={{ background: `${S.primary}04` }}>
+            <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: `${S.primary}12` }}>
+              <Package size={11} style={{ color: S.primary }} />
+            </div>
+            <span className="text-[10px] font-bold" style={{ color: S.text }}>资产管理面板</span>
+            <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>
+              {gameCharacters.length + gameScenes.length + gameProps.length} 项
+            </span>
+            <div className="flex-1" />
+            <motion.div animate={{ rotate: mgmtPanelOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+              <ChevronDown size={14} style={{ color: S.text3 }} />
+            </motion.div>
+          </motion.button>
+
+          <AnimatePresence>
+            {mgmtPanelOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-3 space-y-2.5">
+                  {/* ── 角色管理 ── */}
+                  <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: `${S.accent}12` }}>
+                        <Users size={11} style={{ color: S.accent }} />
+                      </div>
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>角色管理</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded font-bold" style={{ background: `${S.accent}12`, color: S.accent }}>
+                        {gameCharacters.length} 位
+                      </span>
+                      <div className="flex-1" />
+                      <Link href="/script">
+                        <motion.button whileTap={{ scale: 0.96 }}
+                          className="text-[8px] px-2 py-0.5 rounded-lg font-bold focus:outline-none"
+                          style={{ background: `${S.accent}10`, color: S.accent, border: `1px solid ${S.accent}25` }}>
+                          + 添加角色
+                        </motion.button>
+                      </Link>
+                    </div>
+                    {gameCharacters.length === 0 ? (
+                      <p className="text-[9px] text-center py-2" style={{ color: S.text3 }}>暂无角色</p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {gameCharacters.map(c => (
+                          <Link key={c.id} href="/script">
+                            <div className="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
+                              style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                              <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                                style={{ background: `${c.color}15` }}>
+                                <span className="text-[10px]">{c.emoji}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-bold truncate" style={{ color: S.text }}>{c.name}</p>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[7px]" style={{ color: S.text3 }}>{c.role}</span>
+                                  <span className="text-[7px] px-1 rounded" style={{ background: `${S.primary}08`, color: S.primary }}>
+                                    {c.appearNodes.length} 节点
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 场景管理 ── */}
+                  <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: `${S.primary}12` }}>
+                        <MapPin size={11} style={{ color: S.primary }} />
+                      </div>
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>场景管理</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded font-bold" style={{ background: `${S.primary}12`, color: S.primary }}>
+                        {gameScenes.length} 个
+                      </span>
+                      <div className="flex-1" />
+                      <Link href="/cinematic-editor">
+                        <motion.button whileTap={{ scale: 0.96 }}
+                          className="text-[8px] px-2 py-0.5 rounded-lg font-bold focus:outline-none"
+                          style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}25` }}>
+                          + 添加场景
+                        </motion.button>
+                      </Link>
+                    </div>
+                    {gameScenes.length === 0 ? (
+                      <p className="text-[9px] text-center py-2" style={{ color: S.text3 }}>暂无场景</p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {gameScenes.map(sc => (
+                          <Link key={sc.id} href="/cinematic-editor">
+                            <div className="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
+                              style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                              <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                                style={{ background: sc.hasImage && sc.imageUrl ? undefined : `${S.primary}10` }}>
+                                {sc.hasImage && sc.imageUrl
+                                  ? <img src={sc.imageUrl} className="w-full h-full object-cover rounded-md" alt="" />
+                                  : <MapPin size={11} style={{ color: S.primary }} />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-bold truncate" style={{ color: S.text }}>{sc.name}</p>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[7px]" style={{ color: S.text3 }}>{sc.atmosphere}</span>
+                                  <span className="text-[7px] px-1 rounded" style={{ background: `${S.primary}08`, color: S.primary }}>
+                                    {sc.refNodes.length} 节点
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 道具管理 ── */}
+                  <div className="rounded-xl p-3" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: `${S.warning}12` }}>
+                        <Wrench size={11} style={{ color: S.warning }} />
+                      </div>
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>道具管理</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded font-bold" style={{ background: `${S.warning}12`, color: S.warning }}>
+                        {gameProps.length} 件
+                      </span>
+                    </div>
+                    {gameProps.length === 0 ? (
+                      <p className="text-[9px] text-center py-2" style={{ color: S.text3 }}>暂无道具</p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {gameProps.map(p => (
+                          <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg"
+                            style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                            <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                              style={{ background: p.hasImage ? undefined : `${S.warning}10` }}>
+                              {p.hasImage
+                                ? <CheckCircle2 size={11} style={{ color: S.success }} />
+                                : <Wrench size={11} style={{ color: S.warning }} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[9px] font-bold truncate" style={{ color: S.text }}>{p.name}</p>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[7px]" style={{ color: S.text3 }}>{p.type}</span>
+                                <span className="text-[7px] px-1 rounded" style={{ background: `${S.warning}08`, color: S.warning }}>
+                                  {p.refNodes.length} 节点
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ── 主内容区 ── */}
@@ -579,6 +759,37 @@ export default function AssetsScreen() {
             </div>
           </div>
 
+          {/* ── 视频统计摘要 ── */}
+          {(() => {
+            const openingCat = videoPipeline.find(p => p.id === 'opening');
+            const transitionCat = videoPipeline.find(p => p.id === 'transition');
+            const qteCat = videoPipeline.find(p => p.id === 'qte');
+            const cutsceneCat = videoPipeline.find(p => p.id === 'cutscene');
+            return (
+              <div className="mx-0 mt-1 mb-2 p-3 rounded-xl flex items-center gap-3" style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}15` }}>
+                <Film size={16} style={{ color: S.primary }} />
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold" style={{ color: S.text }}>视频概览</p>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>开场、转场、QTE、过场 CG 分类统计</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.primary}12`, color: S.primary }}>
+                    {openingCat?.items.length || 0} 开场
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `#F59E0B12`, color: "#F59E0B" }}>
+                    {transitionCat?.items.length || 0} 转场
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.error}12`, color: S.error }}>
+                    {qteCat?.items.length || 0} QTE
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.success}12`, color: S.success }}>
+                    {cutsceneCat?.items.length || 0} 过场CG
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Video pipeline sections with UnifiedAssetCard */}
           {storyNodes.length === 0 && (
             <div className="text-center py-6">
@@ -713,6 +924,43 @@ export default function AssetsScreen() {
               ))}
             </div>
           </div>
+
+          {/* ── 音频统计摘要 ── */}
+          {(() => {
+            const bgmCat = audioCategories.find(c => c.id === 'bgm');
+            const sfxCat = audioCategories.find(c => c.id === 'sfx');
+            const voiceCat = audioCategories.find(c => c.id === 'voice');
+            const ambientCat = audioCategories.find(c => c.id === 'ambient');
+            const audioCoverage = assetCards.length > 0
+              ? Math.round(assetCards.filter(a => a.hasBgm || a.hasVoice).length / assetCards.length * 100)
+              : 0;
+            return (
+              <div className="mx-0 mt-1 mb-2 p-3 rounded-xl flex items-center gap-3" style={{ background: `${S.accent}06`, border: `1px solid ${S.accent}15` }}>
+                <Music size={16} style={{ color: S.accent }} />
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold" style={{ color: S.text }}>音频概览</p>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>BGM、音效、配音、环境音覆盖率</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `#8B5CF612`, color: "#8B5CF6" }}>
+                    {bgmCat?.items.length || 0} BGM
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.warning}12`, color: S.warning }}>
+                    {sfxCat?.items.length || 0} SFX
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.accent}12`, color: S.accent }}>
+                    {voiceCat?.items.length || 0} 配音
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `#06B6D412`, color: "#06B6D4" }}>
+                    {ambientCat?.items.length || 0} 环境音
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.success}12`, color: S.success }}>
+                    {audioCoverage}% 覆盖
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Audio category sections with UnifiedAssetCard */}
           {storyNodes.length === 0 && gameCharacters.length === 0 && gameScenes.length === 0 && (
@@ -998,6 +1246,36 @@ export default function AssetsScreen() {
               ))}
             </div>
           </div>
+
+          {/* ── 文本统计摘要 ── */}
+          {(() => {
+            const dialogueCount = scriptBlocks.filter(b => b.type === 'dialog').length;
+            const nodesWithCopy = storyNodes.filter(n => scriptBlocks.some(b => b.label.includes(n.label) || b.id.includes(n.id)));
+            const textCoverage = storyNodes.length > 0 ? Math.round(nodesWithCopy.length / storyNodes.length * 100) : 0;
+            return (
+              <div className="mx-0 mt-1 mb-2 p-3 rounded-xl flex items-center gap-3" style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}15` }}>
+                <FileText size={16} style={{ color: S.primary }} />
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold" style={{ color: S.text }}>文本概览</p>
+                  <p className="text-[9px]" style={{ color: S.text3 }}>剧本块、台词、节点文案覆盖率</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.primary}12`, color: S.primary }}>
+                    {scriptBlocks.length} 剧本块
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.accent}12`, color: S.accent }}>
+                    {dialogueCount} 台词
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `#F59E0B12`, color: "#F59E0B" }}>
+                    {storyNodes.length} 节点文案
+                  </span>
+                  <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.success}12`, color: S.success }}>
+                    {textCoverage}% 覆盖
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 剧本 (Script) section */}
           <div>

@@ -1,10 +1,11 @@
 "use client";
-import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { useState, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Database, Search, Image, Video, Music, Monitor, FileText,
   Upload, Grid, List, ChevronLeft, ChevronRight,
   Filter, Download, Trash2, Eye, MoreHorizontal,
+  ArrowUpDown, CheckSquare, XSquare, Share2, Layers, Check, X,
 } from "lucide-react";
 import { useNarrativeStore } from "@/store";
 
@@ -73,14 +74,40 @@ const FILTERS: { key: AssetType | "all"; label: string }[] = [
 
 // ── Statistics are computed dynamically via useMemo from allAssets ─────────
 
-const STORAGE_USED = 128;
-const STORAGE_TOTAL = 500;
+// ── Sort options ─────────────────────────────────────────────────────────
+type SortField = "name" | "type" | "status" | "date";
+const SORT_OPTIONS: { key: SortField; label: string }[] = [
+  { key: "name",   label: "名称" },
+  { key: "type",   label: "类型" },
+  { key: "status", label: "状态" },
+  { key: "date",   label: "日期" },
+];
+
+const STATUS_ORDER: Record<AssetStatus, number> = { pending: 0, approved: 1, archived: 2 };
 
 export default function AssetLibraryScreen() {
   const [activeFilter, setActiveFilter] = useState<AssetType | "all">("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "dependency">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCard, setActiveCard] = useState<string | null>(null);
+
+  // ── New: sorting state ──
+  const [sortBy, setSortBy] = useState<SortField>("date");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  // ── New: selection mode ──
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // ── New: preview panel ──
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  // ── New: toast notification ──
+  const [toast, setToast] = useState<string | null>(null);
+
+  // ── New: delete confirmation ──
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // ── Store selectors ──
   const gameCharacters = useNarrativeStore(s => s.characters);
@@ -163,13 +190,91 @@ export default function AssetLibraryScreen() {
     ];
   }, [allAssets]);
 
-  const filteredAssets = allAssets.filter(a => {
-    const matchesFilter = activeFilter === "all" || a.type === activeFilter;
-    const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  // ── Filter + sort assets ──
+  const filteredAssets = useMemo(() => {
+    const filtered = allAssets.filter(a => {
+      const matchesFilter = activeFilter === "all" || a.type === activeFilter;
+      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesFilter && matchesSearch;
+    });
+    return filtered.sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case "name":   cmp = a.name.localeCompare(b.name, "zh-CN"); break;
+        case "type":   cmp = a.type.localeCompare(b.type); break;
+        case "status": cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]; break;
+        case "date":   cmp = a.date.localeCompare(b.date); break;
+      }
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [allAssets, activeFilter, searchQuery, sortBy, sortAsc]);
 
-  const storagePercent = Math.round((STORAGE_USED / STORAGE_TOTAL) * 100);
+  // ── Dependency grouping (group assets by source node prefix) ──
+  const dependencyGroups = useMemo(() => {
+    const groups: Record<string, { label: string; assets: Asset[] }> = {};
+    filteredAssets.forEach(asset => {
+      let groupKey = "other";
+      let groupLabel = "其他资产";
+      if (asset.id.startsWith("char-"))   { groupKey = "characters"; groupLabel = "角色 (Characters)"; }
+      else if (asset.id.startsWith("scene-"))  { groupKey = "scenes";     groupLabel = "场景 (Scenes)"; }
+      else if (asset.id.startsWith("prop-"))   { groupKey = "props";      groupLabel = "道具 (Props)"; }
+      else if (asset.id.startsWith("req-"))    { groupKey = "requirements"; groupLabel = "需求节点 (Requirements)"; }
+      else if (asset.id.startsWith("script-")) { groupKey = "scripts";    groupLabel = "剧本 (Scripts)"; }
+      else if (asset.id.startsWith("node-"))   { groupKey = "storyNodes"; groupLabel = "故事节点 (Story Nodes)"; }
+      else if (asset.id.startsWith("a"))       { groupKey = "seed";       groupLabel = "种子资产 (Seed)"; }
+      if (!groups[groupKey]) groups[groupKey] = { label: groupLabel, assets: [] };
+      groups[groupKey].assets.push(asset);
+    });
+    return groups;
+  }, [filteredAssets]);
+
+  // ── Dynamic storage calculation ──
+  const storageUsedMB = useMemo(() => +(allAssets.length * 2.5).toFixed(1), [allAssets]);
+  const storageTotalMB = 500;
+  const storagePercent = Math.round((storageUsedMB / storageTotalMB) * 100);
+
+  // ── Selection helpers ──
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(filteredAssets.map(a => a.id)));
+  }, [filteredAssets]);
+
+  const deselectAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  // ── Toast helper ──
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  // ── Delete handler ──
+  const handleDelete = useCallback((id: string) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+    setDeleteConfirmId(null);
+    showToast("资产已删除");
+  }, [showToast]);
+
+  // ── Bulk delete handler ──
+  const handleBulkDelete = useCallback(() => {
+    const count = selectedIds.size;
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    showToast(`已删除 ${count} 个资产`);
+  }, [selectedIds, showToast]);
 
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
@@ -245,10 +350,76 @@ export default function AssetLibraryScreen() {
               }}>
               <List size={10} /> 列表
             </motion.button>
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={() => setViewMode("dependency")}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold focus:outline-none"
+              style={{
+                background: viewMode === "dependency" ? S.primary : S.s2,
+                color: viewMode === "dependency" ? "#fff" : S.text3,
+              }}>
+              <Layers size={10} /> 依赖
+            </motion.button>
           </div>
+
+          {/* Sort dropdown */}
+          <div className="relative shrink-0">
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={() => setShowSortMenu(v => !v)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+              style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text2 }}>
+              <ArrowUpDown size={10} />
+              {SORT_OPTIONS.find(o => o.key === sortBy)?.label}
+              {sortAsc ? " ↑" : " ↓"}
+            </motion.button>
+            <AnimatePresence>
+              {showSortMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="absolute right-0 top-full mt-1 z-50 rounded-xl overflow-hidden"
+                  style={{ background: S.card, border: `1px solid ${S.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 120 }}>
+                  {SORT_OPTIONS.map(opt => (
+                    <motion.button key={opt.key} whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        if (sortBy === opt.key) setSortAsc(v => !v);
+                        else { setSortBy(opt.key); setSortAsc(true); }
+                        setShowSortMenu(false);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold focus:outline-none hover:bg-opacity-80 transition-colors"
+                      style={{
+                        background: sortBy === opt.key ? `${S.primary}14` : "transparent",
+                        color: sortBy === opt.key ? S.primary : S.text2,
+                      }}>
+                      <span>{opt.label}</span>
+                      {sortBy === opt.key && (
+                        <span style={{ color: S.primary }}>{sortAsc ? "↑" : "↓"}</span>
+                      )}
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Selection mode toggle */}
+          <motion.button whileTap={{ scale: 0.97 }}
+            onClick={() => {
+              setSelectionMode(v => !v);
+              if (selectionMode) { setSelectedIds(new Set()); }
+            }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold shrink-0 focus:outline-none"
+            style={{
+              background: selectionMode ? S.accent : S.s2,
+              color: selectionMode ? "#fff" : S.text2,
+              border: `1px solid ${selectionMode ? S.accent : S.border}`,
+            }}>
+            <CheckSquare size={10} /> 选择
+          </motion.button>
 
           {/* Import button */}
           <motion.button whileTap={{ scale: 0.97 }}
+            onClick={() => showToast("导入功能即将上线")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shrink-0 focus:outline-none"
             style={{ background: `linear-gradient(135deg, ${S.primary}, #A78BFA)` }}>
             <Upload size={12} /> 导入资产
@@ -280,7 +451,7 @@ export default function AssetLibraryScreen() {
                 }} />
             </div>
             <span className="text-[9px] font-mono" style={{ color: S.text2 }}>
-              {STORAGE_USED} MB / {STORAGE_TOTAL} MB
+              {storageUsedMB} MB / {storageTotalMB} MB
             </span>
           </div>
         </div>
@@ -288,157 +459,496 @@ export default function AssetLibraryScreen() {
 
       {/* ── Main content area ── */}
       <div className="flex-1 overflow-y-auto p-4">
-        {viewMode === "grid" ? (
+
+        {/* ── Selection mode header ── */}
+        <AnimatePresence>
+          {selectionMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl"
+              style={{ background: `${S.accent}0A`, border: `1px solid ${S.accent}30` }}>
+              <div className="flex items-center gap-2">
+                <CheckSquare size={12} style={{ color: S.accent }} />
+                <span className="text-[10px] font-bold" style={{ color: S.accent }}>
+                  选择模式 · 已选 {selectedIds.size} 项
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <motion.button whileTap={{ scale: 0.96 }}
+                  onClick={selectAll}
+                  className="text-[9px] font-bold px-2 py-1 rounded-lg focus:outline-none"
+                  style={{ background: `${S.accent}18`, color: S.accent }}>
+                  全选
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.96 }}
+                  onClick={deselectAll}
+                  className="text-[9px] font-bold px-2 py-1 rounded-lg focus:outline-none"
+                  style={{ background: S.s2, color: S.text3 }}>
+                  取消全选
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.96 }}
+                  onClick={exitSelectionMode}
+                  className="text-[9px] font-bold px-2 py-1 rounded-lg focus:outline-none"
+                  style={{ background: S.s2, color: S.text3 }}>
+                  退出
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Grid view ── */}
+        {viewMode === "grid" && (
           <div className="grid grid-cols-3 gap-3">
             {filteredAssets.map(asset => {
               const typeConf = TYPE_CONFIG[asset.type];
               const statusConf = STATUS_CONFIG[asset.status];
               const TypeIcon = typeConf.icon;
               const isActive = activeCard === asset.id;
+              const isSelected = selectedIds.has(asset.id);
+              const isPreview = previewId === asset.id;
+              const isDeleteConfirm = deleteConfirmId === asset.id;
               return (
-                <motion.div key={asset.id}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileTap={{ scale: 0.985 }}
-                  onClick={() => setActiveCard(isActive ? null : asset.id)}
-                  className="rounded-xl overflow-hidden cursor-pointer transition-all"
-                  style={{
-                    background: S.card,
-                    border: `1px solid ${isActive ? S.primary : S.border}`,
-                    boxShadow: isActive ? `0 0 0 2px ${S.primary}28` : "none",
-                  }}>
-                  {/* Thumbnail area */}
-                  <div className="relative h-24 flex items-center justify-center"
-                    style={{ background: `linear-gradient(135deg, ${typeConf.color}12, ${typeConf.color}06)` }}>
-                    <TypeIcon size={28} style={{ color: `${typeConf.color}80` }} />
-                    {/* Type badge */}
-                    <span className="absolute top-2 left-2 text-[8px] font-bold px-1.5 py-0.5 rounded"
-                      style={{ background: `${typeConf.color}18`, color: typeConf.color }}>
-                      {typeConf.label}
-                    </span>
-                    {/* Hover overlay actions */}
-                    <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity"
-                      style={{ background: "rgba(26,29,46,0.55)" }}>
-                      <motion.button whileTap={{ scale: 0.9 }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center"
-                        style={{ background: "rgba(255,255,255,0.2)" }}>
-                        <Eye size={12} color="#fff" />
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.9 }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center"
-                        style={{ background: "rgba(255,255,255,0.2)" }}>
-                        <Download size={12} color="#fff" />
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.9 }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center"
-                        style={{ background: "rgba(255,255,255,0.2)" }}>
-                        <Trash2 size={12} color="#fff" />
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.9 }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center"
-                        style={{ background: "rgba(255,255,255,0.2)" }}>
-                        <MoreHorizontal size={12} color="#fff" />
-                      </motion.button>
-                    </div>
-                  </div>
-                  {/* Card body */}
-                  <div className="p-2.5">
-                    <p className="text-[10px] font-bold truncate mb-1" style={{ color: S.text }}>
-                      {asset.name}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
-                          style={{ background: statusConf.bg, color: statusConf.color }}>
-                          {statusConf.label}
-                        </span>
-                        <span className="text-[8px]" style={{ color: S.text3 }}>{asset.size}</span>
+                <div key={asset.id}>
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileTap={{ scale: 0.985 }}
+                    onClick={() => {
+                      if (selectionMode) { toggleSelect(asset.id); }
+                      else { setActiveCard(isActive ? null : asset.id); }
+                    }}
+                    className="rounded-xl overflow-hidden cursor-pointer transition-all"
+                    style={{
+                      background: S.card,
+                      border: `1px solid ${isSelected ? S.accent : isActive ? S.primary : S.border}`,
+                      boxShadow: isSelected ? `0 0 0 2px ${S.accent}28` : isActive ? `0 0 0 2px ${S.primary}28` : "none",
+                    }}>
+                    {/* Thumbnail area */}
+                    <div className="relative h-24 flex items-center justify-center"
+                      style={{ background: `linear-gradient(135deg, ${typeConf.color}12, ${typeConf.color}06)` }}>
+                      <TypeIcon size={28} style={{ color: `${typeConf.color}80` }} />
+                      {/* Type badge */}
+                      <span className="absolute top-2 left-2 text-[8px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: `${typeConf.color}18`, color: typeConf.color }}>
+                        {typeConf.label}
+                      </span>
+                      {/* Selection checkbox */}
+                      <AnimatePresence>
+                        {selectionMode && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.5 }}
+                            className="absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center"
+                            style={{
+                              background: isSelected ? S.accent : "rgba(255,255,255,0.85)",
+                              border: isSelected ? "none" : `1.5px solid ${S.border}`,
+                            }}>
+                            {isSelected && <Check size={10} color="#fff" strokeWidth={3} />}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      {/* Hover overlay actions */}
+                      <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity"
+                        style={{ background: "rgba(26,29,46,0.55)" }}>
+                        <motion.button whileTap={{ scale: 0.9 }}
+                          onClick={e => { e.stopPropagation(); setPreviewId(isPreview ? null : asset.id); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: "rgba(255,255,255,0.2)" }}>
+                          <Eye size={12} color="#fff" />
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.9 }}
+                          onClick={e => { e.stopPropagation(); showToast("导入功能即将上线"); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: "rgba(255,255,255,0.2)" }}>
+                          <Download size={12} color="#fff" />
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.9 }}
+                          onClick={e => { e.stopPropagation(); setDeleteConfirmId(isDeleteConfirm ? null : asset.id); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: "rgba(255,255,255,0.2)" }}>
+                          <Trash2 size={12} color="#fff" />
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.9 }}
+                          onClick={e => e.stopPropagation()}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: "rgba(255,255,255,0.2)" }}>
+                          <MoreHorizontal size={12} color="#fff" />
+                        </motion.button>
                       </div>
-                      <span className="text-[8px]" style={{ color: S.text3 }}>{asset.date}</span>
                     </div>
-                  </div>
-                </motion.div>
+                    {/* Card body */}
+                    <div className="p-2.5">
+                      <p className="text-[10px] font-bold truncate mb-1" style={{ color: S.text }}>
+                        {asset.name}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                            style={{ background: statusConf.bg, color: statusConf.color }}>
+                            {statusConf.label}
+                          </span>
+                          <span className="text-[8px]" style={{ color: S.text3 }}>{asset.size}</span>
+                        </div>
+                        <span className="text-[8px]" style={{ color: S.text3 }}>{asset.date}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Delete confirmation */}
+                  <AnimatePresence>
+                    {isDeleteConfirm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-1 p-2 rounded-lg overflow-hidden"
+                        style={{ background: `${S.error}0A`, border: `1px solid ${S.error}30` }}>
+                        <p className="text-[9px] font-bold mb-1.5" style={{ color: S.error }}>确认删除此资产？</p>
+                        <div className="flex gap-1.5">
+                          <motion.button whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDelete(asset.id)}
+                            className="px-2 py-1 rounded text-[8px] font-bold text-white"
+                            style={{ background: S.error }}>
+                            删除
+                          </motion.button>
+                          <motion.button whileTap={{ scale: 0.95 }}
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="px-2 py-1 rounded text-[8px] font-bold"
+                            style={{ background: S.s2, color: S.text3 }}>
+                            取消
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Preview detail panel */}
+                  <AnimatePresence>
+                    {isPreview && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-1 p-2.5 rounded-lg overflow-hidden"
+                        style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[9px] font-bold" style={{ color: S.text }}>资产详情</span>
+                          <motion.button whileTap={{ scale: 0.9 }}
+                            onClick={() => setPreviewId(null)}
+                            className="w-4 h-4 rounded flex items-center justify-center"
+                            style={{ background: S.border }}>
+                            <X size={8} style={{ color: S.text3 }} />
+                          </motion.button>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>名称</span>
+                            <span className="text-[8px] font-bold" style={{ color: S.text }}>{asset.name}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>类型</span>
+                            <span className="text-[8px] font-bold" style={{ color: typeConf.color }}>{typeConf.label}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>状态</span>
+                            <span className="text-[8px] font-bold" style={{ color: statusConf.color }}>{statusConf.label}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>大小</span>
+                            <span className="text-[8px] font-mono" style={{ color: S.text2 }}>{asset.size}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>日期</span>
+                            <span className="text-[8px] font-mono" style={{ color: S.text2 }}>{asset.date}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[8px]" style={{ color: S.text3 }}>ID</span>
+                            <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{asset.id}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
           </div>
-        ) : (
-          /* List view */
+        )}
+
+        {/* ── List view ── */}
+        {viewMode === "list" && (
           <div className="space-y-1.5">
             {filteredAssets.map(asset => {
               const typeConf = TYPE_CONFIG[asset.type];
               const statusConf = STATUS_CONFIG[asset.status];
               const TypeIcon = typeConf.icon;
               const isActive = activeCard === asset.id;
+              const isSelected = selectedIds.has(asset.id);
+              const isPreview = previewId === asset.id;
+              const isDeleteConfirm = deleteConfirmId === asset.id;
               return (
-                <motion.div key={asset.id}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  whileTap={{ scale: 0.995 }}
-                  onClick={() => setActiveCard(isActive ? null : asset.id)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
-                  style={{
-                    background: S.card,
-                    border: `1px solid ${isActive ? S.primary : S.border}`,
-                    boxShadow: isActive ? `0 0 0 2px ${S.primary}28` : "none",
-                  }}>
-                  {/* Icon */}
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: `${typeConf.color}14` }}>
-                    <TypeIcon size={15} style={{ color: typeConf.color }} />
-                  </div>
-                  {/* Name */}
-                  <p className="text-[10px] font-bold flex-1 truncate" style={{ color: S.text }}>
-                    {asset.name}
-                  </p>
-                  {/* Type badge */}
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                    style={{ background: `${typeConf.color}14`, color: typeConf.color }}>
-                    {typeConf.label}
-                  </span>
-                  {/* Size */}
-                  <span className="text-[9px] w-14 text-right shrink-0" style={{ color: S.text3 }}>
-                    {asset.size}
-                  </span>
-                  {/* Date */}
-                  <span className="text-[9px] w-20 text-right shrink-0" style={{ color: S.text3 }}>
-                    {asset.date}
-                  </span>
-                  {/* Status */}
-                  <span className="text-[8px] font-bold px-2 py-0.5 rounded shrink-0"
-                    style={{ background: statusConf.bg, color: statusConf.color }}>
-                    {statusConf.label}
-                  </span>
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <motion.button whileTap={{ scale: 0.9 }}
-                      className="w-6 h-6 rounded flex items-center justify-center"
-                      style={{ background: S.s2 }}>
-                      <Eye size={10} style={{ color: S.text3 }} />
-                    </motion.button>
-                    <motion.button whileTap={{ scale: 0.9 }}
-                      className="w-6 h-6 rounded flex items-center justify-center"
-                      style={{ background: S.s2 }}>
-                      <Download size={10} style={{ color: S.text3 }} />
-                    </motion.button>
-                    <motion.button whileTap={{ scale: 0.9 }}
-                      className="w-6 h-6 rounded flex items-center justify-center"
-                      style={{ background: S.s2 }}>
-                      <MoreHorizontal size={10} style={{ color: S.text3 }} />
-                    </motion.button>
-                  </div>
-                </motion.div>
+                <div key={asset.id}>
+                  <motion.div
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    whileTap={{ scale: 0.995 }}
+                    onClick={() => {
+                      if (selectionMode) { toggleSelect(asset.id); }
+                      else { setActiveCard(isActive ? null : asset.id); }
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
+                    style={{
+                      background: S.card,
+                      border: `1px solid ${isSelected ? S.accent : isActive ? S.primary : S.border}`,
+                      boxShadow: isSelected ? `0 0 0 2px ${S.accent}28` : isActive ? `0 0 0 2px ${S.primary}28` : "none",
+                    }}>
+                    {/* Selection checkbox */}
+                    <AnimatePresence>
+                      {selectionMode && (
+                        <motion.div
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 20 }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 overflow-hidden"
+                          style={{
+                            background: isSelected ? S.accent : "transparent",
+                            border: isSelected ? "none" : `1.5px solid ${S.border}`,
+                          }}>
+                          {isSelected && <Check size={10} color="#fff" strokeWidth={3} />}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    {/* Icon */}
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `${typeConf.color}14` }}>
+                      <TypeIcon size={15} style={{ color: typeConf.color }} />
+                    </div>
+                    {/* Name */}
+                    <p className="text-[10px] font-bold flex-1 truncate" style={{ color: S.text }}>
+                      {asset.name}
+                    </p>
+                    {/* Type badge */}
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                      style={{ background: `${typeConf.color}14`, color: typeConf.color }}>
+                      {typeConf.label}
+                    </span>
+                    {/* Size */}
+                    <span className="text-[9px] w-14 text-right shrink-0" style={{ color: S.text3 }}>
+                      {asset.size}
+                    </span>
+                    {/* Date */}
+                    <span className="text-[9px] w-20 text-right shrink-0" style={{ color: S.text3 }}>
+                      {asset.date}
+                    </span>
+                    {/* Status */}
+                    <span className="text-[8px] font-bold px-2 py-0.5 rounded shrink-0"
+                      style={{ background: statusConf.bg, color: statusConf.color }}>
+                      {statusConf.label}
+                    </span>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <motion.button whileTap={{ scale: 0.9 }}
+                        onClick={e => { e.stopPropagation(); setPreviewId(isPreview ? null : asset.id); }}
+                        className="w-6 h-6 rounded flex items-center justify-center"
+                        style={{ background: isPreview ? `${S.primary}18` : S.s2 }}>
+                        <Eye size={10} style={{ color: isPreview ? S.primary : S.text3 }} />
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.9 }}
+                        onClick={e => { e.stopPropagation(); showToast("导入功能即将上线"); }}
+                        className="w-6 h-6 rounded flex items-center justify-center"
+                        style={{ background: S.s2 }}>
+                        <Download size={10} style={{ color: S.text3 }} />
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.9 }}
+                        onClick={e => { e.stopPropagation(); setDeleteConfirmId(isDeleteConfirm ? null : asset.id); }}
+                        className="w-6 h-6 rounded flex items-center justify-center"
+                        style={{ background: isDeleteConfirm ? `${S.error}18` : S.s2 }}>
+                        <Trash2 size={10} style={{ color: isDeleteConfirm ? S.error : S.text3 }} />
+                      </motion.button>
+                    </div>
+                  </motion.div>
+
+                  {/* Inline delete confirmation (list) */}
+                  <AnimatePresence>
+                    {isDeleteConfirm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-1 ml-11 p-2 rounded-lg overflow-hidden"
+                        style={{ background: `${S.error}0A`, border: `1px solid ${S.error}30` }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-bold" style={{ color: S.error }}>确认删除此资产？</span>
+                          <motion.button whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDelete(asset.id)}
+                            className="px-2 py-1 rounded text-[8px] font-bold text-white"
+                            style={{ background: S.error }}>
+                            删除
+                          </motion.button>
+                          <motion.button whileTap={{ scale: 0.95 }}
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="px-2 py-1 rounded text-[8px] font-bold"
+                            style={{ background: S.s2, color: S.text3 }}>
+                            取消
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Inline preview panel (list) */}
+                  <AnimatePresence>
+                    {isPreview && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-1 ml-11 p-2.5 rounded-lg overflow-hidden"
+                        style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                        <div className="flex items-center gap-4">
+                          <div className="flex gap-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px]" style={{ color: S.text3 }}>类型</span>
+                              <span className="text-[8px] font-bold" style={{ color: typeConf.color }}>{typeConf.label}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px]" style={{ color: S.text3 }}>状态</span>
+                              <span className="text-[8px] font-bold" style={{ color: statusConf.color }}>{statusConf.label}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px]" style={{ color: S.text3 }}>大小</span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text2 }}>{asset.size}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px]" style={{ color: S.text3 }}>日期</span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text2 }}>{asset.date}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px]" style={{ color: S.text3 }}>ID</span>
+                              <span className="text-[8px] font-mono" style={{ color: S.text3 }}>{asset.id}</span>
+                            </div>
+                          </div>
+                          <motion.button whileTap={{ scale: 0.9 }}
+                            onClick={() => setPreviewId(null)}
+                            className="ml-auto w-4 h-4 rounded flex items-center justify-center shrink-0"
+                            style={{ background: S.border }}>
+                            <X size={8} style={{ color: S.text3 }} />
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
           </div>
         )}
+
+        {/* ── Dependency view ── */}
+        {viewMode === "dependency" && (
+          <div className="space-y-4">
+            {Object.entries(dependencyGroups).map(([groupKey, group]) => (
+              <motion.div key={groupKey}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl overflow-hidden"
+                style={{ background: S.card, border: `1px solid ${S.border}` }}>
+                {/* Group header */}
+                <div className="flex items-center gap-2 px-3 py-2.5"
+                  style={{ background: S.s2, borderBottom: `1px solid ${S.border}` }}>
+                  <Layers size={12} style={{ color: S.primary }} />
+                  <span className="text-[10px] font-bold" style={{ color: S.text }}>{group.label}</span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                    style={{ background: `${S.primary}14`, color: S.primary }}>
+                    {group.assets.length} 个资产
+                  </span>
+                </div>
+                {/* Group assets */}
+                <div className="divide-y" style={{ borderColor: S.border }}>
+                  {group.assets.map(asset => {
+                    const typeConf = TYPE_CONFIG[asset.type];
+                    const statusConf = STATUS_CONFIG[asset.status];
+                    const TypeIcon = typeConf.icon;
+                    return (
+                      <div key={asset.id}
+                        className="flex items-center gap-3 px-3 py-2 hover:bg-opacity-50 transition-colors"
+                        style={{ borderColor: S.border }}>
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: `${typeConf.color}14` }}>
+                          <TypeIcon size={13} style={{ color: typeConf.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold truncate" style={{ color: S.text }}>{asset.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                              style={{ background: statusConf.bg, color: statusConf.color }}>
+                              {statusConf.label}
+                            </span>
+                            <span className="text-[8px]" style={{ color: S.text3 }}>{asset.size}</span>
+                          </div>
+                        </div>
+                        {/* Reference info */}
+                        <div className="shrink-0 flex items-center gap-1">
+                          <Share2 size={9} style={{ color: S.text3 }} />
+                          <span className="text-[8px]" style={{ color: S.text3 }}>
+                            {group.label.split(" ")[0]}
+                          </span>
+                        </div>
+                        <span className="text-[8px] font-mono shrink-0" style={{ color: S.text3 }}>{asset.date}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* ── Floating bulk action bar (when items selected) ── */}
+      <AnimatePresence>
+        {selectionMode && selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            className="shrink-0 flex items-center justify-between px-4 py-2.5"
+            style={{ background: `${S.accent}`, boxShadow: `0 -4px 16px ${S.accent}40` }}>
+            <span className="text-xs font-bold text-white">已选 {selectedIds.size} 项</span>
+            <div className="flex items-center gap-2">
+              <motion.button whileTap={{ scale: 0.96 }}
+                onClick={() => { showToast(`已批量审核 ${selectedIds.size} 个资产`); exitSelectionMode(); }}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
+                <Check size={10} className="inline mr-1" /> 批量审核
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.96 }}
+                onClick={() => { showToast(`已导出 ${selectedIds.size} 个资产`); exitSelectionMode(); }}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
+                <Download size={10} className="inline mr-1" /> 批量导出
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.96 }}
+                onClick={() => { handleBulkDelete(); }}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
+                style={{ background: S.error, color: "#fff" }}>
+                <Trash2 size={10} className="inline mr-1" /> 批量删除
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Bottom pagination bar ── */}
       <div className="shrink-0 flex items-center justify-between px-4 py-2.5"
         style={{ background: S.card, borderTop: `1px solid ${S.border}` }}>
         <span className="text-[10px]" style={{ color: S.text3 }}>
-          显示 1-{filteredAssets.length} / 共 {allAssets.length} 个资产
+          显示 {filteredAssets.length > 0 ? 1 : 0}-{filteredAssets.length} / 共 {allAssets.length} 个资产
         </span>
         <div className="flex items-center gap-1">
           <motion.button whileTap={{ scale: 0.94 }}

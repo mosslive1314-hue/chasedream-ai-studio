@@ -15,6 +15,8 @@ import {
 import { useNarrativeStore, useUIStore } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { DataFlowBar } from "@/components/ui/DataFlowBar";
+import { pushTransfer } from "@/lib/data-flow-bridge";
 
 // ── Design System ────────────────────────────────────────────────────────
 const S = {
@@ -229,6 +231,15 @@ export default function CinematicEditorScreen() {
   return (
     <div className="min-h-screen" style={{ background: S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
+      <DataFlowBar page="cinematic" onPushForward={() => {
+        pushTransfer('cinematic', 'overview', 'cinematic→overview', {
+          issues: [{
+            nodeId: 'N01', type: 'visual', severity: 'info',
+            description: '演出预览已完成，请检查质检清单',
+          }],
+          timestamp: new Date().toISOString(),
+        }, '演出预览问题 → 质检清单');
+      }} />
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
         {/* ── A. Header ─────────────────────────────────────────────────── */}
