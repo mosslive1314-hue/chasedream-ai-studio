@@ -71,6 +71,23 @@ export default function OverviewScreen() {
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const narrativeIntents = useNarrativeStore(s => s.narrativeIntents);
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const currentProject = useProjectStore(s => s.currentProject());
+
+  // ── Project-derived labels ──────────────────────────────────────────
+  const genreLabel = currentProject?.genre ?? "赛博朋克 · 间谍惊悚";
+  const statusLabel = useMemo(() => {
+    const map: Record<string, string> = { published: "已发布", in_progress: "开发中", idle: "空闲", draft: "草稿" };
+    return map[currentProject?.status ?? ""] ?? "开发中";
+  }, [currentProject?.status]);
+  const statusColor = useMemo(() => {
+    const map: Record<string, string> = { published: S.success, in_progress: S.primary, idle: S.text3, draft: S.warning };
+    return map[currentProject?.status ?? ""] ?? S.primary;
+  }, [currentProject?.status]);
+  const statusBg = useMemo(() => {
+    const map: Record<string, string> = { published: S.success10, in_progress: S.primary10, idle: S.s2, draft: S.warning10 };
+    return map[currentProject?.status ?? ""] ?? S.primary10;
+  }, [currentProject?.status]);
+  const styleLabel = genreLabel.split(/[·|]/)[0].trim() || "赛博朋克";
 
   // ── Analytics Store selectors (avoid method-style selectors — they cause infinite re-renders) ──
   const analyticsSessions = useAnalyticsStore(s => s.sessions);
@@ -105,7 +122,7 @@ export default function OverviewScreen() {
     const endingCount = storyNodes.filter(n => n.type === 'ending_good' || n.type === 'ending_bad').length;
     const durationMin = Math.max(1, Math.round(storyNodes.length * 1.5));
     return [
-      { key: "chapter", value: 1, icon: BookOpen, color: S.primary },
+      { key: "chapter", value: chapterPlans.length || currentProject?.chapters || 1, icon: BookOpen, color: S.primary },
       { key: "node", value: storyNodes.length, icon: Layers, color: S.primary },
       { key: "edge", value: nodeEdges.length, icon: GitBranch, color: S.warning },
       { key: "ending", value: endingCount, icon: Trophy, color: S.accent },
@@ -241,7 +258,7 @@ export default function OverviewScreen() {
       return assetCards.map(card => ({
         nodeId: card.nodeId,
         assetType: card.hasImage ? '场景图片' : card.hasBgm ? 'BGM' : card.hasVoice ? '配音' : '资产',
-        style: '赛博朋克',
+        style: styleLabel,
         consistent: card.hasImage,
         warning: !card.hasImage ? '缺少图片资产' : !card.hasBgm ? '缺少 BGM' : undefined,
       }));
@@ -259,7 +276,7 @@ export default function OverviewScreen() {
     const consistentCount = styleConsistency.filter(s => s.consistent).length;
     const inconsistentCount = totalAssets - consistentCount;
     const consistencyRate = totalAssets > 0 ? Math.round((consistentCount / totalAssets) * 100) : 100;
-    return { dominant: '赛博朋克', totalAssets, consistentCount, inconsistentCount, consistencyRate };
+    return { dominant: styleLabel, totalAssets, consistentCount, inconsistentCount, consistencyRate };
   }, [styleConsistency]);
 
   // ── Derived data ────────────────────────────────────────────────────────
@@ -304,11 +321,11 @@ export default function OverviewScreen() {
           <div>
             <h2 className="text-sm font-bold" style={{ color: S.text }} suppressHydrationWarning>{projectName}</h2>
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
-                赛博朋克 · 间谍惊悚
+              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }} suppressHydrationWarning>
+                {genreLabel}
               </span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.success10, color: S.success }}>
-                已发布
+              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: statusBg, color: statusColor }} suppressHydrationWarning>
+                {statusLabel}
               </span>
             </div>
           </div>

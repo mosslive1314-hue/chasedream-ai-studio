@@ -12,6 +12,8 @@ export { useAnalyticsStore } from './use-analytics-store';
 export { useVersionStore } from './use-version-store';
 export { idbStorage } from './idb-storage';
 export { StoreHydrator } from './StoreHydrator';
+export { ProjectSwitcher } from './ProjectSwitcher';
+export { useProjectDataCacheStore } from './use-project-data-cache-store';
 export type { Toast } from './use-ui-store';
 export type { AgentMessage, AgentRunStatus, PendingConfirmation } from './use-canvas-agent-store';
 export type { ProactiveSuggestion } from './use-expert-store';

@@ -9,7 +9,7 @@ import {
   Shield, BarChart3, MessageCircle, Timer, Activity,
   Eye, Clock, Flame, Upload, FileText, Clipboard,
 } from "lucide-react";
-import { useNarrativeStore, useSettingsStore, useUIStore, useWardrobeStore } from "@/store";
+import { useNarrativeStore, useProjectStore, useUIStore, useWardrobeStore } from "@/store";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { WardrobeEditor } from "@/components/ui/WardrobeEditor";
@@ -57,7 +57,7 @@ function StatPill({ label, value, color }: { label: string; value: number | stri
 // ── Main Component ──────────────────────────────────────────────────────
 export default function StoryOverviewScreen() {
   const pathname = usePathname();
-  const projectName = useSettingsStore(s => s.projectName);
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
   const [activeTab, setActiveTab] = useState<TabId>("progress");
   const addToast = useUIStore(s => s.addToast);
   const fileInputRef = useRef<HTMLInputElement>(null);

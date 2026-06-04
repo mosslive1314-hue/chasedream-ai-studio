@@ -6,7 +6,7 @@ import {
   ChevronDown, Save, CloudUpload, RotateCcw,
   Globe, Shield, Bot, Zap, Eye, EyeOff, Key, CheckCircle2,
 } from "lucide-react";
-import { useSettingsStore } from "@/store";
+import { useSettingsStore, useUIStore } from "@/store";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -20,11 +20,12 @@ const S = {
 };
 
 /* ── Tab definitions ──────────────────────────────────────────────────────── */
-type TabKey = "project" | "ai" | "agent" | "export" | "dev";
+type TabKey = "project" | "ai" | "apikeys" | "agent" | "export" | "dev";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "project", label: "项目设置", icon: Globe },
   { key: "ai", label: "AI配置", icon: Cpu },
+  { key: "apikeys", label: "API 密钥", icon: Key },
   { key: "agent", label: "Agent技能", icon: Bot },
   { key: "export", label: "导出与备份", icon: Download },
   { key: "dev", label: "开发者", icon: Code2 },
@@ -137,6 +138,9 @@ function SelectField<T extends string>({
 export default function SettingsScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>("project");
 
+  /* UI Store */
+  const addToast = useUIStore(s => s.addToast);
+
   /* 项目设置 */
   const projectName = useSettingsStore(s => s.projectName);
   const setProjectName = useSettingsStore(s => s.setProjectName);
@@ -244,12 +248,6 @@ export default function SettingsScreen() {
   );
 
   const renderAiTab = () => {
-    const MODEL_OPTIONS = [
-      { label: "GPT-4", value: "gpt4" as const, placeholder: "sk-..." },
-      { label: "Claude", value: "claude" as const, placeholder: "sk-ant-..." },
-      { label: "通义千问", value: "qwen" as const, placeholder: "sk-..." },
-    ];
-
     return (
       <div className="space-y-4">
         {/* 基础 AI 配置卡片 */}
@@ -303,80 +301,89 @@ export default function SettingsScreen() {
             />
           </SettingRow>
         </div>
+      </div>
+    );
+  };
 
-        {/* API Key 管理卡片 */}
-        <div
-          className="rounded-xl p-5"
-          style={{ background: S.card, border: `1px solid ${S.border}` }}
-        >
-          <CardTitle icon={Key} title="API Key 管理" subtitle="为各模型配置独立的 API 密钥" />
+  const renderApiKeysTab = () => {
+    const MODEL_OPTIONS = [
+      { label: "GPT-4", value: "gpt4" as const, placeholder: "sk-..." },
+      { label: "Claude", value: "claude" as const, placeholder: "sk-ant-..." },
+      { label: "通义千问", value: "qwen" as const, placeholder: "sk-..." },
+    ];
 
-          <div className="space-y-3">
-            {MODEL_OPTIONS.map(({ label, value, placeholder }) => {
-              const key = apiKeys[value] || "";
-              const isVisible = showKeys[value];
-              const isConfigured = key.trim().length > 0;
-              return (
-                <div key={value} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold" style={{ color: S.text }}>{label}</span>
-                      {isConfigured && (
-                        <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded"
-                          style={{ background: S.success10, color: S.success }}>
-                          <CheckCircle2 size={9} /> 已配置
-                        </span>
-                      )}
-                    </div>
-                    {key && (
-                      <button
-                        onClick={() => setShowKeys(prev => ({ ...prev, [value]: !prev[value] }))}
-                        className="p-1 rounded hover:bg-gray-200 transition-colors"
-                        title={isVisible ? "隐藏密钥" : "显示密钥"}
-                      >
-                        {isVisible ? <EyeOff size={12} style={{ color: S.text3 }} /> : <Eye size={12} style={{ color: S.text3 }} />}
-                      </button>
+    return (
+      <div
+        className="rounded-xl p-5"
+        style={{ background: S.card, border: `1px solid ${S.border}` }}
+      >
+        <CardTitle icon={Key} title="API Key 管理" subtitle="为各模型配置独立的 API 密钥" />
+
+        <div className="space-y-3">
+          {MODEL_OPTIONS.map(({ label, value, placeholder }) => {
+            const key = apiKeys[value] || "";
+            const isVisible = showKeys[value];
+            const isConfigured = key.trim().length > 0;
+            return (
+              <div key={value} className="p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold" style={{ color: S.text }}>{label}</span>
+                    {isConfigured && (
+                      <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: S.success10, color: S.success }}>
+                        <CheckCircle2 size={9} /> 已配置
+                      </span>
                     )}
                   </div>
-                  <input
-                    type={isVisible ? "text" : "password"}
-                    value={key}
-                    onChange={(e) => setApiKey(value, e.target.value)}
-                    placeholder={placeholder}
-                    className="w-full px-3 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none"
-                    style={{
-                      background: S.card,
-                      border: `1px solid ${isConfigured ? S.success : S.border}`,
-                      color: S.text,
-                    }}
-                  />
+                  {key && (
+                    <button
+                      onClick={() => setShowKeys(prev => ({ ...prev, [value]: !prev[value] }))}
+                      className="p-1 rounded hover:bg-gray-200 transition-colors"
+                      title={isVisible ? "隐藏密钥" : "显示密钥"}
+                    >
+                      {isVisible ? <EyeOff size={12} style={{ color: S.text3 }} /> : <Eye size={12} style={{ color: S.text3 }} />}
+                    </button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+                <input
+                  type={isVisible ? "text" : "password"}
+                  value={key}
+                  onChange={(e) => setApiKey(value, e.target.value)}
+                  placeholder={placeholder}
+                  className="w-full px-3 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none"
+                  style={{
+                    background: S.card,
+                    border: `1px solid ${isConfigured ? S.success : S.border}`,
+                    color: S.text,
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
 
-          {/* 自定义 API Base URL */}
-          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${S.border}` }}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] font-bold" style={{ color: S.text }}>自定义 API Base URL</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>可选</span>
-            </div>
-            <input
-              type="text"
-              value={apiBaseUrl}
-              onChange={(e) => setApiBaseUrl(e.target.value)}
-              placeholder="https://api.openai.com/v1"
-              className="w-full px-3 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none"
-              style={{
-                background: S.s2,
-                border: `1px solid ${S.border}`,
-                color: S.text,
-              }}
-            />
-            <p className="text-[9px] mt-1.5" style={{ color: S.text3 }}>
-              留空使用默认端点，支持 OpenAI 兼容 API 格式
-            </p>
+        {/* 自定义 API Base URL */}
+        <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${S.border}` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[11px] font-bold" style={{ color: S.text }}>自定义 API Base URL</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>可选</span>
           </div>
+          <input
+            type="text"
+            value={apiBaseUrl}
+            onChange={(e) => setApiBaseUrl(e.target.value)}
+            placeholder="https://api.openai.com/v1"
+            className="w-full px-3 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none"
+            style={{
+              background: S.s2,
+              border: `1px solid ${S.border}`,
+              color: S.text,
+            }}
+          />
+          <p className="text-[9px] mt-1.5" style={{ color: S.text3 }}>
+            留空使用默认端点，支持 OpenAI 兼容 API 格式
+          </p>
         </div>
       </div>
     );
@@ -445,6 +452,7 @@ export default function SettingsScreen() {
       <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: `1px solid ${S.border}` }}>
         <span className="text-[10px]" style={{ color: S.text3 }}>5 个技能 · 1 个逐梦专属</span>
         <motion.button whileTap={{ scale: 0.97 }}
+          onClick={() => addToast({ type: 'info', title: '技能市场', message: '即将上线，敬请期待' })}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
           style={{ background: S.primary10, color: S.primary }}>
           <Zap size={11} /> 技能市场
@@ -581,6 +589,7 @@ export default function SettingsScreen() {
   const tabRenderers: Record<TabKey, () => React.ReactNode> = {
     project: renderProjectTab,
     ai: renderAiTab,
+    apikeys: renderApiKeysTab,
     agent: renderAgentTab,
     export: renderExportTab,
     dev: renderDevTab,

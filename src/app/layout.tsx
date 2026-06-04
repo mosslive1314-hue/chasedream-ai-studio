@@ -18,6 +18,7 @@ import { EazoBannerHider } from "@/components/ui/EazoBannerHider";
 import { AgentPanel } from "@/components/ui/AgentPanel";
 import { SkillLibraryDrawer } from "@/components/ui/SkillLibraryDrawer";
 import { StoreHydrator } from "@/store/StoreHydrator";
+import { ProjectSwitcher } from "@/store/ProjectSwitcher";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -63,6 +64,8 @@ export default function RootLayout({
         <EazoProvider>
           {/* Rehydrate Zustand persist stores from IndexedDB (client-only) */}
           <StoreHydrator />
+          {/* Watch project switches and swap narrative data per-project */}
+          <ProjectSwitcher />
           <EazoBannerHider />
           <UserSyncEffect />
           {/* P13: Undo/Redo keyboard listener + auto-save tracking */}

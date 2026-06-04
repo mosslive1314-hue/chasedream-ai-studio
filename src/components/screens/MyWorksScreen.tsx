@@ -74,6 +74,17 @@ export default function MyWorksScreen() {
     ];
   }, [analyticsSessions, projects]);
 
+  // ── Per-project performance metrics (from analytics sessions) ────────────
+  const performanceMetrics = useMemo(() => {
+    const sessions = analyticsSessions;
+    const totalPlays = sessions.length;
+    const uniquePlayers = new Set(sessions.map(s => s.playerId)).size;
+    const avgDuration = sessions.length > 0
+      ? `${Math.round(sessions.reduce((sum, s) => sum + s.duration, 0) / sessions.length / 60)}min`
+      : "--";
+    return { totalPlays, uniquePlayers, avgDuration };
+  }, [analyticsSessions]);
+
   // ── Core metrics (from live store) ────────────────────────────────────────
   const CORE_METRICS = [
     { label: "故事节点", value: storyNodes.length,  color: S.primary },
@@ -353,15 +364,15 @@ export default function MyWorksScreen() {
                         {/* Performance metrics */}
                         <div className="grid grid-cols-3 gap-3 mb-3">
                           <div className="rounded-xl py-2 text-center" style={{ background: S.s2 }}>
-                            <div className="text-base font-bold" style={{ color: S.primary }}>12</div>
+                            <div className="text-base font-bold" style={{ color: S.primary }}>{performanceMetrics.totalPlays}</div>
                             <div className="text-xs" style={{ color: S.text3 }}>游玩次数</div>
                           </div>
                           <div className="rounded-xl py-2 text-center" style={{ background: S.s2 }}>
-                            <div className="text-base font-bold" style={{ color: S.accent }}>0</div>
+                            <div className="text-base font-bold" style={{ color: S.accent }}>{performanceMetrics.uniquePlayers}</div>
                             <div className="text-xs" style={{ color: S.text3 }}>独立玩家</div>
                           </div>
                           <div className="rounded-xl py-2 text-center" style={{ background: S.s2 }}>
-                            <div className="text-base font-bold" style={{ color: S.warning }}>--</div>
+                            <div className="text-base font-bold" style={{ color: S.warning }}>{performanceMetrics.avgDuration}</div>
                             <div className="text-xs" style={{ color: S.text3 }}>平均时长</div>
                           </div>
                         </div>

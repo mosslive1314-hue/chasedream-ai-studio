@@ -870,7 +870,7 @@ export default function ScriptScreen() {
         <div className="flex items-center justify-between px-4 py-2 shrink-0"
           style={{ background:S.card, borderBottom:`1px solid ${S.border}` }}>
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold" style={{ color:S.text }}>第一章 · 渗透行动</h2>
+            <h2 className="text-xs font-bold" style={{ color:S.text }}>{chapterPlans[0]?.title || "第一章"}</h2>
             <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background:S.s2, color:S.text3 }}>
               {blocks.length} 段 · 约 {blocks.reduce((a,b) => a+b.content.length, 0)} 字
             </span>
@@ -1089,17 +1089,9 @@ export default function ScriptScreen() {
               <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: S.text3 }}>原始文本</p>
               <div className="p-4 rounded-xl text-xs leading-loose whitespace-pre-wrap"
                 style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text2 }}>
-                {`2047年，深夜。霓虹灯光把积水的城市街道染成猩红。艾拉站在一扇锈门前，追踪信号在此中断。
-
-线人在地下酒吧等她。他说那枚追踪芯片已经被发现了，她必须在他们找到他之前做出选择。
-
-艾拉面临关键抉择——是走安全的暗巷通道，还是冒险换装渗入企业大厦？
-
-如果选择暗夜通道，她跟着线人穿过地下管道，抵达企业大厦后方。如果选择换装渗透，她换上企业制服，刷伪造ID进入大厦。
-
-无论哪条路，她都将在警卫逼近时面临生死考验。只有1.5秒做出反应！
-
-最终，根据她一路上的表现——潜行能力、警觉程度、对线人的信任——将决定她是带着证据安全撤离（幽灵归来），还是被困在暗巷中身份暴露（今夜失败）。`}
+                {scriptBlocks.length > 0
+                  ? scriptBlocks.map(b => b.content).join('\n\n')
+                  : "选择剧本块查看原文"}
               </div>
               <p className="text-[9px] text-center mt-3" style={{ color: S.text3 }}>
                 原始文本为 AI 从原著中提取的线性叙事，不含互动元素
