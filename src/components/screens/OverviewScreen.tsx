@@ -74,7 +74,7 @@ export default function OverviewScreen() {
   const currentProject = useProjectStore(s => s.currentProject());
 
   // ── Project-derived labels ──────────────────────────────────────────
-  const genreLabel = currentProject?.genre ?? "赛博朋克 · 间谍惊悚";
+  const genreLabel = currentProject?.genre ?? "未设定";
   const statusLabel = useMemo(() => {
     const map: Record<string, string> = { published: "已发布", in_progress: "开发中", idle: "空闲", draft: "草稿" };
     return map[currentProject?.status ?? ""] ?? "开发中";
@@ -87,7 +87,7 @@ export default function OverviewScreen() {
     const map: Record<string, string> = { published: S.success10, in_progress: S.primary10, idle: S.s2, draft: S.warning10 };
     return map[currentProject?.status ?? ""] ?? S.primary10;
   }, [currentProject?.status]);
-  const styleLabel = genreLabel.split(/[·|]/)[0].trim() || "赛博朋克";
+  const styleLabel = genreLabel.split(/[·|]/)[0].trim() || "未设定";
 
   // ── Analytics Store selectors (avoid method-style selectors — they cause infinite re-renders) ──
   const analyticsSessions = useAnalyticsStore(s => s.sessions);
@@ -267,9 +267,9 @@ export default function OverviewScreen() {
     return storyNodes
       .filter(n => n.type !== 'ending_good' && n.type !== 'ending_bad')
       .map(n => ({
-        nodeId: n.id, assetType: '场景图片', style: '赛博朋克', consistent: true, warning: undefined,
+        nodeId: n.id, assetType: '场景图片', style: styleLabel, consistent: true, warning: undefined,
       }));
-  }, [assetCards, storyNodes]);
+  }, [assetCards, storyNodes, styleLabel]);
 
   const styleSummary = useMemo(() => {
     const totalAssets = styleConsistency.length;
@@ -621,7 +621,11 @@ export default function OverviewScreen() {
                           <span className="text-[10px] font-bold" style={{ color: S.text }}>风格统一建议</span>
                         </div>
                         <p className="text-[9px] leading-relaxed" style={{ color: S.text2 }}>
-                          建议将线人立绘统一为赛博朋克风格，或调整角色设定以兼容写实风格。保持视觉风格一致性有助于提升玩家的沉浸感和整体体验品质。
+                          {(() => {
+                            const inconsistentItem = styleConsistency.find(s => !s.consistent);
+                            const charRef = inconsistentItem ? `${inconsistentItem.nodeId} 立绘` : '部分角色立绘';
+                            return `建议将${charRef}统一为${styleLabel}风格，或调整角色设定以兼容当前风格。保持视觉风格一致性有助于提升玩家的沉浸感和整体体验品质。`;
+                          })()}
                         </p>
                       </div>
                     </div>

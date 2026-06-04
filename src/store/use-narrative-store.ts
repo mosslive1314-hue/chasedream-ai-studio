@@ -256,6 +256,10 @@ interface NarrativeStoreState {
   addProp: (prop: GameProp) => void;
   addCharacter: (character: GameCharacter) => void;
 
+  // --- Scene/Prop Update Actions ---
+  updateScene: (id: string, updates: Partial<GameScene>) => void;
+  updateProp: (id: string, updates: Partial<GameProp>) => void;
+
   // --- Cinematic Direction Actions ---
   updateCinematicDirection: (id: string, updates: Partial<CinematicDirection>) => void;
 
@@ -563,6 +567,23 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
       addCharacter: (character) => {
         set(state => ({
           characters: [...state.characters, character],
+        }));
+      },
+
+      // --- Scene/Prop Update Actions ---
+      updateScene: (id, updates) => {
+        set(state => ({
+          scenes: state.scenes.map(sc =>
+            sc.id === id ? { ...sc, ...updates } : sc
+          ),
+        }));
+      },
+
+      updateProp: (id, updates) => {
+        set(state => ({
+          props: state.props.map(p =>
+            p.id === id ? { ...p, ...updates } : p
+          ),
         }));
       },
 

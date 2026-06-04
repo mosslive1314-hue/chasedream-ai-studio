@@ -123,6 +123,7 @@ export default function SimulatorScreen() {
   const subgraphLocks = useNarrativeStore(s => s.subgraphLocks);
   const narrativeVariables = useNarrativeStore(s => s.variables);
   const narrativeStates = useNarrativeStore(s => s.narrativeStates);
+  const characters = useNarrativeStore(s => s.characters);
 
   const [nodeId, setNodeId] = useState("N01");
   const [vars, setVars] = useState<Record<string, number>>({ ...initVariables });
@@ -471,8 +472,14 @@ export default function SimulatorScreen() {
                 className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl"
                 style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}>
                 {isEnding ? (isGood ? "🌟" : "💀") :
-                  node.char === "旁白" ? "🌃" : node.char === "艾拉" ? "🕵️" :
-                  node.char === "线人" ? "🕴️" : "👔"}
+                  (() => {
+                    const char = characters.find(c => c.name === node.char);
+                    if (!char) return "👤";
+                    if (char.role.includes("主角")) return "🕵️";
+                    if (char.role.includes("NPC")) return "🕴️";
+                    if (char.role.includes("反派")) return "👔";
+                    return "👤";
+                  })()}
               </motion.div>
             </div>
 

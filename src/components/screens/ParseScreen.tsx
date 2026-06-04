@@ -1,11 +1,12 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, XCircle, Eye, Loader2, ArrowRight, RotateCcw,
   User, MapPin, Package, GitBranch, Sliders, FileText,
   Network, CheckSquare, List, Rocket,
   BookOpen, Settings, Terminal,
+  Pencil, Plus, Save, CheckCheck,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useNarrativeStore, useProjectStore, useUIStore } from "@/store";
@@ -37,7 +38,7 @@ const STEP_DESC: Record<number, string> = {
   6: '等待节点图完成',
   7: '等待选择项完成',
   8: '等待结局系统完成',
-  9: '等待逻辑检查完成',
+  9: '等待所有步骤完成',
   10: '等待所有步骤完成',
 };
 
@@ -59,16 +60,66 @@ const STEPS = [
 type ArtifactItem = { label:string; value:string; sub?:string };
 
 // -- 右侧产物渲染 --------------------------------------------------------------
-function StepArtifact({ stepN, artifact, reviewItems, onApprove, onReject, reviewMode }: { 
+function StepArtifact({ stepN, artifact, reviewItems, onApprove, onReject, reviewMode,
+  onEditItem, onSaveItem, onAddItem, onConfirmAll }: {
   stepN: number;
   artifact: { heading: string; summary: string; items: ArtifactItem[] };
   reviewItems?: Record<string, "approved" | "rejected" | "pending">;
   onApprove?: (key: string) => void;
   onReject?: (key: string) => void;
   reviewMode?: boolean;
+  onEditItem?: (index: number, field: string, newValue: string) => void;
+  onSaveItem?: (index: number, editingItems: Record<number, ArtifactItem>) => void;
+  onAddItem?: () => void;
+  onConfirmAll?: () => void;
 }) {
   const step = STEPS.find(s => s.n === stepN)!;
   const art  = artifact;
+
+  // Whether this step supports inline editing in review mode
+  const editable = !!reviewMode && stepN >= 1 && stepN <= 4;
+
+  // Local state for tracking in-progress edits
+  const [editingItems, setEditingItems] = useState<Record<number, ArtifactItem>>({});
+  const [editedIndices, setEditedIndices] = useState<Set<number>>(new Set());
+
+  // Initialize editingItems from artifact items when step or item count changes
+  useEffect(() => {
+    if (stepN >= 1 && stepN <= 4) {
+      setEditingItems(prev => {
+        const init: Record<number, ArtifactItem> = { ...prev };
+        art.items.forEach((item, i) => {
+          // Only initialize items that don't already have edits
+          if (!init[i]) {
+            init[i] = { ...item };
+          }
+        });
+        return init;
+      });
+    }
+  }, [stepN, art.items.length]);
+
+  const getEditItem = (i: number): ArtifactItem => {
+    return editingItems[i] || art.items[i];
+  };
+
+  const handleFieldChange = (i: number, field: string, val: string) => {
+    setEditingItems(prev => ({
+      ...prev,
+      [i]: { ...(prev[i] || art.items[i]), [field]: val },
+    }));
+    setEditedIndices(prev => new Set(prev).add(i));
+    onEditItem?.(i, field, val);
+  };
+
+  const handleSave = (i: number) => {
+    onSaveItem?.(i, editingItems);
+    setEditedIndices(prev => {
+      const next = new Set(prev);
+      next.delete(i);
+      return next;
+    });
+  };
 
   if (step.status === "pending") return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
@@ -157,66 +208,159 @@ function StepArtifact({ stepN, artifact, reviewItems, onApprove, onReject, revie
         <div className="p-2.5 rounded-xl flex items-center justify-between"
           style={{ background: `${S.primary}06`, border: `1px solid ${S.primary}20` }}>
           <span className="text-[9px] font-bold" style={{ color: S.primary }}>
-            🔍 审核模式 — 逐条确认 AI 产出
+            🔍 审核模式 — 逐条确认 AI 产出{editable ? "（可编辑）" : ""}
           </span>
           <span className="text-[8px] font-mono" style={{ color: S.text3 }}>
             {art.items.filter(item => reviewItems?.[`${stepN}-${item.label}`] === "approved").length}/{art.items.length} 已通过
           </span>
         </div>
       )}
+      {/* Confirm All button — shown for editable steps 2-4 in review mode */}
+      {editable && stepN >= 2 && stepN <= 4 && art.items.length > 1 && onConfirmAll && (
+        <motion.button
+          initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onConfirmAll}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-bold focus:outline-none"
+          style={{ background: `${S.success}08`, border: `1px solid ${S.success}25`, color: S.success }}>
+          <CheckCheck size={12} /> 全部确认
+        </motion.button>
+      )}
       {/* Artifact items */}
       <div className="space-y-1.5">
-        {art.items.map((item, i) => (
-          <motion.div key={i} initial={{ opacity:0, y:3 }} animate={{ opacity:1, y:0 }}
-            transition={{ delay: i * 0.05 }}
-            className="p-3 rounded-xl" style={{ background: S.card, border:`1px solid ${S.border}` }}>
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] font-bold" style={{ color: S.text2 }}>{item.label}</span>
-              {item.sub && <span className="text-[8px] px-1.5 py-0.5 rounded shrink-0"
-                style={{ background:`${S.primary}10`, color: S.primary }}>{item.sub}</span>}
-            </div>
-            <p className="text-[10px] mt-1" style={{ color: S.text }}>{item.value}</p>
-            {/* Review buttons */}
-            {reviewMode && onApprove && onReject && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                {(() => {
-                  const key = `${stepN}-${item.label}`;
-                  const status = reviewItems?.[key];
-                  return (
-                    <>
-                      <motion.button whileTap={{ scale: 0.95 }}
-                        onClick={() => onApprove(key)}
-                        className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[8px] font-bold focus:outline-none"
+        {art.items.map((item, i) => {
+          const editItem = getEditItem(i);
+          const isEdited = editedIndices.has(i);
+          const key = `${stepN}-${item.label}`;
+
+          return (
+            <motion.div key={`${key}-${i}`} initial={{ opacity:0, y:3 }} animate={{ opacity:1, y:0 }}
+              transition={{ delay: i * 0.05 }}
+              className="p-3 rounded-xl" style={{
+                background: S.card,
+                border: isEdited ? `1.5px solid ${S.accent}50` : `1px solid ${S.border}`,
+              }}>
+              {editable ? (
+                <>
+                  {/* Editable label (name) + sub field + save button */}
+                  <div className="flex items-start justify-between gap-2">
+                    <input
+                      className="text-[10px] font-bold bg-transparent border-b w-full min-w-0 focus:outline-none py-0.5"
+                      style={{ color: S.text, borderColor: isEdited ? S.accent : 'transparent' }}
+                      value={editItem.label}
+                      onChange={e => handleFieldChange(i, 'label', e.target.value)}
+                    />
+                    {editItem.sub !== undefined && (
+                      <input
+                        className="text-[8px] px-1.5 py-0.5 rounded shrink-0 max-w-[140px] focus:outline-none"
                         style={{
-                          background: status === "approved" ? `${S.success}15` : S.s2,
-                          color: status === "approved" ? S.success : S.text3,
-                          border: `1px solid ${status === "approved" ? `${S.success}30` : S.border}`,
-                        }}>
-                        <CheckCircle2 size={9} /> 通过
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.95 }}
-                        onClick={() => onReject(key)}
-                        className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[8px] font-bold focus:outline-none"
-                        style={{
-                          background: status === "rejected" ? `${S.error}15` : S.s2,
-                          color: status === "rejected" ? S.error : S.text3,
-                          border: `1px solid ${status === "rejected" ? `${S.error}30` : S.border}`,
-                        }}>
-                        <XCircle size={9} /> 拒绝
-                      </motion.button>
-                      {status === "rejected" && (
-                        <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.warning}10`, color: S.warning }}>
-                          需 AI 重新生成
-                        </span>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-          </motion.div>
-        ))}
+                          background: isEdited ? `${S.accent}08` : `${S.primary}10`,
+                          color: S.primary,
+                          border: `1px solid ${isEdited ? `${S.accent}30` : 'transparent'}`,
+                        }}
+                        value={editItem.sub}
+                        onChange={e => handleFieldChange(i, 'sub', e.target.value)}
+                      />
+                    )}
+                    {/* Save button */}
+                    <motion.button
+                      whileTap={{ scale: 0.85 }}
+                      onClick={() => handleSave(i)}
+                      className="shrink-0 p-1 rounded focus:outline-none"
+                      title="保存修改"
+                      style={{
+                        background: isEdited ? `${S.accent}15` : `${S.text3}08`,
+                        color: isEdited ? S.accent : S.text3,
+                        border: `1px solid ${isEdited ? `${S.accent}30` : S.border}`,
+                      }}>
+                      <Save size={10} />
+                    </motion.button>
+                  </div>
+                  {/* Editable value (description) */}
+                  <textarea
+                    className="text-[10px] mt-1 w-full bg-transparent resize-none focus:outline-none rounded py-1 px-1 -mx-1"
+                    style={{
+                      color: S.text,
+                      border: isEdited ? `1px solid ${S.accent}25` : '1px solid transparent',
+                    }}
+                    value={editItem.value}
+                    rows={2}
+                    onChange={e => handleFieldChange(i, 'value', e.target.value)}
+                  />
+                  {/* Edited indicator */}
+                  {isEdited && (
+                    <p className="text-[8px] mt-0.5 flex items-center gap-0.5" style={{ color: S.accent }}>
+                      <Pencil size={8} /> 已修改 — 点击保存图标确认
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Non-editable display */}
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-bold" style={{ color: S.text2 }}>{item.label}</span>
+                    {item.sub && <span className="text-[8px] px-1.5 py-0.5 rounded shrink-0"
+                      style={{ background:`${S.primary}10`, color: S.primary }}>{item.sub}</span>}
+                  </div>
+                  <p className="text-[10px] mt-1" style={{ color: S.text }}>{item.value}</p>
+                </>
+              )}
+              {/* Review buttons */}
+              {reviewMode && onApprove && onReject && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {(() => {
+                    const status = reviewItems?.[key];
+                    return (
+                      <>
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          onClick={() => onApprove(key)}
+                          className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[8px] font-bold focus:outline-none"
+                          style={{
+                            background: status === "approved" ? `${S.success}15` : S.s2,
+                            color: status === "approved" ? S.success : S.text3,
+                            border: `1px solid ${status === "approved" ? `${S.success}30` : S.border}`,
+                          }}>
+                          <CheckCircle2 size={9} /> 通过
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          onClick={() => onReject(key)}
+                          className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[8px] font-bold focus:outline-none"
+                          style={{
+                            background: status === "rejected" ? `${S.error}15` : S.s2,
+                            color: status === "rejected" ? S.error : S.text3,
+                            border: `1px solid ${status === "rejected" ? `${S.error}30` : S.border}`,
+                          }}>
+                          <XCircle size={9} /> 拒绝
+                        </motion.button>
+                        {status === "rejected" && (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.warning}10`, color: S.warning }}>
+                            需 AI 重新生成
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
       </div>
+      {/* Add item button — shown for editable steps 2-4 in review mode */}
+      {editable && stepN >= 2 && stepN <= 4 && onAddItem && (
+        <motion.button
+          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onAddItem}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[9px] font-bold focus:outline-none"
+          style={{
+            background: `${S.accent}06`,
+            border: `1.5px dashed ${S.accent}40`,
+            color: S.accent,
+          }}>
+          <Plus size={12} /> 手动添加
+        </motion.button>
+      )}
     </div>
   );
 }
@@ -249,53 +393,105 @@ export default function ParseScreen() {
   const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);
   const addToast = useUIStore(s => s.addToast);
 
-  const ARTIFACTS: Record<number, { heading:string; summary:string; items: ArtifactItem[] }> = {
-    1: {
-      heading:"故事大纲",
-      summary:"已从剧本中提炼出主线框架、核心冲突与2条分支路线。",
-      items:[
-        { label:"主线标题",  value:`${projectName}：追击指令`,            sub:"赛博朋克·间谍惊悚" },
-        { label:"核心冲突",  value:"线人出卖·身份暴露·真相追踪",     sub:"3个主要冲突节点" },
-        { label:"章节结构",  value:"第一章 渗透行动（共8场）",        sub:"线性→分支" },
-        { label:"分支路线",  value:"主线A：地下酒吧 / 主线B：天台追踪" },
-        { label:"结局数量",  value:"2个结局（幽灵归来 / 今夜失败）",  sub:"均可达" },
-      ],
-    },
-    2: {
-      heading:"角色设定",
-      summary:"已提炼3位核心角色的性格、外貌与关系网络。",
-      items:[
-        { label:"艾拉",     value:"女主·侦探·黑色短发·银色义眼",    sub:"出现11节点 · 主角" },
-        { label:"线人",     value:"神秘男性·中年·隐藏身份",          sub:"出现4节点 · 关键NPC" },
-        { label:"反派主管", value:"西装·冷峻·幕后操控者",             sub:"出现3节点 · 反派" },
-        { label:"核心变量", value:"trust_lineman · stress · truth",   sub:"关联角色行为" },
-      ],
-    },
-    3: {
-      heading:"场景设定",
-      summary:"SceneAgent 正在分析6个场景的空间结构、光线与氛围特征……",
-      items:[
-        { label:"霓虹街道", value:"赛博都市夜晚·积水路面·广告牌投影", sub:"主要场景·出现5节点" },
-        { label:"地下酒吧", value:"昏暗灯光·嘈杂人群·秘密交易地点",  sub:"关键场景·出现3节点" },
-        { label:"天台",     value:"城市制高点·强风·俯视整个都市",     sub:"对抗场景·出现2节点" },
-      ],
-    },
-    4: {
-      heading:"道具设定",
-      summary:"等待场景设定完成后，PropAgent 将提取关键道具与变量绑定关系。",
-      items:[
-        { label:"追踪芯片", value:"待提取", sub:"影响3节点" },
-        { label:"变声器",   value:"待提取", sub:"影响2节点" },
-        { label:"加密硬盘", value:"待提取", sub:"影响5节点" },
-      ],
-    },
-    5: { heading:"互动节点图", summary:"等待道具设定完成后，FlowAgent 将生成完整DAG节点图。", items:[] },
-    6: { heading:"选择项与变量", summary:"等待节点图完成后，ChoiceAgent 将生成玩家选项与变量定义。", items:[] },
-    7: { heading:"多结局系统", summary:"等待选择项完成后，EndingAgent 将生成结局触发条件。", items:[] },
-    8: { heading:"逻辑连通性检查", summary:"等待结局系统完成后，LogicAgent 将检查所有路径连通性。", items:[] },
-    9: { heading:"素材需求清单", summary:"等待逻辑检查完成后，AssetAgent 将生成各节点素材需求。", items:[] },
-    10: { heading:"发布前完整校验", summary:"等待所有步骤完成后，PublishAgent 将执行最终校验。", items:[] },
-  };
+  // ── Store actions for inline editing ────────────────────────────────────
+  const updateCharacter = useNarrativeStore(s => s.updateCharacter);
+  const updateScene = useNarrativeStore(s => s.updateScene);
+  const updateProp = useNarrativeStore(s => s.updateProp);
+  const addCharacter = useNarrativeStore(s => s.addCharacter);
+  const addScene = useNarrativeStore(s => s.addScene);
+  const addProp = useNarrativeStore(s => s.addProp);
+
+  // ── Store data for artifact derivation ─────────────────────────────────
+  const currentProject = useProjectStore(s => s.currentProject());
+  const characters = useNarrativeStore(s => s.characters);
+  const scenes = useNarrativeStore(s => s.scenes);
+  const props = useNarrativeStore(s => s.props);
+  const branchPaths = useNarrativeStore(s => s.branchPaths);
+  const variables = useNarrativeStore(s => s.variables);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const chapterPlans = useNarrativeStore(s => s.chapterPlans);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+
+  // ── Dynamic analysis artifacts derived from store data ─────────────────
+  const ARTIFACTS: Record<number, { heading:string; summary:string; items: ArtifactItem[] }> = useMemo(() => {
+    const project = currentProject;
+    const title = project?.title || projectName;
+    const genre = project?.genre || "互动叙事";
+
+    // Step 1: Story Outline
+    const endingNodes = storyNodes.filter(n => n.type === 'ending_good' || n.type === 'ending_bad');
+    const goodEndings = endingNodes.filter(n => n.type === 'ending_good');
+    const badEndings = endingNodes.filter(n => n.type === 'ending_bad');
+    const firstChapter = chapterPlans[0];
+    const totalEvents = chapterPlans.reduce((sum, cp) => sum + cp.events.length, 0);
+    const endingNames = endingNodes.length > 0
+      ? endingNodes.map(n => n.label).join(' / ')
+      : "待生成";
+
+    // Step 2: Characters
+    const coreVarNames = variables.length > 0
+      ? variables.slice(0, 3).map(v => v.name).join(' · ')
+      : "待生成";
+
+    // Type labels for props
+    const propTypeLabels: Record<string, string> = {
+      key_item: "关键道具", tool: "工具", weapon: "武器", consumable: "消耗品",
+    };
+
+    return {
+      1: {
+        heading: "故事大纲",
+        summary: `已从剧本中提炼出主线框架、核心冲突与${branchPaths.length || 0}条分支路线。`,
+        items: [
+          { label: "主线标题",  value: title,                              sub: genre },
+          { label: "章节结构",  value: firstChapter
+              ? `${firstChapter.title}（共${firstChapter.events.length}场）`
+              : "待生成",        sub: `${chapterPlans.length}章 · ${totalEvents}场` },
+          { label: "分支路线",  value: branchPaths.length > 0
+              ? branchPaths.slice(0, 2).map(bp => bp.label).join(' / ')
+              : "待生成" },
+          { label: "结局数量",  value: `${endingNodes.length}个结局（${endingNames}）`,
+              sub: `${goodEndings.length}好/${badEndings.length}坏` },
+        ],
+      },
+      2: {
+        heading: "角色设定",
+        summary: `已提炼${characters.length}位角色的性格、外貌与关系网络。`,
+        items: [
+          ...characters.map(c => ({
+            label: c.name,
+            value: c.description,
+            sub: `出现${c.appearNodes.length}节点 · ${c.role}`,
+          })),
+          { label: "核心变量", value: coreVarNames, sub: "关联角色行为" },
+        ],
+      },
+      3: {
+        heading: "场景设定",
+        summary: `已分析${scenes.length}个场景的空间结构、光线与氛围特征。`,
+        items: scenes.map(sc => ({
+          label: sc.name,
+          value: `${sc.location}·${sc.atmosphere}`,
+          sub: `${sc.lighting}·出现${sc.refNodes.length}节点`,
+        })),
+      },
+      4: {
+        heading: "道具设定",
+        summary: `已提取${props.length}个关键道具与变量绑定关系。`,
+        items: props.map(p => ({
+          label: p.name,
+          value: p.description,
+          sub: `${propTypeLabels[p.type] || p.type}·影响${p.refNodes.length}节点`,
+        })),
+      },
+      5:  { heading: "互动节点图", summary: `共${storyNodes.length}个节点、${nodeEdges.length}条连线。`, items: [] },
+      6:  { heading: "选择项与变量", summary: `已定义${variables.length}个追踪变量。`, items: [] },
+      7:  { heading: "多结局系统", summary: `已规划${endingNodes.length}个结局节点。`, items: [] },
+      8:  { heading: "逻辑连通性检查", summary: "等待结局系统完成后，LogicAgent 将检查所有路径连通性。", items: [] },
+      9:  { heading: "素材需求清单", summary: "等待逻辑检查完成后，AssetAgent 将生成各节点素材需求。", items: [] },
+      10: { heading: "发布前完整校验", summary: "等待所有步骤完成后，PublishAgent 将执行最终校验。", items: [] },
+    };
+  }, [currentProject, projectName, characters, scenes, props, branchPaths, variables, storyNodes, chapterPlans, nodeEdges]);
 
   const [viewStep, setViewStep] = useState(3);
   const [reviewItems, setReviewItems] = useState<Record<string, "approved" | "rejected" | "pending">>({});
@@ -313,6 +509,124 @@ export default function ParseScreen() {
   const doneCount = STEPS.filter(s => s.status === "done").length;
   const activeStep = STEPS.find(s => s.status === "running") ?? STEPS.find(s => s.status === "done" && s.n === doneCount);
 
+  // ── Handlers for inline editing ─────────────────────────────────────────
+
+  /** Save an edited item to the store (steps 2-4) or show a toast (step 1) */
+  const handleSaveItem = (step: number, index: number, editingItems: Record<number, ArtifactItem>) => {
+    const editItem = editingItems[index];
+    if (!editItem) return;
+
+    if (step === 1) {
+      // Step 1 is just local edits with a toast confirmation
+      addToast({ type: "success", title: "已保存修改", message: "大纲编辑已保存" });
+      return;
+    }
+
+    if (step === 2) {
+      // Characters: index maps to characters array; last item is "core variables" (not a character)
+      if (index < characters.length) {
+        const charId = characters[index].id;
+        // sub format: "出现N节点 · role" — extract role after the "·"
+        const roleMatch = editItem.sub?.match(/·\s*(.+)$/);
+        updateCharacter(charId, {
+          name: editItem.label,
+          description: editItem.value,
+          ...(roleMatch ? { role: roleMatch[1].trim() } : {}),
+        });
+        addToast({ type: "success", title: "角色已更新", message: editItem.label });
+      } else {
+        // "Core variables" item — no store action
+        addToast({ type: "success", title: "已保存修改" });
+      }
+      return;
+    }
+
+    if (step === 3) {
+      // Scenes: value format = "location·atmosphere"; sub format = "lighting·出现N节点"
+      if (index < scenes.length) {
+        const sceneId = scenes[index].id;
+        const parts = editItem.value.split('·');
+        const lightingMatch = editItem.sub?.match(/^(.+?)·/);
+        updateScene(sceneId, {
+          name: editItem.label,
+          location: parts[0] || editItem.value,
+          atmosphere: parts.slice(1).join('·') || '',
+          ...(lightingMatch ? { lighting: lightingMatch[1] } : {}),
+        });
+        addToast({ type: "success", title: "场景已更新", message: editItem.label });
+      }
+      return;
+    }
+
+    if (step === 4) {
+      // Props: sub format = "typeLabel·影响N节点"
+      if (index < props.length) {
+        const propId = props[index].id;
+        const typeMatch = editItem.sub?.match(/^(.+?)·/);
+        const reverseTypeLabels: Record<string, string> = {
+          "关键道具": "key_item", "工具": "tool", "武器": "weapon", "消耗品": "consumable",
+        };
+        updateProp(propId, {
+          name: editItem.label,
+          description: editItem.value,
+          ...(typeMatch ? { type: (reverseTypeLabels[typeMatch[1]] || typeMatch[1]) as 'key_item' | 'tool' | 'weapon' | 'consumable' } : {}),
+        });
+        addToast({ type: "success", title: "道具已更新", message: editItem.label });
+      }
+      return;
+    }
+  };
+
+  /** Add a new placeholder item to the store (steps 2-4) */
+  const handleAddItem = (step: number) => {
+    if (step === 2) {
+      addCharacter({
+        id: `char-new-${Date.now()}`,
+        name: "新角色",
+        role: "配角",
+        description: "请编辑角色描述...",
+        appearNodes: [],
+        color: S.primary,
+        emoji: "👤",
+        emotionStates: [],
+        visualPrompt: "",
+      });
+      addToast({ type: "info", title: "已添加新角色", message: "请在列表中编辑角色信息" });
+    } else if (step === 3) {
+      addScene({
+        id: `scene-new-${Date.now()}`,
+        name: "新场景",
+        location: "未设定",
+        lighting: "自然光",
+        atmosphere: "未设定",
+        refNodes: [],
+        hasImage: false,
+        visualPrompt: "",
+      });
+      addToast({ type: "info", title: "已添加新场景", message: "请在列表中编辑场景信息" });
+    } else if (step === 4) {
+      addProp({
+        id: `prop-new-${Date.now()}`,
+        name: "新道具",
+        type: "key_item",
+        description: "请编辑道具描述...",
+        gameplayEffect: "",
+        refNodes: [],
+        hasImage: false,
+      });
+      addToast({ type: "info", title: "已添加新道具", message: "请在列表中编辑道具信息" });
+    }
+  };
+
+  /** Approve all items in a given step */
+  const handleConfirmAll = (step: number) => {
+    const items = ARTIFACTS[step]?.items || [];
+    items.forEach(item => {
+      const key = `${step}-${item.label}`;
+      setReviewItems(prev => ({ ...prev, [key]: "approved" }));
+    });
+    addToast({ type: "success", title: "全部确认", message: `已确认第 ${step} 步的所有产出` });
+  };
 
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
@@ -394,7 +708,7 @@ export default function ParseScreen() {
       <div className="shrink-0 px-4 py-2 border-b" style={{ borderColor: S.border, background: S.card }}>
         <button
           onClick={() => setShowExecLog(!showExecLog)}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors"
+          className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors focus:outline-none"
           style={{
             color: showExecLog ? "#5E50E8" : "#8892B0",
             borderColor: showExecLog ? "#5E50E8" : "#E2E5F0",
@@ -417,7 +731,7 @@ export default function ParseScreen() {
                 <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#10B981" }} />
               </div>
               <span className="text-xs font-mono" style={{ color: "#94A3B8" }}>Agent 执行日志</span>
-              <button onClick={() => setShowExecLog(false)} className="ml-auto text-xs" style={{ color: "#64748B" }}>✕</button>
+              <button onClick={() => setShowExecLog(false)} className="ml-auto text-xs focus:outline-none" style={{ color: "#64748B" }}>✕</button>
             </div>
             <div className="p-3 max-h-[300px] overflow-y-auto font-mono text-xs space-y-1" style={{ color: "#E2E8F0" }}>
               {generateAgentLogs(activeStep?.n ?? viewStep).map((log, i) => (
@@ -450,6 +764,15 @@ export default function ParseScreen() {
                 onApprove={(key) => setReviewItems(prev => ({ ...prev, [key]: "approved" }))}
                 onReject={(key) => setReviewItems(prev => ({ ...prev, [key]: "rejected" }))}
                 reviewMode={reviewMode}
+                onEditItem={(index, field, newValue) => {
+                  // Edit tracking is handled internally by StepArtifact via its local state.
+                  // This callback allows the parent to react to individual field changes if needed.
+                }}
+                onSaveItem={(index, editingItems) => {
+                  handleSaveItem(viewStep, index, editingItems);
+                }}
+                onAddItem={() => handleAddItem(viewStep)}
+                onConfirmAll={() => handleConfirmAll(viewStep)}
               />
             </motion.div>
           </AnimatePresence>

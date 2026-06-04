@@ -44,11 +44,11 @@ const NAV: NavItem[] = [
   { href: "/interaction",    icon: MousePointer, label: "互动设计", labelKey: "interaction" },    // 3
   { href: "/cinematic",      icon: Film,         label: "演出设计", labelKey: "cinematic" },      // 4
   { href: "/nodes",          icon: Network,      label: "剧情节点", labelKey: "node" },           // 5
-  // 资产 (indices 6-9)
-  { href: "/assets?tab=image", icon: ImageIcon,  label: "图片" },                                 // 6
-  { href: "/assets?tab=video", icon: Video,      label: "视频" },                                 // 7
+  // 资产 (indices 6-9) — 文本置首
+  { href: "/assets?tab=text",  icon: FileText,   label: "文本" },                                 // 6
+  { href: "/assets?tab=image", icon: ImageIcon,  label: "图片" },                                 // 7
   { href: "/assets?tab=audio", icon: Music,      label: "音频" },                                 // 8
-  { href: "/assets?tab=text",  icon: FileText,   label: "文字" },                                 // 9
+  { href: "/assets?tab=video", icon: Video,      label: "视频" },                                 // 9
   // 交付 (indices 10-12)
   { href: "/simulator",      icon: Play,         label: "演出预览", labelKey: "simulator" },      // 10
   { href: "/overview",       icon: Activity,     label: "质检总览", labelKey: "overview" },       // 11
@@ -78,7 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "资产", labelKey: "asset", icon: Package,
     industryLabels: { game: "资产", tourism: "资产", education: "资产", derivative: "资产" },
-    items: [NAV[6], NAV[7], NAV[8], NAV[9]],  // 图片, 视频, 音频, 文字
+    items: [NAV[6], NAV[7], NAV[8], NAV[9]],  // 文本, 图片, 音频, 视频
   },
   {
     label: "交付", labelKey: "delivery", icon: Rocket,

@@ -52,7 +52,7 @@ const TYPE_CONFIG: Record<AssetType, { label: string; icon: typeof Image; color:
   video: { label: "视频",  icon: Video,   color: "#F59E0B" },
   audio: { label: "音频",  icon: Music,   color: "#00A99D" },
   ui:    { label: "UI模板", icon: Monitor, color: "#EF4444" },
-  text:  { label: "文字",   icon: FileText, color: "#8B5CF6" },
+  text:  { label: "文本",   icon: FileText, color: "#8B5CF6" },
 };
 
 const STATUS_CONFIG: Record<AssetStatus, { label: string; bg: string; color: string }> = {
@@ -64,22 +64,14 @@ const STATUS_CONFIG: Record<AssetStatus, { label: string; bg: string; color: str
 // ── Filter pills config ────────────────────────────────────────────────────
 const FILTERS: { key: AssetType | "all"; label: string }[] = [
   { key: "all",   label: "全部"    },
+  { key: "text",  label: "文本"    },
   { key: "image", label: "图片"    },
-  { key: "video", label: "视频"    },
   { key: "audio", label: "音频"    },
+  { key: "video", label: "视频"    },
   { key: "ui",    label: "UI模板"  },
-  { key: "text",  label: "文字"    },
 ];
 
-// ── Statistics config ──────────────────────────────────────────────────────
-const STATS = [
-  { label: "总资产",  value: 49,          color: S.primary },
-  { label: "图片资产", value: 23,          color: "#7C6CF5" },
-  { label: "视频资产", value: 8,           color: "#F59E0B" },
-  { label: "音频资产", value: 12,          color: "#00A99D" },
-  { label: "UI模板",   value: 4,           color: "#EF4444" },
-  { label: "文字资产", value: 2,           color: "#8B5CF6" },
-];
+// ── Statistics are computed dynamically via useMemo from allAssets ─────────
 
 const STORAGE_USED = 128;
 const STORAGE_TOTAL = 500;
@@ -163,11 +155,11 @@ export default function AssetLibraryScreen() {
     const txt = allAssets.filter(a => a.type === "text").length;
     return [
       { label: "总资产", value: allAssets.length, color: S.primary },
+      { label: "文本资产", value: txt, color: "#8B5CF6" },
       { label: "图片资产", value: img, color: "#7C6CF5" },
-      { label: "视频资产", value: vid, color: "#F59E0B" },
       { label: "音频资产", value: aud, color: "#00A99D" },
+      { label: "视频资产", value: vid, color: "#F59E0B" },
       { label: "UI模板", value: ui, color: "#EF4444" },
-      { label: "文字资产", value: txt, color: "#8B5CF6" },
     ];
   }, [allAssets]);
 

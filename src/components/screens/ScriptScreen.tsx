@@ -1,9 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns } from "lucide-react";
+import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns, Bold, Italic, Underline as UnderlineIcon, Highlighter, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Plus } from "lucide-react";
 import Link from "next/link";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import Highlight from "@tiptap/extension-highlight";
+import Underline from "@tiptap/extension-underline";
 import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
 import { useNarrativeStore, useProjectStore, useCanvasAgentStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
@@ -703,6 +708,181 @@ function ChapterPlanContent() {
   );
 }
 
+// ── Tiptap 富文本编辑器面板 ──────────────────────────────────────────────────
+function TiptapEditorPanel({
+  block,
+  onUpdate,
+}: {
+  block: ScriptBlock;
+  onUpdate: (html: string) => void;
+}) {
+  const [isSaved, setIsSaved] = useState(true);
+  const [wordCount, setWordCount] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      Underline,
+      Highlight.configure({ multicolor: false }),
+      Placeholder.configure({ placeholder: "在此编写剧本内容..." }),
+    ],
+    content: block.content,
+    onUpdate: ({ editor: ed }) => {
+      setWordCount(ed.state.doc.content.size - 1);
+      setIsSaved(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        onUpdateRef.current(ed.getHTML());
+        setIsSaved(true);
+      }, 300);
+    },
+  });
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (editor) {
+      setWordCount(editor.state.doc.content.size - 1);
+    }
+  }, [editor]);
+
+  if (!editor) {
+    return (
+      <div className="flex-1 flex items-center justify-center" style={{ background: S.bg }}>
+        <p className="text-xs" style={{ color: S.text3 }}>加载编辑器中...</p>
+      </div>
+    );
+  }
+
+  type ToolbarItem = {
+    icon: React.ReactNode;
+    label: string;
+    action: () => void;
+    isActive: () => boolean;
+  };
+
+  const toolbar: ToolbarItem[] = [
+    { icon: <Bold size={14} />, label: "粗体", action: () => editor.chain().focus().toggleBold().run(), isActive: () => editor.isActive("bold") },
+    { icon: <Italic size={14} />, label: "斜体", action: () => editor.chain().focus().toggleItalic().run(), isActive: () => editor.isActive("italic") },
+    { icon: <UnderlineIcon size={14} />, label: "下划线", action: () => editor.chain().focus().toggleUnderline().run(), isActive: () => editor.isActive("underline") },
+    { icon: <Highlighter size={14} />, label: "高亮", action: () => editor.chain().focus().toggleHighlight().run(), isActive: () => editor.isActive("highlight") },
+    { icon: null, label: "sep", action: () => {}, isActive: () => false },
+    { icon: <Heading1 size={14} />, label: "标题1", action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(), isActive: () => editor.isActive("heading", { level: 1 }) },
+    { icon: <Heading2 size={14} />, label: "标题2", action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), isActive: () => editor.isActive("heading", { level: 2 }) },
+    { icon: <Heading3 size={14} />, label: "标题3", action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), isActive: () => editor.isActive("heading", { level: 3 }) },
+    { icon: null, label: "sep", action: () => {}, isActive: () => false },
+    { icon: <List size={14} />, label: "无序列表", action: () => editor.chain().focus().toggleBulletList().run(), isActive: () => editor.isActive("bulletList") },
+    { icon: <ListOrdered size={14} />, label: "有序列表", action: () => editor.chain().focus().toggleOrderedList().run(), isActive: () => editor.isActive("orderedList") },
+    { icon: <Quote size={14} />, label: "引用", action: () => editor.chain().focus().toggleBlockquote().run(), isActive: () => editor.isActive("blockquote") },
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden" style={{ background: S.bg }}>
+      <style>{`
+        .tiptap-script-editor .ProseMirror {
+          outline: none;
+          min-height: 300px;
+          padding: 20px 24px;
+          font-size: 14px;
+          line-height: 1.8;
+          color: ${S.text};
+        }
+        .tiptap-script-editor .ProseMirror p.is-editor-empty:first-child::before {
+          color: ${S.text3};
+          content: attr(data-placeholder);
+          float: left;
+          height: 0;
+          pointer-events: none;
+        }
+        .tiptap-script-editor .ProseMirror h1 { font-size: 24px; font-weight: 700; margin: 16px 0 8px; }
+        .tiptap-script-editor .ProseMirror h2 { font-size: 20px; font-weight: 700; margin: 14px 0 6px; }
+        .tiptap-script-editor .ProseMirror h3 { font-size: 16px; font-weight: 700; margin: 12px 0 4px; }
+        .tiptap-script-editor .ProseMirror ul,
+        .tiptap-script-editor .ProseMirror ol { padding-left: 24px; margin: 8px 0; }
+        .tiptap-script-editor .ProseMirror blockquote {
+          border-left: 3px solid ${S.primary};
+          padding-left: 16px;
+          margin: 8px 0;
+          color: ${S.text2};
+        }
+        .tiptap-script-editor .ProseMirror mark {
+          background-color: #FFF3BF;
+          border-radius: 2px;
+          padding: 0 2px;
+        }
+        .tiptap-script-editor .ProseMirror p { margin: 4px 0; }
+      `}</style>
+
+      {/* Toolbar */}
+      <div
+        className="flex items-center gap-0.5 px-3 py-2 shrink-0 flex-wrap"
+        style={{ background: S.card, borderBottom: `1px solid ${S.border}` }}
+      >
+        {toolbar.map((item, i) => {
+          if (!item.icon) {
+            return (
+              <div
+                key={i}
+                className="w-px h-5 mx-1"
+                style={{ background: S.border }}
+              />
+            );
+          }
+          const active = item.isActive();
+          return (
+            <motion.button
+              key={i}
+              whileTap={{ scale: 0.9 }}
+              onClick={item.action}
+              title={item.label}
+              className="p-1.5 rounded-lg focus:outline-none transition-colors"
+              style={{
+                background: active ? `${S.primary}15` : "transparent",
+                color: active ? S.primary : S.text3,
+              }}
+            >
+              {item.icon}
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* Editor content area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="tiptap-script-editor" style={{ background: S.card, minHeight: "100%" }}>
+          <EditorContent editor={editor} />
+        </div>
+      </div>
+
+      {/* Bottom status bar */}
+      <div
+        className="flex items-center justify-between px-4 py-1.5 shrink-0"
+        style={{ background: S.card, borderTop: `1px solid ${S.border}` }}
+      >
+        <span className="text-[10px]" style={{ color: S.text3 }}>
+          {wordCount} 字
+        </span>
+        <div className="flex items-center gap-1.5">
+          <div
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ background: isSaved ? S.success : S.warning }}
+          />
+          <span className="text-[10px]" style={{ color: isSaved ? S.success : S.warning }}>
+            {isSaved ? "已同步" : "编辑中..."}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ScriptScreen() {
   const pathname = usePathname();
   const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
@@ -720,6 +900,7 @@ export default function ScriptScreen() {
   const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const [splitPreview, setSplitPreview] = useState(false);
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const currentChapter = chapterPlans[0] ?? null;
 
   // AI 润色：打开全局 Agent 面板并发送消息
@@ -836,6 +1017,9 @@ export default function ScriptScreen() {
     );
   };
 
+  // Currently selected block for the Tiptap editor
+  const activeBlock = blocks.find(b => b.id === activeBlockId) || null;
+
   return (
     <div className="h-svh flex flex-col overflow-hidden" style={{ background:S.bg }}>
       <UpstreamReadiness currentPath={pathname} />
@@ -864,224 +1048,200 @@ export default function ScriptScreen() {
       <div className="flex-1 flex overflow-hidden">
         {(activeLayer === "linear" || activeLayer === "interactive") && (
           <>
-            {/* ── 左侧：剧本编辑区 ── */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 工具栏 */}
-        <div className="flex items-center justify-between px-4 py-2 shrink-0"
-          style={{ background:S.card, borderBottom:`1px solid ${S.border}` }}>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold" style={{ color:S.text }}>{chapterPlans[0]?.title || "第一章"}</h2>
-            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background:S.s2, color:S.text3 }}>
-              {blocks.length} 段 · 约 {blocks.reduce((a,b) => a+b.content.length, 0)} 字
-            </span>
-            {activeLayer === "linear" ? (
-              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
-                style={{ background:`${S.primary}10`, color:S.primary }}>
-                <BookOpen size={9} className="inline mr-0.5" style={{ verticalAlign: "-1px" }} />线性阅读
-              </span>
-            ) : (
-              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
-                style={{ background:`${S.accent}10`, color:S.accent }}>
-                <GitBranch size={9} className="inline mr-0.5" style={{ verticalAlign: "-1px" }} />互动分支
-                {blocks.filter(b => b.options && b.options.length > 0).length > 0 && (
-                  <span className="ml-1 font-mono">
-                    {blocks.filter(b => b.options && b.options.length > 0).length} 分支点
-                  </span>
-                )}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            {/* AI润色按钮——真实可用 */}
-            <motion.button whileTap={{ scale:0.97 }}
-              onClick={() => sendAi("帮我润色本章全部内容，优化语言表达和情绪节奏")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
-              style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
-              ✨ AI润色本章
-            </motion.button>
-            {activeLayer === "interactive" && (
-              <Link href="/nodes">
-                <motion.button whileTap={{ scale:0.97 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
-                  style={{ background:`${S.accent}12`, border:`1px solid ${S.accent}25`, color:S.accent }}>
-                  <GitBranch size={11} /> 转为节点图
+            {/* ── 左侧边栏：剧本块导航 ── */}
+            <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: 220, background: S.card, borderRight: `1px solid ${S.border}` }}>
+              <div className="flex items-center justify-between px-3 py-2 shrink-0" style={{ borderBottom: `1px solid ${S.border}` }}>
+                <span className="text-[10px] font-bold" style={{ color: S.text }}>剧本段落</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
+                  {blocks.length} 段
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto py-1.5 px-2 space-y-0.5">
+                {blocks.map(block => (
+                  <motion.button
+                    key={block.id}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveBlockId(block.id)}
+                    className="w-full text-left px-2.5 py-2 rounded-lg focus:outline-none transition-colors"
+                    style={{
+                      background: activeBlockId === block.id ? `${S.primary}12` : "transparent",
+                      borderLeft: activeBlockId === block.id ? `2.5px solid ${S.primary}` : "2.5px solid transparent",
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span
+                        className="text-[8px] font-bold uppercase px-1 py-0.5 rounded"
+                        style={{ background: `${block.color}15`, color: block.color }}
+                      >
+                        {block.label}
+                      </span>
+                      {block.char && (
+                        <span className="text-[9px] font-bold" style={{ color: S.primary }}>{block.char}</span>
+                      )}
+                    </div>
+                    <p
+                      className="text-[10px] leading-snug truncate"
+                      style={{ color: activeBlockId === block.id ? S.text : S.text3 }}
+                    >
+                      {block.content.replace(/<[^>]+>/g, "").substring(0, 50) || "空内容"}
+                    </p>
+                  </motion.button>
+                ))}
+              </div>
+              {/* 添加新块按钮 */}
+              <div className="shrink-0 px-2 pb-2">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const nb: ScriptBlock = {
+                      id: `b${Date.now()}`,
+                      type: "narr",
+                      label: "旁白",
+                      color: S.text3,
+                      content: "",
+                    };
+                    setBlocks(bs => [...bs, nb]);
+                    addScriptBlock(nb);
+                    setActiveBlockId(nb.id);
+                  }}
+                  className="w-full flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-medium border-dashed focus:outline-none"
+                  style={{ border: `1.5px dashed ${S.border}`, color: S.text3 }}
+                >
+                  <Plus size={12} /> 添加内容块
                 </motion.button>
-              </Link>
-            )}
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setSplitPreview(!splitPreview)}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors"
-              style={{
-                color: splitPreview ? S.primary : S.text3,
-                borderColor: splitPreview ? S.primary : S.border,
-                background: splitPreview ? `${S.primary}10` : "transparent",
-              }}
-            >
-              <Columns size={12} />
-              分屏预览
-            </motion.button>
-          </div>
-        </div>
-        {/* Split preview wrapper */}
-        <div className="flex flex-1 overflow-hidden">
-        <div style={{ flex: splitPreview ? '0 0 60%' : '1 1 100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* 剧本块列表（支持内联编辑）*/}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          {blocks.map((block) => (
-            <motion.div key={block.id}
-              initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }}
-              className="rounded-xl overflow-hidden group"
-              style={{ background:S.card, border:`1px solid ${S.border}` }}>
-              {/* 块头部 */}
-              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                    style={{ background:`${block.color}15`, color:block.color }}>
-                    {block.label}
+              </div>
+            </div>
+
+            {/* ── 右侧：编辑器区域 ── */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* 工具栏 */}
+              <div className="flex items-center justify-between px-4 py-2 shrink-0"
+                style={{ background: S.card, borderBottom: `1px solid ${S.border}` }}>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs font-bold" style={{ color: S.text }}>{chapterPlans[0]?.title || "第一章"}</h2>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
+                    {blocks.length} 段 · 约 {blocks.reduce((a, b) => a + b.content.replace(/<[^>]+>/g, "").length, 0)} 字
                   </span>
-                  {block.char && (
-                    <span className="text-[10px] font-bold" style={{ color:S.primary }}>{block.char}</span>
+                  {activeLayer === "linear" ? (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                      style={{ background: `${S.primary}10`, color: S.primary }}>
+                      <BookOpen size={9} className="inline mr-0.5" style={{ verticalAlign: "-1px" }} />线性阅读
+                    </span>
+                  ) : (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                      style={{ background: `${S.accent}10`, color: S.accent }}>
+                      <GitBranch size={9} className="inline mr-0.5" style={{ verticalAlign: "-1px" }} />互动分支
+                      {blocks.filter(b => b.options && b.options.length > 0).length > 0 && (
+                        <span className="ml-1 font-mono">
+                          {blocks.filter(b => b.options && b.options.length > 0).length} 分支点
+                        </span>
+                      )}
+                    </span>
                   )}
                 </div>
-                {/* 编辑按钮（hover 时出现）*/}
-                <motion.button whileTap={{ scale:0.9 }}
-                  onClick={() => editId === block.id ? saveEdit(block.id) : startEdit(block)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded focus:outline-none transition-opacity"
-                  style={{ color: editId === block.id ? S.success : S.text3 }}>
-                  {editId === block.id ? <Check size={12} /> : <Edit2 size={12} />}
-                </motion.button>
+                <div className="flex gap-2">
+                  <motion.button whileTap={{ scale: 0.97 }}
+                    onClick={() => sendAi("帮我润色本章全部内容，优化语言表达和情绪节奏")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
+                    style={{ background: `${S.primary}12`, border: `1px solid ${S.primary}25`, color: S.primary }}>
+                    ✨ AI润色本章
+                  </motion.button>
+                  {activeLayer === "interactive" && (
+                    <Link href="/nodes">
+                      <motion.button whileTap={{ scale: 0.97 }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
+                        style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}25`, color: S.accent }}>
+                        <GitBranch size={11} /> 转为节点图
+                      </motion.button>
+                    </Link>
+                  )}
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSplitPreview(!splitPreview)}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors"
+                    style={{
+                      color: splitPreview ? S.primary : S.text3,
+                      borderColor: splitPreview ? S.primary : S.border,
+                      background: splitPreview ? `${S.primary}10` : "transparent",
+                    }}
+                  >
+                    <Columns size={12} />
+                    分屏预览
+                  </motion.button>
+                </div>
               </div>
 
-              {/* 内容区——点击进入编辑模式 */}
-              <div className="px-3 pb-2.5">
-                {editId === block.id ? (
-                  <div className="space-y-1.5">
-                    <textarea
-                      autoFocus
-                      value={editVal}
-                      onChange={e => setEditVal(e.target.value)}
-                      className="w-full text-xs leading-relaxed resize-none rounded-lg px-2.5 py-2 focus:outline-none"
-                      rows={Math.max(2, editVal.split('\n').length + 1)}
-                      style={{ background:S.s2, border:`1.5px solid ${S.primary}`, color:S.text }}
+              {/* Split preview wrapper */}
+              <div className="flex flex-1 overflow-hidden">
+                {/* 主编辑区 - Tiptap 编辑器或空状态 */}
+                <div style={{ flex: splitPreview ? '0 0 60%' : '1 1 100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {activeBlock ? (
+                    <TiptapEditorPanel
+                      key={activeBlock.id}
+                      block={activeBlock}
+                      onUpdate={(html) => {
+                        setBlocks(bs => bs.map(b => b.id === activeBlock.id ? { ...b, content: html } : b));
+                        updateScriptBlock(activeBlock.id, { content: html });
+                      }}
                     />
-                    <div className="flex gap-1.5">
-                      <motion.button whileTap={{ scale:0.95 }} onClick={() => saveEdit(block.id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold text-white focus:outline-none"
-                        style={{ background:S.success }}>
-                        <Check size={9} /> 保存
-                      </motion.button>
-                      <motion.button whileTap={{ scale:0.95 }} onClick={() => setEditId(null)}
-                        className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-medium focus:outline-none"
-                        style={{ background:S.s2, color:S.text3 }}>
-                        取消
-                      </motion.button>
-                      <motion.button whileTap={{ scale:0.95 }}
-                        onClick={() => sendAi(`帮我优化以下这段${block.label}：\n${editVal}`)}
-                        className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold focus:outline-none"
-                        style={{ background:`${S.primary}12`, border:`1px solid ${S.primary}25`, color:S.primary }}>
-                        ✨ AI润色
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center" style={{ background: S.bg }}>
+                      <Edit2 size={32} style={{ color: S.text3, opacity: 0.3 }} />
+                      <p className="text-xs mt-3" style={{ color: S.text3 }}>
+                        从左侧选择一个剧本段落开始编辑
+                      </p>
+                      <p className="text-[10px] mt-1" style={{ color: S.text3, opacity: 0.6 }}>
+                        或点击下方按钮创建新的内容块
+                      </p>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => {
+                          const nb: ScriptBlock = {
+                            id: `b${Date.now()}`,
+                            type: "narr",
+                            label: "旁白",
+                            color: S.text3,
+                            content: "",
+                          };
+                          setBlocks(bs => [...bs, nb]);
+                          addScriptBlock(nb);
+                          setActiveBlockId(nb.id);
+                        }}
+                        className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold focus:outline-none"
+                        style={{ background: `${S.primary}12`, border: `1px solid ${S.primary}25`, color: S.primary }}
+                      >
+                        <Plus size={14} /> 创建新内容块
                       </motion.button>
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-xs leading-relaxed cursor-text"
-                    style={{ color:S.text2 }}
-                    onClick={() => startEdit(block)}>
-                    {block.content}
-                  </p>
-                )}
+                  )}
+                </div>
 
-                {/* DSL 指令可视化 */}
-                {!editId && block.directives && block.directives.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5" style={{ opacity: activeLayer === "linear" ? 0.5 : 1 }}>
-                    {block.directives.map(d => {
-                      const typeLabel = d.type === 'bgm' ? '🎵' : d.type === 'bg_change' ? '🖼' : d.type === 'sfx' ? '🔊' : 
-                                        d.type === 'camera' ? '📷' : d.type === 'transition' ? '🎬' : d.type === 'hotspot' ? '👆' : '⚡';
-                      return (
-                        <span key={d.id} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-mono" 
-                              style={{ background: activeLayer === "linear" ? S.s2 : "#F0FDF4", color: activeLayer === "linear" ? S.text3 : "#166534", border: `1px solid ${activeLayer === "linear" ? S.border : "#BBF7D0"}` }}
-                              title={d.rawCommand}>
-                          {typeLabel} {d.rawCommand.substring(0, 30)}{d.rawCommand.length > 30 ? '…' : ''}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* 选项列表（仅互动模式） */}
-                {activeLayer === "interactive" && block.options && !editId && (
-                  <div className="mt-2 space-y-1">
-                    {block.options.map((opt,j) => (
-                      <div key={j} className="text-[10px] px-2 py-1 rounded flex items-center gap-1.5"
-                        style={{ background:S.s2, color:S.text2, border:`1px solid ${S.border}` }}>
-                        <span style={{ color:S.warning }}>›</span> {opt}
+                {/* 分屏预览 */}
+                {splitPreview && (
+                  <div className="flex-1 rounded-xl border p-4 overflow-y-auto m-2" style={{ borderColor: S.border, background: S.card }}>
+                    <h3 className="text-sm font-semibold mb-3" style={{ color: S.text }}>场景预览</h3>
+                    {currentChapter && (
+                      <div className="space-y-3">
+                        {currentChapter.keyDialogue && (
+                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>关键对白</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.keyDialogue}</p></div>
+                        )}
+                        {currentChapter.characterStates && (
+                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>角色状态</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.characterStates}</p></div>
+                        )}
+                        {currentChapter.suspenseHook && (
+                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>悬念钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.warning, background: "rgba(245,158,11,0.08)" }}>{currentChapter.suspenseHook}</p></div>
+                        )}
+                        {currentChapter.chapterEndHook && (
+                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>章末钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.accent, background: "rgba(249,115,22,0.08)" }}>{currentChapter.chapterEndHook}</p></div>
+                        )}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
-                {/* 对话树入口指示（仅互动模式） */}
-                {activeLayer === "interactive" && block.type === 'dialog' && !editId && (() => {
-                  const tree = dialogueTrees.find(t => t.parentNodeId === block.id);
-                  if (!tree) return null;
-                  return (
-                    <div className="flex items-center gap-1.5 mt-1 px-2 py-1 rounded" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
-                      <MessageCircle size={11} style={{ color: "#8B5CF6" }} />
-                      <span className="text-xs" style={{ color: "#7C3AED" }}>
-                        对话树: {tree.name} ({tree.nodes.length} 节点)
-                      </span>
-                      <a href="/interaction" className="text-xs ml-auto" style={{ color: "#8B5CF6" }}>
-                        编辑 →
-                      </a>
-                    </div>
-                  );
-                })()}
               </div>
-            </motion.div>
-          ))}
-
-          {/* 添加新块 */}
-          <motion.button whileTap={{ scale:0.98 }}
-            onClick={() => {
-              const nb: ScriptBlock = { id:`b${Date.now()}`, type:"narr", label:"旁白",
-                color:S.text3, content:"点击此处输入新内容…" };
-              setBlocks(bs => [...bs, nb]);
-              addScriptBlock(nb);
-              setTimeout(() => startEdit(nb), 50);
-            }}
-            className="w-full py-2.5 rounded-xl text-xs font-medium border-dashed focus:outline-none"
-            style={{ border:`1.5px dashed ${S.border}`, color:S.text3 }}>
-            + 添加内容块
-          </motion.button>
-
-          <div className="h-4" />
-        </div>
-        </div>
-        {splitPreview && (
-          <div className="flex-1 rounded-xl border p-4 overflow-y-auto m-2" style={{ borderColor: S.border, background: S.card }}>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: S.text }}>场景预览</h3>
-            {currentChapter && (
-              <div className="space-y-3">
-                {currentChapter.keyDialogue && (
-                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>关键对白</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.keyDialogue}</p></div>
-                )}
-                {currentChapter.characterStates && (
-                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>角色状态</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.characterStates}</p></div>
-                )}
-                {currentChapter.suspenseHook && (
-                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>悬念钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.warning, background: "rgba(245,158,11,0.08)" }}>{currentChapter.suspenseHook}</p></div>
-                )}
-                {currentChapter.chapterEndHook && (
-                  <div><span className="text-xs font-medium" style={{ color: S.text2 }}>章末钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.accent, background: "rgba(249,115,22,0.08)" }}>{currentChapter.chapterEndHook}</p></div>
-                )}
-              </div>
-            )}
-          </div>
+            </div>
+          </>
         )}
-        </div>
-      </div>
-    </>
-  )}
 
         {activeLayer === "original" && (
           <div className="flex-1 overflow-y-auto px-4 py-3">
