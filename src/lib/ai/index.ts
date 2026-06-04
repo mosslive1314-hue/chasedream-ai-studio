@@ -19,6 +19,24 @@ export type {
   CostSummary,
 } from "./model-router";
 
+export {
+  buildScriptContinuationPrompt,
+  buildDialoguePrompt,
+  buildBranchSuggestionPrompt,
+  buildConsistencyCheckPrompt,
+  buildProjectHealthPrompt,
+} from "./ai-prompts";
+export type { PromptResult } from "./ai-prompts";
+
+export { AIService } from "./ai-service";
+export type {
+  AIResponse,
+  DialogueOption,
+  BranchSuggestion,
+  ConsistencyIssue,
+  HealthReport,
+} from "./ai-service";
+
 export { AGUIEventType, AGENT_TOOLS } from "./ag-ui-events";
 export type {
   AGUIEvent,

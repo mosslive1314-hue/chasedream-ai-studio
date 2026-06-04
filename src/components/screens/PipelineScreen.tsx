@@ -13,6 +13,7 @@ import {
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
 import { SkillContextBar } from "@/components/ui/SkillContextBar";
+import { PipelineStatus, usePipelineStages, type StageInfo } from "@/components/ui/PipelineStatus";
 
 const S = {
   bg: "#FAFBFF", card: "#FFFFFF", s2: "#F4F6FC", s3: "#EDF0F8",
@@ -315,6 +316,173 @@ function StageDetail({ stage }: { stage: PipelineStage }) {
   );
 }
 
+// ── 6-Stage Pipeline Detail Row ─────────────────────────────────────────
+function SixStageDetail({ stages }: { stages: StageInfo[] }) {
+  const completedCount = stages.filter(s => s.status === "completed").length;
+  const blockedStages = stages.filter(s => s.status === "blocked");
+
+  return (
+    <>
+      {/* ── PipelineStatus Widget (6-stage overview) ── */}
+      <PipelineStatus compact={false} showNextStep={true} />
+
+      {/* ── 详细进度 — 6 core stages with metrics ── */}
+      <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+        <div className="flex items-center gap-2 mb-4">
+          <Eye size={14} style={{ color: S.primary }} />
+          <h3 className="text-xs font-bold" style={{ color: S.text }}>详细进度</h3>
+          <span className="text-[9px]" style={{ color: S.text3 }}>
+            {completedCount}/{stages.length} 核心阶段已完成
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {stages.map((stage, i) => {
+            const isCompleted = stage.status === "completed";
+            const isBlocked = stage.status === "blocked";
+            const isActive = stage.status === "active";
+            const Icon = stage.icon;
+            const stageColor = isCompleted ? S.success : isBlocked ? S.warning : isActive ? S.primary : S.text3;
+            const progressPct = isCompleted ? 100 : isBlocked ? 0 : isActive ? 50 : 0;
+
+            return (
+              <motion.div
+                key={stage.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06, duration: 0.25 }}
+                className="p-3 rounded-lg"
+                style={{
+                  background: S.s2,
+                  border: `1px solid ${isCompleted ? `${S.success}20` : isBlocked ? `${S.warning}20` : isActive ? `${S.primary}20` : S.border}`,
+                }}
+              >
+                {/* Stage header */}
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: `${stageColor}12` }}>
+                    <Icon size={14} style={{ color: stageColor }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold" style={{ color: S.text }}>{stage.name}</span>
+                      <span className="text-[7px] font-bold px-1 py-0.5 rounded"
+                        style={{ background: `${stageColor}15`, color: stageColor }}>
+                        {isCompleted ? "已完成" : isBlocked ? "阻塞" : isActive ? "进行中" : "待开始"}
+                      </span>
+                    </div>
+                    <span className="text-[8px]" style={{ color: S.text3 }}>{stage.metrics}</span>
+                  </div>
+                  <Link href={stage.link}>
+                    <motion.button
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-bold text-white shrink-0 focus:outline-none"
+                      style={{
+                        background: isCompleted ? S.text3 : S.primary,
+                        boxShadow: isCompleted ? "none" : `0 2px 6px ${S.primary}25`,
+                      }}
+                    >
+                      前往 <ArrowRight size={9} />
+                    </motion.button>
+                  </Link>
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: `${S.border}80` }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPct}%` }}
+                    transition={{ duration: 0.6, ease: "easeOut", delay: i * 0.06 }}
+                    className="h-full rounded-full"
+                    style={{
+                      background: isCompleted
+                        ? S.success
+                        : isBlocked
+                          ? S.warning
+                          : isActive
+                            ? `linear-gradient(to right,${S.primary},${S.accent})`
+                            : S.border2,
+                    }}
+                  />
+                </div>
+
+                {/* Blocked reason */}
+                {stage.blockedReason && (
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <AlertTriangle size={8} style={{ color: S.warning }} />
+                    <span className="text-[8px]" style={{ color: S.warning }}>{stage.blockedReason}</span>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── 阻塞诊断 ── */}
+      {blockedStages.length > 0 && (
+        <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+              style={{ background: `${S.warning}12` }}>
+              <AlertTriangle size={13} style={{ color: S.warning }} />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold" style={{ color: S.text }}>阻塞诊断</h3>
+              <p className="text-[9px]" style={{ color: S.text3 }}>
+                {blockedStages.length} 个阶段被前置依赖阻塞
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {blockedStages.map((stage) => (
+              <motion.div
+                key={stage.id}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-start gap-3 px-3 py-2.5 rounded-lg"
+                style={{
+                  background: `${S.warning}06`,
+                  border: `1px solid ${S.warning}18`,
+                }}
+              >
+                <AlertTriangle size={12} style={{ color: S.warning, marginTop: 1, flexShrink: 0 }} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold" style={{ color: S.text }}>
+                      {stage.emoji} {stage.name}
+                    </span>
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: `${S.warning}15`, color: S.warning }}>
+                      阻塞
+                    </span>
+                  </div>
+                  <p className="text-[9px] mt-0.5" style={{ color: S.text2 }}>
+                    {stage.blockedReason}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Link href={stage.link}>
+                      <motion.span
+                        whileHover={{ x: 2 }}
+                        className="text-[9px] font-bold cursor-pointer flex items-center gap-0.5 focus:outline-none"
+                        style={{ color: S.primary }}
+                      >
+                        前往处理 <ArrowRight size={8} />
+                      </motion.span>
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── 阻塞问题汇总组件 ──────────────────────────────────────────────────
 function BlockingIssuesSummary({ stages }: { stages: PipelineStage[] }) {
   const stagesWithIssues = stages.filter(s => s.issues.length > 0);
@@ -399,6 +567,9 @@ export default function PipelineScreen() {
   const chapterPlans = useNarrativeStore(state => state.chapterPlans);
   const scenes = useNarrativeStore(state => state.scenes);
   const worldBuilding = useNarrativeStore(state => state.worldBuilding);
+
+  // 6-stage core pipeline status
+  const { stages: sixStages } = usePipelineStages();
 
   // Deterministic stage progress based on actual data availability
   const stageProgress = useMemo(() => {
@@ -528,6 +699,9 @@ export default function PipelineScreen() {
       )}
 
       <div className="max-w-5xl mx-auto px-5 py-5 space-y-5">
+
+        {/* ── 6-Stage Core Pipeline Overview ── */}
+        <SixStageDetail stages={sixStages} />
 
         {/* ── 行业切换栏 ── */}
         <div className="flex items-center gap-2">

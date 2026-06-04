@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import ContextualActions from "@/components/ui/ContextualActions";
 import UnifiedAssetCard from "@/components/ui/UnifiedAssetCard";
 import { INDUSTRY_ASSET_TYPES, INDUSTRY_LABELS, type IndustryType, type AssetCard } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
@@ -1107,6 +1108,15 @@ export default function AssetsScreen() {
           </div>
         </div>
       </>)}
+
+      {/* Contextual Quick Actions — always visible */}
+      <ContextualActions
+        actions={[
+          { icon: Library, label: "资产库", href: "/asset-library" },
+          { icon: Film, label: "演出预览", href: "/cinematic" },
+          { icon: CheckCircle2, label: "质检总览", href: "/overview" },
+        ]}
+      />
     </div>
   );
 }

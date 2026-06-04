@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns, Bold, Italic, Underline as UnderlineIcon, Highlighter, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Plus } from "lucide-react";
+import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, MessageCircle, Columns, Bold, Italic, Underline as UnderlineIcon, Highlighter, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Plus, Shield, Loader2, MessageSquare, Layers, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -10,8 +10,11 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
 import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
-import { useNarrativeStore, useProjectStore, useCanvasAgentStore } from "@/store";
+import { useNarrativeStore, useProjectStore, useCanvasAgentStore, useSettingsStore, useUIStore } from "@/store";
+import { AIService } from "@/lib/ai";
+import type { ConsistencyIssue, DialogueOption } from "@/lib/ai";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import ContextualActions from "@/components/ui/ContextualActions";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -722,6 +725,29 @@ function TiptapEditorPanel({
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
 
+  // ── AI Assist: store subscriptions ──
+  const apiKeys = useSettingsStore(s => s.apiKeys);
+  const aiModel = useSettingsStore(s => s.aiModel);
+  const apiBaseUrl = useSettingsStore(s => s.apiBaseUrl);
+  const characters = useNarrativeStore(s => s.characters);
+  const worldRules = useNarrativeStore(s => s.worldRules);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const projectName = useProjectStore(s => s.currentProject()?.title) || "当前项目";
+  const addToast = useUIStore(s => s.addToast);
+
+  // ── AI Assist: state ──
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<{
+    type: 'continuation' | 'dialogue' | 'consistency';
+    content: string;
+    items?: any[];
+  } | null>(null);
+  const [dialogueCharId, setDialogueCharId] = useState<string | null>(null);
+  const [showCharPicker, setShowCharPicker] = useState(false);
+
+  const hasApiKey = !!(apiKeys[aiModel] || apiKeys['openai'] || apiKeys['gpt4'] || apiKeys['claude'] || apiKeys['qwen']);
+
+  // ── Tiptap editor (must be before handlers that reference it) ──
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
@@ -751,6 +777,107 @@ function TiptapEditorPanel({
     if (editor) {
       setWordCount(editor.state.doc.content.size - 1);
     }
+  }, [editor]);
+
+  // ── AI Assist: handlers ──
+  const handleAiContinue = useCallback(async () => {
+    if (!editor || aiLoading) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const ai = AIService.fromSettings({ apiKeys, aiModel, apiBaseUrl });
+      const res = await ai.continueScript({
+        projectName,
+        genre: "互动叙事",
+        existingContent: editor.getText(),
+        characters: characters.map(c => ({ name: c.name, role: c.role, description: c.description })),
+        worldRules: worldRules.map(wr => wr.description || wr.title),
+        continuationType: 'continue',
+      });
+      if (res.success && res.data) {
+        setAiResult({ type: 'continuation', content: res.data });
+      } else {
+        addToast({ type: 'error', title: 'AI 续写失败', message: res.error || '未知错误' });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'AI 续写异常', message: err.message || String(err) });
+    } finally {
+      setAiLoading(false);
+    }
+  }, [editor, aiLoading, apiKeys, aiModel, apiBaseUrl, projectName, characters, worldRules, addToast]);
+
+  const handleAiDialogue = useCallback(async (charId: string) => {
+    if (!editor || aiLoading) return;
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+    setAiLoading(true);
+    setAiResult(null);
+    setShowCharPicker(false);
+    try {
+      const ai = AIService.fromSettings({ apiKeys, aiModel, apiBaseUrl });
+      const res = await ai.generateDialogue({
+        characterName: char.name,
+        characterRole: char.role,
+        characterDescription: char.description,
+        situation: editor.getText().slice(-500) || "当前场景",
+        otherCharacters: characters.filter(c => c.id !== charId).map(c => ({ name: c.name, role: c.role })),
+        dialogueCount: 3,
+      });
+      if (res.success && res.data) {
+        setAiResult({
+          type: 'dialogue',
+          content: `${char.name}的对话选项`,
+          items: res.data,
+        });
+      } else {
+        addToast({ type: 'error', title: 'AI 对白生成失败', message: res.error || '未知错误' });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'AI 对白生成异常', message: err.message || String(err) });
+    } finally {
+      setAiLoading(false);
+    }
+  }, [editor, aiLoading, apiKeys, aiModel, apiBaseUrl, characters, addToast]);
+
+  const handleAiCheck = useCallback(async () => {
+    if (!editor || aiLoading) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const ai = AIService.fromSettings({ apiKeys, aiModel, apiBaseUrl });
+      const res = await ai.checkConsistency({
+        projectName,
+        worldRules: worldRules.map(wr => wr.description || wr.title),
+        newContent: editor.getText(),
+        characters: characters.map(c => ({ name: c.name, role: c.role, description: c.description })),
+        existingNodes: storyNodes.map(n => n.label || n.id),
+      });
+      if (res.success && res.data) {
+        setAiResult({
+          type: 'consistency',
+          content: `发现 ${res.data.length} 个一致性问题`,
+          items: res.data,
+        });
+      } else {
+        addToast({ type: 'error', title: 'AI 检查失败', message: res.error || '未知错误' });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'AI 检查异常', message: err.message || String(err) });
+    } finally {
+      setAiLoading(false);
+    }
+  }, [editor, aiLoading, apiKeys, aiModel, apiBaseUrl, projectName, worldRules, characters, storyNodes, addToast]);
+
+  // ── AI Assist: apply/insert helpers ──
+  const applyContinuation = useCallback(() => {
+    if (!editor || !aiResult) return;
+    editor.chain().focus().insertContent(`<p>${aiResult.content.replace(/\n/g, '</p><p>')}</p>`).run();
+    setAiResult(null);
+  }, [editor, aiResult]);
+
+  const insertDialogue = useCallback((text: string) => {
+    if (!editor) return;
+    editor.chain().focus().insertContent(`<p>${text}</p>`).run();
   }, [editor]);
 
   if (!editor) {
@@ -853,6 +980,303 @@ function TiptapEditorPanel({
           );
         })}
       </div>
+
+      {/* ── AI Assist Toolbar ── */}
+      <div
+        className="flex items-center gap-1.5 px-3 py-1.5 shrink-0"
+        style={{ background: `${S.primary}04`, borderBottom: `1px solid ${S.border}` }}
+      >
+        <span className="text-[9px] font-bold mr-1" style={{ color: S.text3 }}>AI</span>
+
+        {/* AI 续写 */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={handleAiContinue}
+          disabled={!hasApiKey || aiLoading}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none transition-opacity"
+          style={{
+            background: `${S.primary}10`,
+            color: !hasApiKey || aiLoading ? S.text3 : S.primary,
+            border: `1px solid ${!hasApiKey || aiLoading ? S.border : `${S.primary}25`}`,
+            opacity: !hasApiKey || aiLoading ? 0.5 : 1,
+            cursor: !hasApiKey || aiLoading ? 'not-allowed' : 'pointer',
+          }}
+          title={!hasApiKey ? '请先在设置中配置 API Key' : 'AI 续写当前内容'}
+        >
+          {aiLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+          AI 续写
+        </motion.button>
+
+        {/* AI 对白 */}
+        <div className="relative">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              if (!hasApiKey || aiLoading) return;
+              if (dialogueCharId) {
+                handleAiDialogue(dialogueCharId);
+              } else {
+                setShowCharPicker(v => !v);
+              }
+            }}
+            disabled={!hasApiKey || aiLoading}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none transition-opacity"
+            style={{
+              background: `${S.accent}10`,
+              color: !hasApiKey || aiLoading ? S.text3 : S.accent,
+              border: `1px solid ${!hasApiKey || aiLoading ? S.border : `${S.accent}25`}`,
+              opacity: !hasApiKey || aiLoading ? 0.5 : 1,
+              cursor: !hasApiKey || aiLoading ? 'not-allowed' : 'pointer',
+            }}
+            title={!hasApiKey ? '请先在设置中配置 API Key' : '为角色生成对话选项'}
+          >
+            {aiLoading ? <Loader2 size={11} className="animate-spin" /> : <MessageSquare size={11} />}
+            AI 对白
+            {dialogueCharId && (
+              <span className="text-[8px] ml-0.5 px-1 py-0.5 rounded" style={{ background: `${S.accent}15`, color: S.accent }}>
+                {characters.find(c => c.id === dialogueCharId)?.name || ''}
+              </span>
+            )}
+          </motion.button>
+
+          {/* Character picker dropdown */}
+          <AnimatePresence>
+            {showCharPicker && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full left-0 mt-1 z-50 rounded-xl overflow-hidden shadow-lg"
+                style={{ background: S.card, border: `1px solid ${S.border}`, minWidth: 180, maxHeight: 200 }}
+              >
+                <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: `1px solid ${S.border}` }}>
+                  <span className="text-[9px] font-bold" style={{ color: S.text3 }}>选择角色</span>
+                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowCharPicker(false)} className="p-0.5 focus:outline-none">
+                    <X size={10} style={{ color: S.text3 }} />
+                  </motion.button>
+                </div>
+                <div className="overflow-y-auto" style={{ maxHeight: 160 }}>
+                  {characters.map(char => (
+                    <motion.button
+                      key={char.id}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setDialogueCharId(char.id);
+                        setShowCharPicker(false);
+                        handleAiDialogue(char.id);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left focus:outline-none transition-colors hover:bg-gray-50"
+                    >
+                      <span className="text-sm">{char.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold truncate" style={{ color: S.text }}>{char.name}</p>
+                        <p className="text-[8px] truncate" style={{ color: S.text3 }}>{char.role}</p>
+                      </div>
+                    </motion.button>
+                  ))}
+                  {characters.length === 0 && (
+                    <div className="px-3 py-4 text-center">
+                      <p className="text-[9px]" style={{ color: S.text3 }}>暂无角色，请先添加角色</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* AI 检查 */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={handleAiCheck}
+          disabled={!hasApiKey || aiLoading}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none transition-opacity"
+          style={{
+            background: `${S.warning}10`,
+            color: !hasApiKey || aiLoading ? S.text3 : S.warning,
+            border: `1px solid ${!hasApiKey || aiLoading ? S.border : `${S.warning}25`}`,
+            opacity: !hasApiKey || aiLoading ? 0.5 : 1,
+            cursor: !hasApiKey || aiLoading ? 'not-allowed' : 'pointer',
+          }}
+          title={!hasApiKey ? '请先在设置中配置 API Key' : '检查内容一致性'}
+        >
+          {aiLoading ? <Loader2 size={11} className="animate-spin" /> : <Shield size={11} />}
+          AI 检查
+        </motion.button>
+
+        {/* Clear result / dismiss */}
+        {aiResult && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setAiResult(null)}
+            className="ml-auto flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium focus:outline-none"
+            style={{ background: `${S.text3}10`, color: S.text3 }}
+          >
+            <X size={10} /> 关闭
+          </motion.button>
+        )}
+      </div>
+
+      {/* ── AI Suggestions Panel ── */}
+      <AnimatePresence>
+        {aiResult && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden shrink-0"
+            style={{ borderBottom: `1px solid ${S.border}` }}
+          >
+            {/* Continuation result */}
+            {aiResult.type === 'continuation' && (
+              <div className="px-4 py-3" style={{ background: `${S.primary}04` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles size={12} style={{ color: S.primary }} />
+                    <span className="text-[10px] font-bold" style={{ color: S.primary }}>AI 续写结果</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={applyContinuation}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white focus:outline-none"
+                      style={{ background: S.primary }}
+                    >
+                      <Check size={10} /> 应用
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setAiResult(null)}
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium focus:outline-none"
+                      style={{ background: S.s2, color: S.text3 }}
+                    >
+                      丢弃
+                    </motion.button>
+                  </div>
+                </div>
+                <div
+                  className="p-3 rounded-lg text-[11px] leading-relaxed whitespace-pre-wrap"
+                  style={{ background: S.card, border: `1px solid ${S.primary}20`, color: S.text, maxHeight: 180, overflowY: 'auto' }}
+                >
+                  {aiResult.content}
+                </div>
+              </div>
+            )}
+
+            {/* Dialogue result */}
+            {aiResult.type === 'dialogue' && aiResult.items && (
+              <div className="px-4 py-3" style={{ background: `${S.accent}04` }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <MessageSquare size={12} style={{ color: S.accent }} />
+                  <span className="text-[10px] font-bold" style={{ color: S.accent }}>{aiResult.content}</span>
+                </div>
+                <div className="space-y-2">
+                  {(aiResult.items as DialogueOption[]).map((opt, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2 p-2.5 rounded-lg"
+                      style={{ background: S.card, border: `1px solid ${S.accent}15` }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] leading-relaxed" style={{ color: S.text }}>{opt.text}</p>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span
+                            className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
+                            style={{ background: `${S.accent}12`, color: S.accent }}
+                          >
+                            {opt.emotion}
+                          </span>
+                          {opt.suggestedVariable && (
+                            <span
+                              className="text-[8px] px-1.5 py-0.5 rounded-full font-mono"
+                              style={{ background: `${S.primary}10`, color: S.primary }}
+                            >
+                              {opt.suggestedVariable.name} {opt.suggestedVariable.change > 0 ? '+' : ''}{opt.suggestedVariable.change}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => insertDialogue(opt.text)}
+                        className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold text-white focus:outline-none"
+                        style={{ background: S.accent }}
+                      >
+                        <Plus size={9} /> 插入
+                      </motion.button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Consistency result */}
+            {aiResult.type === 'consistency' && aiResult.items && (
+              <div className="px-4 py-3" style={{ background: `${S.warning}04` }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Shield size={12} style={{ color: (aiResult.items as ConsistencyIssue[]).length > 0 ? S.warning : S.success }} />
+                  <span className="text-[10px] font-bold" style={{ color: (aiResult.items as ConsistencyIssue[]).length > 0 ? S.warning : S.success }}>
+                    {aiResult.content}
+                  </span>
+                </div>
+                {(aiResult.items as ConsistencyIssue[]).length === 0 ? (
+                  <div className="p-3 rounded-lg text-center" style={{ background: `${S.success}08` }}>
+                    <p className="text-[11px]" style={{ color: S.success }}>未发现一致性问题，内容检查通过。</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {(aiResult.items as ConsistencyIssue[]).map((issue, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 p-2.5 rounded-lg"
+                        style={{ background: S.card, border: `1px solid ${
+                          issue.severity === 'high' ? `${S.error}25` :
+                          issue.severity === 'medium' ? `${S.warning}25` : `${S.border}`
+                        }` }}
+                      >
+                        <span
+                          className="shrink-0 text-[8px] px-1.5 py-0.5 rounded-full font-bold mt-0.5"
+                          style={{
+                            background: issue.severity === 'high' ? `${S.error}15` :
+                              issue.severity === 'medium' ? `${S.warning}15` : `${S.text3}15`,
+                            color: issue.severity === 'high' ? S.error :
+                              issue.severity === 'medium' ? S.warning : S.text3,
+                          }}
+                        >
+                          {issue.severity === 'high' ? '严重' : issue.severity === 'medium' ? '警告' : '提示'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-medium" style={{ color: S.text }}>{issue.description}</p>
+                          <p className="text-[9px] mt-1" style={{ color: S.text3 }}>
+                            建议：{issue.suggestion}
+                          </p>
+                          {issue.affectedElements.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {issue.affectedElements.map((el, ei) => (
+                                <span
+                                  key={ei}
+                                  className="text-[8px] px-1.5 py-0.5 rounded font-mono"
+                                  style={{ background: `${S.primary}08`, color: S.primary }}
+                                >
+                                  {el}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Editor content area */}
       <div className="flex-1 overflow-y-auto">
@@ -1264,6 +1688,15 @@ export default function ScriptScreen() {
 
         {activeLayer === "chapter" && <ChapterPlanContent />}
       </div>
+
+      {/* Contextual Quick Actions — always visible */}
+      <ContextualActions
+        actions={[
+          { icon: Layers, label: "解构剧本", href: "/parse" },
+          { icon: GitBranch, label: "互动设计", href: "/interaction" },
+          { icon: Share2, label: "节点视图", href: "/nodes" },
+        ]}
+      />
 
       {/* Next Step Navigation */}
       <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"

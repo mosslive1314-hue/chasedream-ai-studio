@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
-import { OnboardingOverlay } from "@/components/ui/OnboardingOverlay";
+import { useProjectStore } from "@/store";
+import OnboardingWizard from "@/components/ui/OnboardingWizard";
 
-const ONBOARDING_KEY = "cd-onboarding-seen";
+const ONBOARDING_KEY = "cd-onboarding-wizard-dismissed";
 
 export function OnboardingGate() {
   const [show, setShow] = useState(false);
+  const projects = useProjectStore((s) => s.projects);
 
   useEffect(() => {
-    const seen = localStorage.getItem(ONBOARDING_KEY);
-    if (!seen) setShow(true);
-  }, []);
+    // Show the wizard when the user has no projects and hasn't explicitly dismissed it
+    const dismissed = localStorage.getItem(ONBOARDING_KEY);
+    if (!dismissed && projects.length === 0) {
+      setShow(true);
+    }
+  }, [projects.length]);
 
   const handleClose = () => {
     localStorage.setItem(ONBOARDING_KEY, "true");
@@ -21,7 +26,7 @@ export function OnboardingGate() {
 
   return (
     <AnimatePresence>
-      {show && <OnboardingOverlay onClose={handleClose} />}
+      {show && <OnboardingWizard onClose={handleClose} />}
     </AnimatePresence>
   );
 }

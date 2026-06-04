@@ -7,8 +7,10 @@ import {
   Trophy,
   Layers, Play,
   ExternalLink, BarChart3, Sparkles,
-  Package, Rocket, Shield, Heart
+  Package, Rocket, Shield, Heart,
+  TrendingUp, AlertCircle, ArrowRight, Target
 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { INDUSTRY_LABELS, INDUSTRY_QC_RULES, type IndustryType } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, useSettingsStore, useProjectStore, useAnalyticsStore } from "@/store";
@@ -47,6 +49,325 @@ const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = 
 ];
 
 // ── 素材风格一致性 — 动态从 store 计算（P12-#22）──────────────────────────
+
+
+// ── AI 制作助手面板 ──────────────────────────────────────────────────────
+
+interface AISuggestion {
+  id: string;
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  page: string;
+}
+
+function AIAssistantPanel() {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // ── Store selectors ─────────────────────────────────────────────────
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+  const characters = useNarrativeStore(s => s.characters);
+  const branchPaths = useNarrativeStore(s => s.branchPaths);
+  const scenes = useNarrativeStore(s => s.scenes);
+  const variables = useNarrativeStore(s => s.variables);
+
+  // ── Health Score ────────────────────────────────────────────────────
+  const healthScore = useMemo(() => {
+    const endingCount = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length;
+    const targets = [
+      { current: characters.length, target: 3 },
+      { current: scenes.length, target: 3 },
+      { current: storyNodes.length, target: 10 },
+      { current: nodeEdges.length, target: 8 },
+      { current: variables.length, target: 2 },
+      { current: endingCount, target: 2 },
+    ];
+    const ratios = targets.map(t => Math.min(t.current / t.target, 1));
+    return Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100);
+  }, [storyNodes, nodeEdges, characters, scenes, variables]);
+
+  const scoreColor = healthScore <= 40 ? S.error : healthScore <= 70 ? S.warning : S.success;
+
+  // SVG circular progress values
+  const radius = 36;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (healthScore / 100) * circumference;
+
+  // ── Suggestions ─────────────────────────────────────────────────────
+  const suggestions = useMemo(() => {
+    const result: AISuggestion[] = [];
+    const endingCount = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length;
+
+    if (characters.length < 3) {
+      result.push({
+        id: "chars",
+        title: "角色丰富度不足",
+        description: `当前仅有 ${characters.length} 个角色，建议至少设计 3 个核心角色以增强故事深度`,
+        priority: "high",
+        page: "/parse",
+      });
+    }
+    if (branchPaths.length < 2) {
+      result.push({
+        id: "branches",
+        title: "分支路线偏少",
+        description: `当前仅 ${branchPaths.length} 条分支路径，建议增加至少 2 条以提升可玩性`,
+        priority: "high",
+        page: "/nodes",
+      });
+    }
+    // Scene coverage: check how many storyNodes are referenced by at least one scene
+    const coveredNodeIds = new Set(scenes.flatMap(sc => sc.refNodes));
+    const uncoveredNodes = storyNodes.filter(
+      n => n.type !== "ending_good" && n.type !== "ending_bad" && !coveredNodeIds.has(n.id)
+    );
+    if (uncoveredNodes.length > 0 && storyNodes.length > 0) {
+      result.push({
+        id: "scenes",
+        title: "场景覆盖不完整",
+        description: `${uncoveredNodes.length} 个故事节点没有关联场景，可能影响视觉呈现`,
+        priority: "medium",
+        page: "/parse",
+      });
+    }
+    if (endingCount < 2) {
+      result.push({
+        id: "endings",
+        title: "缺少多结局设计",
+        description: `当前仅 ${endingCount} 个结局节点，建议设计多种结局以增加重玩价值`,
+        priority: "high",
+        page: "/nodes",
+      });
+    }
+    if (variables.length === 0) {
+      result.push({
+        id: "vars",
+        title: "变量追踪缺失",
+        description: "尚未创建任何变量，变量系统可追踪玩家选择并影响后续剧情",
+        priority: "medium",
+        page: "/nodes",
+      });
+    }
+    // Isolated nodes: nodes with no incoming and no outgoing edges (excluding start)
+    const connectedNodes = new Set<string>();
+    nodeEdges.forEach(e => {
+      connectedNodes.add(e.from);
+      connectedNodes.add(e.to);
+    });
+    const isolatedNodes = storyNodes.filter(
+      n => n.type !== "start" && !connectedNodes.has(n.id)
+    );
+    if (isolatedNodes.length > 0) {
+      result.push({
+        id: "isolated",
+        title: "节点连接不完整",
+        description: `${isolatedNodes.length} 个节点处于孤立状态，未与其他节点连接`,
+        priority: "medium",
+        page: "/nodes",
+      });
+    }
+    return result.slice(0, 5);
+  }, [storyNodes, nodeEdges, characters, branchPaths, scenes, variables]);
+
+  // ── Next step suggestion ────────────────────────────────────────────
+  const nextStep = useMemo(() => {
+    const endingCount = storyNodes.filter(n => n.type === "ending_good" || n.type === "ending_bad").length;
+    if (characters.length === 0 && storyNodes.length === 0) {
+      return { label: "创建故事大纲与角色", page: "/parse" };
+    }
+    if (storyNodes.length < 5) {
+      return { label: "完善故事节点网络", page: "/nodes" };
+    }
+    if (branchPaths.length === 0) {
+      return { label: "设计分支路径", page: "/nodes" };
+    }
+    if (variables.length === 0) {
+      return { label: "添加追踪变量", page: "/nodes" };
+    }
+    if (endingCount < 2) {
+      return { label: "设计多结局", page: "/nodes" };
+    }
+    return { label: "进入资产制作阶段", page: "/assets" };
+  }, [storyNodes, characters, branchPaths, variables]);
+
+  const priorityConfig = {
+    high: { bg: S.error10, color: S.error, label: "高" },
+    medium: { bg: S.warning10, color: S.warning, label: "中" },
+    low: { bg: `${S.primary}10`, color: S.primary, label: "低" },
+  };
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+      {/* Header — toggle */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between px-3 py-2.5 focus:outline-none"
+        style={{ background: `linear-gradient(135deg,${S.primary}06,${S.accent}06)` }}
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg,${S.primary},${S.accent})` }}>
+            <Sparkles size={12} style={{ color: "#fff" }} />
+          </div>
+          <span className="text-xs font-bold" style={{ color: S.text }}>AI 制作助手</span>
+          {suggestions.length > 0 && (
+            <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
+              style={{ background: S.error10, color: S.error }}>
+              {suggestions.length} 条建议
+            </span>
+          )}
+        </div>
+        <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronRight size={14} style={{ color: S.text3, transform: "rotate(90deg)" }} />
+        </motion.div>
+      </button>
+
+      {/* Collapsible content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            key="ai-panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="px-3 pb-3 space-y-3">
+
+              {/* ── Health Score Card ── */}
+              <div className="flex items-center gap-4 p-3 rounded-xl" style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                {/* Circular progress SVG */}
+                <div className="relative shrink-0" style={{ width: 80, height: 80 }}>
+                  <svg width="80" height="80" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r={radius} fill="none" stroke={S.s3} strokeWidth="6" />
+                    <motion.circle
+                      cx="40" cy="40" r={radius} fill="none"
+                      stroke={scoreColor} strokeWidth="6" strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      initial={{ strokeDashoffset: circumference }}
+                      animate={{ strokeDashoffset: dashOffset }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      transform="rotate(-90 40 40)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm font-mono font-black" style={{ color: scoreColor }}>{healthScore}%</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold" style={{ color: S.text }}>项目完成度</p>
+                  <p className="text-[8px] mt-0.5" style={{ color: S.text3 }}>
+                    基于角色({characters.length})、场景({scenes.length})、节点({storyNodes.length})、连线({nodeEdges.length})、变量({variables.length})综合评估
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: scoreColor }} />
+                    <span className="text-[8px] font-bold" style={{ color: scoreColor }}>
+                      {healthScore <= 40 ? "需要完善" : healthScore <= 70 ? "进展良好" : "较为完整"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── AI Suggestions ── */}
+              {suggestions.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Target size={10} style={{ color: S.primary }} />
+                    <span className="text-[9px] font-bold" style={{ color: S.text }}>智能建议</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {suggestions.map(s => {
+                      const cfg = priorityConfig[s.priority];
+                      return (
+                        <div key={s.id} className="flex items-start gap-2 px-2.5 py-2 rounded-lg"
+                          style={{ background: S.s2, border: `1px solid ${S.border}` }}>
+                          <AlertCircle size={11} style={{ color: cfg.color, marginTop: 1, flexShrink: 0 }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-[9px] font-bold" style={{ color: S.text }}>{s.title}</span>
+                              <span className="text-[7px] px-1 py-0.5 rounded-full font-bold"
+                                style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                            </div>
+                            <p className="text-[8px] leading-relaxed" style={{ color: S.text3 }}>{s.description}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <motion.button
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => toast("AI 修复功能即将上线")}
+                              className="text-[7px] px-1.5 py-0.5 rounded font-bold focus:outline-none"
+                              style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}20` }}
+                            >
+                              一键修复
+                            </motion.button>
+                            <Link href={s.page}>
+                              <motion.span
+                                whileTap={{ scale: 0.95 }}
+                                className="text-[7px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"
+                                style={{ background: S.accent10, color: S.accent, border: `1px solid ${S.accent}20` }}
+                              >
+                                跳转 <ArrowRight size={7} />
+                              </motion.span>
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Quick Actions ── */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Zap size={10} style={{ color: S.warning }} />
+                  <span className="text-[9px] font-bold" style={{ color: S.text }}>快捷操作</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toast("AI 分析功能即将上线")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold text-white focus:outline-none"
+                    style={{ background: S.primary, boxShadow: `0 2px 6px ${S.primary}25` }}
+                  >
+                    <Sparkles size={10} /> AI 分析项目
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toast("进度报告功能即将上线")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
+                    style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}
+                  >
+                    <TrendingUp size={10} /> 生成进度报告
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toast("一致性检查功能即将上线")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
+                    style={{ background: S.s2, color: S.text2, border: `1px solid ${S.border}` }}
+                  >
+                    <Target size={10} /> 检查一致性
+                  </motion.button>
+                  <Link href={nextStep.page}>
+                    <motion.span
+                      whileTap={{ scale: 0.95 }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
+                      style={{ background: S.accent10, color: S.accent, border: `1px solid ${S.accent}20` }}
+                    >
+                      <ArrowRight size={10} /> {nextStep.label}
+                    </motion.span>
+                  </Link>
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
@@ -403,6 +724,9 @@ export default function OverviewScreen() {
             );
           })}
         </div>
+
+        {/* ── AI 制作助手 ── */}
+        <AIAssistantPanel />
 
         {/* ═══════════════════ TAB 0: 项目概览 ═══════════════════ */}
         <AnimatePresence mode="wait">

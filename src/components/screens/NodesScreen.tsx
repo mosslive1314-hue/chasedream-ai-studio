@@ -7,7 +7,7 @@ import {
   ZoomIn, ZoomOut, Maximize2, AlignLeft,
   ExternalLink, Play, FileText, Flame, Edit2,
   User, Package, Music, GitBranch, X, Loader2,
-  Monitor, Star, Download, Wand2,
+  Monitor, Star, Download, Wand2, Image as ImageIcon,
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings, Link2, MapPin, MessageSquare,
   Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
@@ -19,6 +19,7 @@ import { useNarrativeStore, useUIStore, useProjectStore } from "@/store";
 import { usePathname } from "next/navigation";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
+import ContextualActions from "@/components/ui/ContextualActions";
 
 const S = {
   bg:      "#F5F6FA",
@@ -2974,6 +2975,8 @@ export default function NodesScreen() {
   const [aiInput, setAiInput] = useState("");
   const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [diagView, setDiagView] = useState<DiagView>('all');
+  const addToast = useUIStore(s => s.addToast);
+  const selectedNode = sel ? storyNodes.find(n => n.id === sel) ?? null : null;
 
   // ── Tension curve for emotion rhythm bar ──
   const tensionCurve = useMemo(() => calculateTensionCurve({
@@ -3303,6 +3306,18 @@ export default function NodesScreen() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Contextual Quick Actions — visible when a node is selected on canvas */}
+      {activeTab === "canvas" && sel && selectedNode && (
+        <ContextualActions
+          actions={[
+            { icon: Edit2, label: "编辑对白", href: "/interaction" },
+            { icon: ImageIcon, label: "生成背景图", onClick: () => addToast({ type: "info", title: "即将上线", message: "AI 生图功能即将上线" }) },
+            { icon: Eye, label: "预览此节点", href: "/simulator" },
+            { icon: MapPin, label: "查看路径" },
+          ]}
+        />
+      )}
 
       {/* Next Step Navigation */}
       <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
