@@ -839,13 +839,6 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                   title="编辑节点">
                   <Edit2 size={9} />
                 </motion.button>
-                <motion.button whileTap={{ scale: 0.9 }}
-                  onClick={() => handleDeleteNode(sel)}
-                  className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
-                  style={{ background: `${S.error}10`, color: S.error }}
-                  title="删除节点">
-                  <Trash2 size={9} />
-                </motion.button>
               </motion.div>
             );
           })()}
@@ -1826,22 +1819,6 @@ function UIContent() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* UI 生产状态横幅 (P4-10) */}
-      <div className="mx-4 mt-3 mb-0">
-        <div className="p-3 rounded-xl flex items-center gap-2"
-          style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}20` }}>
-          <span className="text-sm">🎨</span>
-          <div className="flex-1">
-            <p className="text-[10px] font-bold" style={{ color: S.text }}>游戏 UI 配置 — 主生产步骤</p>
-            <p className="text-[9px]" style={{ color: S.text3 }}>
-              对白框、选择框、QTE 控件、HUD、菜单、存档、结局页必须作为正式生产资产纳入管线
-            </p>
-          </div>
-          <span className="text-[8px] px-2 py-0.5 rounded font-bold" style={{ background: `${S.warning}15`, color: S.warning }}>
-            进行中
-          </span>
-        </div>
-      </div>
 
       {/* Toast 通知 */}
       <AnimatePresence>
@@ -1884,12 +1861,6 @@ function UIContent() {
             style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}25`, color: S.accent }}>
             <Download size={10} /> 素材市场
           </motion.button>
-          {/* UI 覆盖检查按钮 */}
-          <motion.button whileTap={{ scale: 0.96 }} onClick={() => setCoverageOpen(!coverageOpen)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold focus:outline-none"
-            style={{ background: `${S.warning}12`, border: `1px solid ${S.warning}25`, color: S.warning }}>
-            <Shield size={10} /> 覆盖检查
-          </motion.button>
           {/* 全局设置 */}
           <motion.button whileTap={{ scale: 0.96 }} onClick={() => setPreviewMode(!previewMode)}
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium focus:outline-none"
@@ -1899,35 +1870,6 @@ function UIContent() {
           </motion.button>
         </div>
       </div>
-
-      {/* ── UI 覆盖检查面板 ── */}
-      {coverageOpen && (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-          className="px-4 py-3 border-b" style={{ borderColor: S.border, background: `${S.warning}04` }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold" style={{ color: S.text }}>UI 模板覆盖检查</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded"
-              style={{ background: `${S.warning}15`, color: S.warning }}>
-              {UI_COVERAGE.filter(c => c.has).length}/{UI_COVERAGE.length} 已配置
-            </span>
-          </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {UI_COVERAGE.map(item => (
-              <div key={item.nodeType} className="p-2 rounded-lg text-center"
-                style={{ background: S.card, border: `1px solid ${item.has ? `${S.success}30` : `${S.warning}30`}` }}>
-                <div className="text-lg mb-0.5">{item.icon}</div>
-                <p className="text-[8px] font-bold mb-0.5" style={{ color: S.text }}>{item.nodeType.split(" ")[0]}</p>
-                <p className="text-[7px]" style={{ color: item.has ? S.success : S.warning }}>
-                  {item.has ? "✓ 已配置" : "✗ 未配置"}
-                </p>
-              </div>
-            ))}
-          </div>
-          <p className="text-[8px] mt-2" style={{ color: S.text3 }}>
-            💡 未配置的类型可通过 AI 生成或从素材市场导入对应模板
-          </p>
-        </motion.div>
-      )}
 
       {/* ── 主体内容 ── */}
       <div className="flex-1 flex overflow-hidden">

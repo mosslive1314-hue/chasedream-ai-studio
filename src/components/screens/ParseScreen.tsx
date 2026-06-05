@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, Eye, Loader2, ArrowRight, RotateCcw,
   User, MapPin, Package, GitBranch, Sliders, FileText,
   Network, CheckSquare, List, Rocket,
-  BookOpen, Settings, Terminal,
+  Settings, Terminal,
   Pencil, Plus, Save, CheckCheck,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
@@ -659,10 +659,22 @@ export default function ParseScreen() {
 
       {/* ── 放大管线进度条 ─────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-3 border-b" style={{ borderColor: S.border, background: S.card }}>
-        <div className="flex items-center mb-2.5">
+        <div className="flex items-center justify-between mb-2.5">
           <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: S.text3 }}>
             制作进度
           </span>
+          <button
+            onClick={() => setShowExecLog(!showExecLog)}
+            className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-lg border transition-colors focus:outline-none"
+            style={{
+              color: showExecLog ? "#5E50E8" : "#8892B0",
+              borderColor: showExecLog ? "#5E50E8" : "#E2E5F0",
+              background: showExecLog ? "rgba(94,80,232,0.08)" : "transparent",
+            }}
+          >
+            <Terminal size={10} />
+            执行日志
+          </button>
         </div>
         <div ref={pipelineRef} className="flex items-center gap-1 overflow-x-auto pb-1">
           {STEPS.map((step, i) => {
@@ -700,22 +712,6 @@ export default function ParseScreen() {
             );
           })}
         </div>
-      </div>
-
-      {/* ── 执行日志切换按钮 ─────────────────────────────────────────────── */}
-      <div className="shrink-0 px-4 py-2 border-b" style={{ borderColor: S.border, background: S.card }}>
-        <button
-          onClick={() => setShowExecLog(!showExecLog)}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors focus:outline-none"
-          style={{
-            color: showExecLog ? "#5E50E8" : "#8892B0",
-            borderColor: showExecLog ? "#5E50E8" : "#E2E5F0",
-            background: showExecLog ? "rgba(94,80,232,0.08)" : "transparent",
-          }}
-        >
-          <Terminal size={12} />
-          执行日志
-        </button>
       </div>
 
       {/* ── 执行日志面板 ─────────────────────────────────────────────────── */}
@@ -786,7 +782,7 @@ export default function ParseScreen() {
             <motion.button whileTap={{ scale:0.97 }}
               onClick={() => {
                 if (viewStep < 10) { setViewStep(viewStep + 1); }
-                else { addToast({ type: "success", title: "管线完成", message: "所有步骤已完成，可前往剧本编辑继续" }); router.push("/script"); }
+                else { addToast({ type: "success", title: "管线完成", message: "所有步骤已完成" }); }
               }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white focus:outline-none"
               style={{ background: S.primary, boxShadow:`0 2px 8px ${S.primary}30` }}>
@@ -800,19 +796,6 @@ export default function ParseScreen() {
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium focus:outline-none"
               style={{ background: S.s2, border:`1px solid ${S.border}`, color: S.text2 }}>
               <RotateCcw size={11}/> 重新生成
-            </motion.button>
-            <div className="flex-1" />
-            <motion.button whileTap={{ scale:0.97 }}
-              onClick={() => {
-                worldRules.forEach(r => {
-                  if (r.validated) updateWorldRule(r.id, { validated: true });
-                });
-                addToast({ type: "success", title: "已应用到工作台", message: "解构结果已保存，可在剧本编辑中继续使用" });
-                router.push("/script");
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold focus:outline-none"
-              style={{ background:`${S.accent}15`, border:`1px solid ${S.accent}30`, color: S.accent }}>
-              ✓ 应用到工作台 <ArrowRight size={11}/>
             </motion.button>
           </div>
         </div>
@@ -841,20 +824,6 @@ export default function ParseScreen() {
               <span className="text-[8px] px-1.5 py-0.5 rounded"
                 style={{ background: `${S.success}12`, color: S.success }}>已锁定</span>
             </div>
-          </div>
-
-          {/* ── 当前步骤信息 ────────────────────────────────────────── */}
-          <div className="p-3">
-            <div className="flex items-center gap-1.5 mb-2">
-              <BookOpen size={12} style={{ color: S.primary }} />
-              <span className="text-[10px] font-bold" style={{ color: S.text }}>当前查看</span>
-            </div>
-            <p className="text-[10px] font-bold" style={{ color: S.primary }}>
-              第 {viewStep} 步 · {STEPS.find(s => s.n === viewStep)?.label}
-            </p>
-            <p className="text-[9px] mt-0.5" style={{ color: S.text3 }}>
-              {STATUS_TEXT[STEPS.find(s => s.n === viewStep)?.status ?? "pending"]}
-            </p>
           </div>
         </div>
       </div>

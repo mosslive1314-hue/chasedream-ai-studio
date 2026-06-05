@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import {
-  ChevronLeft, ChevronRight, SkipBack, RefreshCw, Trophy, Play,
+  ChevronRight, SkipBack, RefreshCw, Trophy, Play,
   FlaskConical, Gamepad2, AlertTriangle, Clock, RotateCw,
   Map, Star, GitBranch, Eye, ArrowRight,
   Target, Users, Package, GitMerge, Ruler, Zap, Lock,
@@ -389,11 +389,6 @@ export default function SimulatorScreen() {
         {/* ── 顶部栏 (含 Tab 切换器) ── */}
         <div className="relative z-10 pt-4 px-4 pb-2">
           <div className="flex items-center gap-2 mb-2">
-            <motion.button whileTap={{ scale: 0.85 }} onClick={() => router.back()}
-              className="p-1.5 rounded-full backdrop-blur focus:outline-none"
-              style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff" }}>
-              <ChevronLeft size={16} />
-            </motion.button>
             <span className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
               {projectName} · {mainTab === "play" ? "试玩模式" : mainTab === "test" ? "自动测试" : "探索图"}
             </span>
@@ -429,26 +424,6 @@ export default function SimulatorScreen() {
               </motion.button>
             ))}
           </div>
-
-          {/* HUD 变量显示 (play mode only) */}
-          {mainTab === "play" && (
-            <div className="flex gap-2 px-2.5 py-1 rounded-lg backdrop-blur text-[8px] font-bold mt-2"
-              style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.15)" }}>
-              {Object.entries(vars).map(([k, v]) => (
-                <span key={k} className="flex items-center gap-1" style={{
-                  color: k === "stealth_score" && v < 60 ? "#FCA5A5" :
-                    k === "alert_level" && v > 60 ? "#FCD34D" : "#34D399"
-                }}>
-                  <div className="w-1.5 h-1.5 rounded-full" style={{
-                    background: k === "stealth_score" && v < 60 ? "#FCA5A5" :
-                      k === "alert_level" && v > 60 ? "#FCD34D" : "#34D399"
-                  }} />
-                  {k === "stealth_score" ? "潜行" : k === "alert_level" ? "警戒" :
-                    k === "trust_lineman" ? "信任" : "真相"}: {v}
-                </span>
-              ))}
-            </div>
-          )}
 
           {/* Subgraph lock status indicator (play mode only) */}
           {mainTab === "play" && lockedNodeIds.size > 0 && (
@@ -1400,29 +1375,6 @@ export default function SimulatorScreen() {
                         </span>
                       ))}
                   </div>
-                </div>
-              </div>
-
-              {/* Exploration completion progress bar */}
-              <div className="mb-2">
-                <div className="flex justify-between mb-1">
-                  <span className="text-[8px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-                    探索完成度
-                  </span>
-                  <span className="text-[9px] font-mono font-bold" style={{
-                    color: coverageColor(exploration.nodeCoverage)
-                  }}>
-                    {exploration.nodeCoverage}%
-                  </span>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                  <motion.div
-                    className="h-full rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${exploration.nodeCoverage}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                    style={{ background: `linear-gradient(90deg, ${S.primary}, ${coverageColor(exploration.nodeCoverage)})` }}
-                  />
                 </div>
               </div>
 

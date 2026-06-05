@@ -719,7 +719,6 @@ function TiptapEditorPanel({
   block: ScriptBlock;
   onUpdate: (html: string) => void;
 }) {
-  const [isSaved, setIsSaved] = useState(true);
   const [wordCount, setWordCount] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onUpdateRef = useRef(onUpdate);
@@ -758,11 +757,9 @@ function TiptapEditorPanel({
     content: block.content,
     onUpdate: ({ editor: ed }) => {
       setWordCount(ed.state.doc.content.size - 1);
-      setIsSaved(false);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         onUpdateRef.current(ed.getHTML());
-        setIsSaved(true);
       }, 300);
     },
   });
@@ -1287,21 +1284,12 @@ function TiptapEditorPanel({
 
       {/* Bottom status bar */}
       <div
-        className="flex items-center justify-between px-4 py-1.5 shrink-0"
+        className="flex items-center px-4 py-1.5 shrink-0"
         style={{ background: S.card, borderTop: `1px solid ${S.border}` }}
       >
         <span className="text-[10px]" style={{ color: S.text3 }}>
           {wordCount} 字
         </span>
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-1.5 h-1.5 rounded-full"
-            style={{ background: isSaved ? S.success : S.warning }}
-          />
-          <span className="text-[10px]" style={{ color: isSaved ? S.success : S.warning }}>
-            {isSaved ? "已同步" : "编辑中..."}
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -1474,11 +1462,8 @@ export default function ScriptScreen() {
           <>
             {/* ── 左侧边栏：剧本块导航 ── */}
             <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: 220, background: S.card, borderRight: `1px solid ${S.border}` }}>
-              <div className="flex items-center justify-between px-3 py-2 shrink-0" style={{ borderBottom: `1px solid ${S.border}` }}>
+              <div className="px-3 py-2 shrink-0" style={{ borderBottom: `1px solid ${S.border}` }}>
                 <span className="text-[10px] font-bold" style={{ color: S.text }}>剧本段落</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: S.s2, color: S.text3 }}>
-                  {blocks.length} 段
-                </span>
               </div>
               <div className="flex-1 overflow-y-auto py-1.5 px-2 space-y-0.5">
                 {blocks.map(block => (
@@ -1542,12 +1527,6 @@ export default function ScriptScreen() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <motion.button whileTap={{ scale: 0.97 }}
-                    onClick={() => sendAi("帮我润色本章全部内容，优化语言表达和情绪节奏")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
-                    style={{ background: `${S.primary}12`, border: `1px solid ${S.primary}25`, color: S.primary }}>
-                    ✨ AI润色本章
-                  </motion.button>
                   {activeLayer === "interactive" && (
                     <Link href="/nodes">
                       <motion.button whileTap={{ scale: 0.97 }}
@@ -1622,22 +1601,7 @@ export default function ScriptScreen() {
                 {splitPreview && (
                   <div className="flex-1 rounded-xl border p-4 overflow-y-auto m-2" style={{ borderColor: S.border, background: S.card }}>
                     <h3 className="text-sm font-semibold mb-3" style={{ color: S.text }}>场景预览</h3>
-                    {currentChapter && (
-                      <div className="space-y-3">
-                        {currentChapter.keyDialogue && (
-                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>关键对白</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.keyDialogue}</p></div>
-                        )}
-                        {currentChapter.characterStates && (
-                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>角色状态</span><p className="text-xs mt-1" style={{ color: S.text3 }}>{currentChapter.characterStates}</p></div>
-                        )}
-                        {currentChapter.suspenseHook && (
-                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>悬念钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.warning, background: "rgba(245,158,11,0.08)" }}>{currentChapter.suspenseHook}</p></div>
-                        )}
-                        {currentChapter.chapterEndHook && (
-                          <div><span className="text-xs font-medium" style={{ color: S.text2 }}>章末钩子</span><p className="text-xs mt-1 p-2 rounded" style={{ color: S.accent, background: "rgba(249,115,22,0.08)" }}>{currentChapter.chapterEndHook}</p></div>
-                        )}
-                      </div>
-                    )}
+                    <p className="text-[10px]" style={{ color: S.text3 }}>章节规划详情请查看「章节规划」标签页</p>
                   </div>
                 )}
               </div>

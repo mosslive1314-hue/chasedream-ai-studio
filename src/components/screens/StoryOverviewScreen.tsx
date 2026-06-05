@@ -84,7 +84,6 @@ export default function StoryOverviewScreen() {
   const narrativeIntents = useNarrativeStore(s => s.narrativeIntents);
   const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
   const timedDecisions = useNarrativeStore(s => s.timedDecisions);
-  const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const assetCards = useNarrativeStore(s => s.assetCards);
   const relationshipMeters = useNarrativeStore(s => s.relationshipMeters);
   const moralAxes = useNarrativeStore(s => s.moralAxes);
@@ -111,9 +110,6 @@ export default function StoryOverviewScreen() {
     storyNodes, narrativeIntents, consequenceChains, variables,
   }), [storyNodes, narrativeIntents, consequenceChains, variables]);
   const tensionStats = useMemo(() => getTensionStats(tensionCurve), [tensionCurve]);
-
-  const qcPassed = qualityChecks.filter(q => q.status === "ok").length;
-  const qcTotal = qualityChecks.length;
 
   return (
     <div className="h-svh flex flex-col overflow-hidden" style={{ background: S.bg }}>
@@ -700,25 +696,6 @@ export default function StoryOverviewScreen() {
                     );
                   })()}
                 </div>
-
-                {/* QC summary */}
-                {qcTotal > 0 && (
-                  <div className="rounded-2xl p-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-                    <h3 className="text-xs font-bold mb-4 flex items-center gap-2" style={{ color: S.text }}>
-                      <Shield size={13} style={{ color: S.success }} /> 质量检查通过率
-                    </h3>
-                    <div className="flex items-center gap-4 mb-3">
-                      <span className="text-3xl font-bold font-mono" style={{ color: qcPassed === qcTotal ? S.success : S.warning }}>
-                        {Math.round((qcPassed / qcTotal) * 100)}%
-                      </span>
-                      <span className="text-[9px]" style={{ color: S.text3 }}>通过 {qcPassed}/{qcTotal} 项</span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: S.s3 }}>
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${(qcPassed / qcTotal) * 100}%` }} transition={{ duration: 0.6 }}
-                        className="h-full rounded-full" style={{ background: qcPassed === qcTotal ? S.success : S.warning }} />
-                    </div>
-                  </div>
-                )}
 
                 {/* Narrative scoring summary */}
                 {tensionCurve.length > 0 && (
