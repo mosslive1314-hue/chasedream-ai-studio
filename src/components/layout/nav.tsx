@@ -13,8 +13,8 @@ import { INDUSTRY_LABELS, type IndustryType } from "@/lib/studio-data";
 import { useUIStore } from "@/store";
 import { useNarrativeStore } from "@/store";
 
-import { auth } from "@eazo/sdk";
-import { useEazo } from "@eazo/sdk/react";
+import { useAuthStore } from "@/store/use-auth-store";
+
 
 const W_OPEN = 200;
 const W_CLOSED = 56;
@@ -1002,8 +1002,8 @@ export function SideNav() {
 /* ── Sidebar User Profile (compact) ───────────────────────────────────── */
 
 function SidebarUserProfile({ open }: { open: boolean }) {
-  const user = useEazo((s) => s.auth.user);
-  const loading = useEazo((s) => s.auth.loading);
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
   const [menuOpen, setMenuOpen] = useState(false);
 
   if (loading) {
@@ -1018,7 +1018,7 @@ function SidebarUserProfile({ open }: { open: boolean }) {
     return (
       <motion.button
         whileTap={{ scale: 0.97 }}
-        onClick={() => auth.login().catch(() => undefined)}
+        onClick={() => useAuthStore.getState().login()}
         className="flex items-center gap-2 px-2.5 py-2 rounded-xl w-full transition-colors hover:bg-gray-50"
       >
         <UserRound size={14} style={{ color: "#9198B5" }} />
@@ -1090,7 +1090,7 @@ function SidebarUserProfile({ open }: { open: boolean }) {
               {user.email && <p className="text-[10px] truncate mt-0.5" style={{ color: "#8892B0" }}>{user.email}</p>}
             </div>
             <button
-              onClick={() => { auth.logout(); setMenuOpen(false); }}
+              onClick={() => { useAuthStore.getState().logout(); setMenuOpen(false); }}
               className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-left transition-colors hover:bg-gray-50"
             >
               <LogOut size={12} style={{ color: "#9198B5" }} />

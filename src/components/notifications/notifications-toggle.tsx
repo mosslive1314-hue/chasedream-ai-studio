@@ -1,127 +1,39 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { auth, notifications } from "@eazo/sdk";
-import { useEazo } from "@eazo/sdk/react";
+import { useAuthStore } from "@/store/use-auth-store";
 
-import { request } from "@/lib/api/request";
-
-/** Subscribe toggle + "Send test" button shown above the todo list. */
+/**
+ * Notification preferences toggle.
+ * Currently a UI stub — notification backend is not yet connected.
+ * Will be wired to a real push notification service in production.
+ */
 export function NotificationsToggle() {
-  const user = useEazo((s) => s.auth.user);
-  const platform = useEazo((s) => s.device.platform);
-  const isMobileHost = platform === "mobile";
-
-  const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const [subscribed, setSubscribed] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [sending, setSending] = useState(false);
-
-  useEffect(() => {
-    if (!user) {
-      setSubscribed(null);
-      return;
-    }
-    let cancelled = false;
-    notifications
-      .isSubscribed()
-      .then((r) => {
-        if (!cancelled) setSubscribed(r.subscribed);
-      })
-      .catch(() => {
-        if (!cancelled) setSubscribed(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   if (!user) return null;
 
   async function handleToggle() {
     if (toggling) return;
     setToggling(true);
-    const wantOn = subscribed !== true;
-    setSubscribed(wantOn); // optimistic
+    const wantOn = !subscribed;
+    setSubscribed(wantOn);
     try {
-      const result = wantOn
-        ? await notifications.subscribe()
-        : await notifications.unsubscribe();
-      setSubscribed(result.subscribed);
-      if (!isMobileHost) {
-        toast.info("Notifications only deliver inside the Eazo mobile app.");
-      } else if (result.subscribed) {
-        toast.success("Subscribed — you'll receive system notifications.");
+      // TODO: Wire to real notification subscription API
+      if (wantOn) {
+        toast.success("通知已开启");
       } else {
-        toast.success("Unsubscribed.");
+        toast.success("通知已关闭");
       }
-    } catch (err) {
-      console.error("[notifications] toggle failed", err);
-      setSubscribed(!wantOn); // revert
-      toast.error("Couldn't update subscription. Try again.");
+    } catch {
+      setSubscribed(!wantOn);
+      toast.error("通知设置更新失败，请重试");
     } finally {
       setToggling(false);
     }
   }
-
-  async function handleSendTest() {
-    if (sending) return;
-    setSending(true);
-    try {
-      const sessionHeader = await auth.getSessionHeader();
-      if (!sessionHeader) {
-        toast.error(
-          "Session not ready yet — please sign in again and retry.",
-        );
-        console.warn(
-          "[notifications] test publish skipped: auth.getSessionHeader() returned null",
-        );
-        return;
-      }
-
-      const res = await request("/api/notifications/test", { method: "POST" });
-      const text = await res.text();
-      let body: unknown = null;
-      try {
-        body = text ? JSON.parse(text) : null;
-      } catch {
-        body = text;
-      }
-      if (!res.ok) {
-        const message =
-          body && typeof body === "object" && "error" in body
-            ? String((body as { error: unknown }).error)
-            : `HTTP ${res.status}`;
-        console.error("[notifications] test publish failed", {
-          status: res.status,
-          body,
-        });
-        toast.error(`Test failed: ${message}`);
-        return;
-      }
-
-      const data = body as { delivered: number; publishId: string };
-      if (data.delivered > 0) {
-        toast.success(
-          `Sent! Delivered to ${data.delivered} subscriber${
-            data.delivered === 1 ? "" : "s"
-          }.`,
-        );
-      } else {
-        toast.info(
-          "No subscribers yet — turn on notifications above and try again.",
-        );
-      }
-    } catch (err) {
-      console.error("[notifications] test publish unexpected error", err);
-      toast.error(
-        err instanceof Error ? `Test failed: ${err.message}` : "Test failed.",
-      );
-    } finally {
-      setSending(false);
-    }
-  }
-
-  const showHint = subscribed !== null && !isMobileHost;
 
   return (
     <div className="mb-4 flex flex-col gap-2 rounded-[14px] border border-white/70 bg-white/60 p-3 shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
@@ -135,21 +47,17 @@ export function NotificationsToggle() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-slate-950/80">
-            Push notifications
+            推送通知
           </p>
           <p className="text-[12px] text-slate-950/45">
-            {showHint
-              ? "Open this app inside Eazo Mobile to receive system pushes."
-              : subscribed === null
-                ? "Loading…"
-                : subscribed
-                  ? "On — you'll receive system pushes from this app."
-                  : "Off — turn on to receive system pushes."}
+            {subscribed
+              ? "已开启 — 你将收到系统推送通知"
+              : "已关闭 — 开启后可接收系统推送通知"}
           </p>
         </div>
         <button
           onClick={handleToggle}
-          disabled={toggling || subscribed === null}
+          disabled={toggling}
           className={`flex h-8 items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition-all duration-200 ${
             subscribed
               ? "bg-[linear-gradient(180deg,#F47A42_0%,#EE5C2A_100%)] text-white shadow-[0_4px_10px_rgba(238,92,42,0.32)] hover:brightness-105"
@@ -159,19 +67,12 @@ export function NotificationsToggle() {
           {toggling ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : subscribed ? (
-            "On"
+            "已开启"
           ) : (
-            "Off"
+            "已关闭"
           )}
         </button>
       </div>
-      <button
-        onClick={handleSendTest}
-        disabled={sending}
-        className="self-end h-7 rounded-[8px] border border-white/70 bg-white/72 px-3 text-[11px] font-semibold text-slate-950/55 shadow-[0_2px_6px_rgba(15,23,42,0.05)] transition-colors hover:bg-white/86 hover:text-[#EE5C2A] disabled:opacity-50"
-      >
-        {sending ? "Sending…" : "Send test notification"}
-      </button>
     </div>
   );
 }

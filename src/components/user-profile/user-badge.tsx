@@ -1,13 +1,12 @@
 
 import { useRef, useState, useEffect } from "react";
 import { LogOut, UserRound, X } from "lucide-react";
-import { auth } from "@eazo/sdk";
-import { useEazo } from "@eazo/sdk/react";
-import type { User } from "@eazo/sdk";
+import { useAuthStore } from "@/store/use-auth-store";
+import type { User } from "@/lib/auth";
 
 export function UserBadge() {
-  const user = useEazo((s) => s.auth.user);
-  const loading = useEazo((s) => s.auth.loading);
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -31,12 +30,12 @@ export function UserBadge() {
     return (
       <button
         onClick={() => {
-          auth.login().catch(() => undefined);
+          useAuthStore.getState().login();
         }}
         className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium shadow-sm transition-shadow hover:shadow-md"
       >
         <UserRound className="h-4 w-4 text-muted-foreground" />
-        Sign in
+        登录
       </button>
     );
   }
@@ -48,13 +47,13 @@ export function UserBadge() {
         <DropdownPanel user={user} onClose={() => setOpen(false)}>
           <button
             onClick={() => {
-              auth.logout();
+              useAuthStore.getState().logout();
               setOpen(false);
             }}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <LogOut className="h-3.5 w-3.5" />
-            Sign out
+            退出登录
           </button>
         </DropdownPanel>
       )}

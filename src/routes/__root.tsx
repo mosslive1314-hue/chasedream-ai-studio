@@ -28,7 +28,7 @@ function RootLayout() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>逐梦 Creator Studio</title>
         <meta name="description" content="AI 互动影游开发工作台 — 将剧本转化为可玩互动叙事结构" />
-        <link rel="icon" href="https://eazo.ai/favicon.ico" />
+        <link rel="icon" href="/favicon.ico" />
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
           rel="stylesheet"
@@ -50,10 +50,8 @@ function RootLayout() {
 function AppShell() {
   // These imports are safe inside <ClientOnly> because they only
   // run on the client where window/document/localStorage exist.
-  const { EazoProvider } = require("@eazo/sdk/react");
   const { StoreHydrator } = require("@/store/StoreHydrator");
   const { ProjectSwitcher } = require("@/store/ProjectSwitcher");
-  const { EazoBannerHider } = require("@/components/ui/EazoBannerHider");
   const { UserSyncEffect } = require("@/components/user-profile/user-sync-effect");
   const { UndoRedoListener } = require("@/components/ui/UndoRedoListener");
   const { CommandPalette } = require("@/components/ui/CommandPalette");
@@ -69,12 +67,13 @@ function AppShell() {
   const { SkillLibraryDrawer } = require("@/components/ui/SkillLibraryDrawer");
   const AIChatPanel = require("@/components/ui/AIChatPanel").default;
   const { ProModeToggle } = require("@/components/ui/ProModeToggle");
+  const { AuthBootstrap } = require("@/components/lib/AuthBootstrap");
 
   return (
-    <EazoProvider>
+    <>
+      <AuthBootstrap />
       <StoreHydrator />
       <ProjectSwitcher />
-      <EazoBannerHider />
       <UserSyncEffect />
       <UndoRedoListener />
       <CommandPalette />
@@ -97,6 +96,6 @@ function AppShell() {
       <SkillLibraryDrawer />
       <AIChatPanel />
       <ProModeToggle />
-    </EazoProvider>
+    </>
   );
 }

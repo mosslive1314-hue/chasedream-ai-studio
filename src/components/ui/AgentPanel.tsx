@@ -312,7 +312,7 @@ export function AgentPanel() {
   const quickActions = getQuickActions(pathname, activeExpert);
   const statusCfg = STATUS_CONFIG[runStatus];
 
-  // ─── Render (createPortal 脱离 EazoProvider 层叠上下文) ──────────────
+  // ─── Render (createPortal for overlay) ──────────────
   if (!mounted) return null;
   return createPortal(
     <>

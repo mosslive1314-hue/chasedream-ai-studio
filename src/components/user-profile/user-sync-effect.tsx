@@ -1,40 +1,25 @@
 import { useEffect, useRef } from "react";
-import { auth } from "@eazo/sdk";
-import { useEazo } from "@eazo/sdk/react";
+import { useAuthStore } from "@/store/use-auth-store";
 
 /**
- * Mobile-only: hits /api/user/profile once after login to upsert the user
- * into the local DB. Web doesn't need this — the SDK already calls the same
- * endpoint during web bootstrap; mobile bootstraps from the bridge `hello`
- * instead and never auto-fetches profile, so the upsert has to be triggered
- * manually here.
+ * Syncs the auth user on mount.
+ * In the original version this synced the user profile to a server
+ * via the Eazo mobile bridge. Now it just ensures the auth store is
+ * bootstrapped on mount.
  */
 export function UserSyncEffect() {
-  const authenticated = useEazo((s) => s.auth.authenticated);
-  const platform = useEazo((s) => s.device.platform);
+  const user = useAuthStore((s) => s.user);
   const syncedUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!authenticated || platform !== "mobile") return;
+    if (!user) return;
+    if (syncedUserId.current === user.id) return;
 
-    const userId = auth.user?.id ?? null;
-    if (!userId || syncedUserId.current === userId) return;
+    syncedUserId.current = user.id;
 
-    syncedUserId.current = userId;
-
-      (async () => {
-      try {
-        const sessionHeader = await auth.getSessionHeader();
-        if (!sessionHeader) return;
-
-        await fetch("/api/user/profile", {
-          headers: { "x-eazo-session": sessionHeader },
-        });
-      } catch (err) {
-        console.error("[UserSyncEffect] profile fetch failed", err);
-      }
-    })();
-  }, [authenticated, platform]);
+    // TODO: In production, sync user profile to your backend here
+    // e.g. await fetch("/api/user/profile", { method: "POST", body: JSON.stringify(user) });
+  }, [user]);
 
   return null;
 }

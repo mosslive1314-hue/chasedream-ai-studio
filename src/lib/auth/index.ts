@@ -1,9 +1,9 @@
 /**
- * Auth module — re-exports requireAuth from @eazo/sdk/server.
+ * Auth module — server-side authentication.
  *
- * In development (when EAZO_PRIVATE_KEY is not set), provides a
- * dev-mode stub that always returns a mock authenticated user.
- * In production, delegates to the real Eazo auth server.
+ * In development: returns a mock authenticated user.
+ * In production: should be connected to your actual auth provider
+ * (e.g. verify JWT token from cookies, check session in DB, etc.).
  */
 
 export type User = {
@@ -20,31 +20,29 @@ export type AuthResult =
 const DEV_USER: User = {
   id: "dev-user-001",
   email: "dev@chasedream.local",
-  name: "Dev User",
+  name: "开发者",
   avatarUrl: null,
 };
 
-const isDev = !process.env.EAZO_PRIVATE_KEY;
-
 /**
  * Server-side auth guard.
- * - In production (EAZO_PRIVATE_KEY set): validates the x-eazo-session header.
- * - In development (no EAZO_PRIVATE_KEY): returns a mock dev user.
+ * - In development: always returns the mock dev user.
+ * - In production: TODO — validate session token from request headers.
  */
 export function requireAuth(request: {
   headers: { get(name: string): string | null };
 }): AuthResult {
+  const isDev = !process.env.AUTH_SECRET;
+
   if (isDev) {
-    // Dev mode: always authenticated with mock user
     return { ok: true, user: DEV_USER };
   }
 
-  // Production: delegate to @eazo/sdk/server
-  try {
-    const { requireAuth: realRequireAuth } = require("@eazo/sdk/server");
-    return realRequireAuth(request);
-  } catch (err) {
-    console.error("[auth] Failed to initialize Eazo auth, falling back to dev mode:", err);
-    return { ok: true, user: DEV_USER };
-  }
+  // TODO: Production auth — verify session token from request.headers
+  // Example: const token = request.headers.get("authorization");
+  //          const user = await verifyToken(token);
+  //          if (!user) return { ok: false, response: new Response("Unauthorized", { status: 401 }) };
+
+  // Fallback for now
+  return { ok: true, user: DEV_USER };
 }

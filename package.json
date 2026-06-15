@@ -10,9 +10,6 @@
     "start": "node .output/server/index.mjs",
     "lint": "eslint",
     "cleanup:demo": "bun scripts/cleanup-demo.ts",
-    "sdk:sync": "rm -rf node_modules/@eazo/sdk && mkdir -p node_modules/@eazo/sdk && cp ../eazo-sdk/sdk/package.json node_modules/@eazo/sdk/ && cp -r ../eazo-sdk/sdk/dist node_modules/@eazo/sdk/dist && cp -R ../eazo-sdk/sdk/node_modules node_modules/@eazo/sdk/node_modules",
-    "sdk:dev": "(cd ../eazo-sdk/sdk && npm run build) && bun run sdk:sync",
-    "sdk:watch": "bun run scripts/sdk-watch.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/lib/db/migrate.ts",
     "db:push": "drizzle-kit push",
@@ -21,7 +18,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
-    "@eazo/sdk": "0.17.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/react-query": "^5.81.5",
     "@tanstack/react-router": "^1.170.15",

@@ -1,4 +1,4 @@
-import type { User } from "@eazo/sdk";
+import type { User } from "@/lib/auth";
 import { request } from "./request";
 
 export async function fetchUserProfile(): Promise<User | null> {

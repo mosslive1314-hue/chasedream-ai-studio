@@ -8,7 +8,7 @@ import { useState, useEffect, type ReactNode } from "react";
  *
  * Usage:
  *   <ClientOnly>
- *     <EazoProvider>...</EazoProvider>
+ *     <SomeClientComponent />
  *   </ClientOnly>
  *
  *   <ClientOnly fallback={<div>Loading...</div>}>
