@@ -1,8 +1,7 @@
-"use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, GitBranch } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC",
@@ -22,7 +21,7 @@ const SCRIPT_BLOCKS = [
 ];
 
 export default function ScriptTab() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<number | null>(null);
 
   const blockColor: Record<string,string> = {
@@ -44,7 +43,7 @@ export default function ScriptTab() {
           <Sparkles size={11} /> AI 润色本章
         </motion.button>
         <motion.button whileTap={{ scale:0.97 }}
-          onClick={() => router.push("/canvas")}
+          onClick={() => navigate({ to: "/canvas" })}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
           style={{ background:`${S.accent}12`, border:`1px solid ${S.accent}25`, color:S.accent }}>
           <GitBranch size={11} /> 转为节点图

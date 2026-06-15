@@ -1,8 +1,7 @@
-"use client";
 
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Sparkles,
   ArrowRight,
@@ -200,7 +199,7 @@ function OnboardingWizard({ onClose }: OnboardingWizardProps) {
   const [direction, setDirection] = useState(1);
   const [form, setForm] = useState<WizardFormData>(INITIAL_FORM);
 
-  const router = useRouter();
+  const navigate = useNavigate();
   const createProject = useProjectStore((s) => s.createProject);
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject);
   const projects = useProjectStore((s) => s.projects);
@@ -292,7 +291,7 @@ function OnboardingWizard({ onClose }: OnboardingWizardProps) {
     });
 
     // Navigate
-    router.push("/story-overview");
+    navigate({ to: "/story-overview" });
   };
 
   /* ── Upload handler (UI only) ─────────────────────────────────────── */

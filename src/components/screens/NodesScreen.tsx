@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,10 +12,10 @@ import {
   Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
   Users, Clock, Lock, Palette, Route, ChevronRight, MousePointer2
 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, getCurrentProject } from "@/store";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { calculateTensionCurve, getTensionStats, TENSION_COLORS } from "@/lib/tension-curve";
 import ContextualActions from "@/components/ui/ContextualActions";
@@ -1446,7 +1445,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                   </div>
 
                   {/* Link to script */}
-                  <Link href="/script"
+                  <Link to="/script"
                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold focus:outline-none"
                     style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}25` }}>
                     <ExternalLink size={10} />
@@ -3260,7 +3259,8 @@ function VariablesContent() {
 
 // ── 主编辑器页面 ──────────────────────────────────────────────────────────
 export default function NodesScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const storyNodes = useNarrativeStore(state => state.storyNodes);
   const narrativeIntents = useNarrativeStore(state => state.narrativeIntents);
   const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
@@ -3317,7 +3317,7 @@ export default function NodesScreen() {
           </div>
           <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有节点</h3>
           <p className="text-sm text-gray-500 mb-4">请先完成互动设计，节点图谱将自动生成</p>
-          <Link href="/interaction" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+          <Link to="/interaction" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
             前往互动设计 →
           </Link>
         </div>

@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Palette, Check, Sparkles, Monitor, Smartphone } from "lucide-react";

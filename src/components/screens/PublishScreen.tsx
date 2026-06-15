@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
@@ -7,7 +6,7 @@ import {
   Download, Upload, Globe, Package, Layers,
 } from "lucide-react";
 import { useNarrativeStore, useUIStore, getCurrentProject, useExportStore } from "@/store";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { EXPORT_CATEGORY_LABELS, getFormatsByIndustry } from "@/lib/seed/export-formats-seed";
 
@@ -40,7 +39,8 @@ const INDUSTRY_MAP: Record<string, 'game' | 'tourism' | 'education' | 'derivativ
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function PublishScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   // ── Store selectors ──
   const projectName = getCurrentProject()?.title || "当前项目";
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);

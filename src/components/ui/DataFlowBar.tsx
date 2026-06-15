@@ -1,8 +1,7 @@
-"use client";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ArrowLeft, Sparkles, CheckCircle2, AlertCircle, ChevronDown, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import {
   type BridgeSource,
   type BridgeTransfer,
@@ -44,7 +43,7 @@ const PAGE_LABELS: Record<BridgeSource, string> = {
  * 显示当前页面在创作管线中的数据流入/流出状态
  */
 export function DataFlowBar({ page, onPushForward, onReceiveIncoming }: DataFlowBarProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const addToast = useUIStore(s => s.addToast);
   const [incomingCount, setIncomingCount] = useState(0);
   const [showIncoming, setShowIncoming] = useState(false);
@@ -92,8 +91,8 @@ export function DataFlowBar({ page, onPushForward, onReceiveIncoming }: DataFlow
 
   // 导航到目标页
   const handleNavigate = useCallback((target: BridgeSource) => {
-    router.push(getTargetRoute(target));
-  }, [router]);
+    navigate({ to: getTargetRoute(target) });
+  }, [navigate]);
 
   if (!incoming && !outgoing) return null;
 

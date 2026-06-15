@@ -1,8 +1,7 @@
-"use client";
 import { useState, useMemo } from "react";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import {
   Play, Users, MousePointer, Star, Edit3, Trash2,
   Plus, BarChart3, BookOpen, Clapperboard,
@@ -48,7 +47,8 @@ const FADE = {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function MyWorksScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const [activeTab, setActiveTab] = useState(0);
 
   const projects       = useProjectStore(s => s.projects);
@@ -209,7 +209,7 @@ export default function MyWorksScreen() {
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-semibold" style={{ color: S.text }}>全部作品</span>
                 <Link
-                  href="/?action=new-project"
+                  to="/"
                   className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
                   style={{ background: S.primary }}
                 >
@@ -285,7 +285,7 @@ export default function MyWorksScreen() {
                           className="absolute bottom-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
                         >
                           <Link
-                            href="/nodes"
+                            to="/nodes"
                             onClick={e => { e.stopPropagation(); handleSelect(p.id); }}
                             className="flex h-6 w-6 items-center justify-center rounded-full"
                             style={{ background: S.primary10 }}
@@ -329,7 +329,7 @@ export default function MyWorksScreen() {
                     暂无已发布作品，发布后可在此查看表现数据
                   </p>
                   <Link
-                    href="/publish"
+                    to="/publish"
                     className="mt-3 rounded-full px-4 py-1.5 text-xs font-medium text-white"
                     style={{ background: S.primary }}
                   >

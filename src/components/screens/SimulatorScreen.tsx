@@ -1,8 +1,8 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
+import { useNavigate } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import {
   ChevronRight, SkipBack, RefreshCw, Trophy, Play,
@@ -110,8 +110,9 @@ interface AdvDiag {
 }
 
 export default function SimulatorScreen() {
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
 
   // ── Store selectors ──
   const projectName = getCurrentProject()?.title || "当前项目";
@@ -346,7 +347,7 @@ export default function SimulatorScreen() {
           </div>
           <h3 className="text-base font-bold mb-2 text-white">还没有可试玩的内容</h3>
           <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>请先完成节点设计，模拟器将自动加载</p>
-          <Link href="/nodes" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+          <Link to="/nodes" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
             前往节点设计 →
           </Link>
         </div>
@@ -548,7 +549,7 @@ export default function SimulatorScreen() {
                         style={{ background: `linear-gradient(135deg,${S.primary},${S.accent})` }}>
                         <RefreshCw size={13} /> 重新试玩
                       </motion.button>
-                      <motion.button whileTap={{ scale: 0.96 }} onClick={() => router.back()}
+                      <motion.button whileTap={{ scale: 0.96 }} onClick={() => navigate({ to: ".." })}
                         className="px-4 py-3 rounded-xl text-xs font-medium focus:outline-none"
                         style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)",
                           border: "1px solid rgba(255,255,255,0.15)" }}>

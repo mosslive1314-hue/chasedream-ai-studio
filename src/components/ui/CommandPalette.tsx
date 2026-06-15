@@ -1,6 +1,5 @@
-"use client";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Network, Users, FileText, Activity,
@@ -39,7 +38,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Store data
   const storyNodes = useNarrativeStore(s => s.storyNodes);
@@ -101,8 +100,8 @@ export function CommandPalette() {
     if (item.type === "node") {
       setSelectedNodeId(item.id.replace("node-", ""));
     }
-    router.push(item.href);
-  }, [router, setSelectedNodeId]);
+    navigate({ to: item.href });
+  }, [navigate, setSelectedNodeId]);
 
   // Cmd+K shortcut
   useEffect(() => {

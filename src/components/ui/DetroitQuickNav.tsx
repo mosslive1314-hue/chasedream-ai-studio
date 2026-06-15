@@ -1,7 +1,6 @@
-"use client";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 
 /**
  * Maps former Detroit feature tabs to their new home pages after restructure:
@@ -34,7 +33,7 @@ interface DetroitQuickNavProps {
 export function DetroitQuickNav({ targetTab, label }: DetroitQuickNavProps) {
   const href = TAB_ROUTE_MAP[targetTab] || "/nodes";
   return (
-    <Link href={href}>
+    <Link to={href}>
       <motion.div
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}

@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -7,8 +6,8 @@ import {
   Image, Music, Mic, Film, Edit2,
   Library, Search, FileText,
 } from "lucide-react";
-import Link from "next/link";
-import { useSearchParams, usePathname } from "next/navigation";
+import { Link } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import ContextualActions from "@/components/ui/ContextualActions";
 import UnifiedAssetCard from "@/components/ui/UnifiedAssetCard";
@@ -81,7 +80,8 @@ const ASSET_FILTER_MAP: Record<string, (a: AssetCard) => boolean> = {
 };
 
 export default function AssetsScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   // ── Store selectors ──
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const nodeEdges = useNarrativeStore(s => s.nodeEdges);
@@ -94,7 +94,7 @@ export default function AssetsScreen() {
   const setIndustry = useUIStore(s => s.setIndustry);
   const addToast = useUIStore(s => s.addToast);
   const proMode = useUIStore(s => s.proMode);
-  const searchParams = useSearchParams();
+  const searchParams = new URLSearchParams(location.search);
   const activeTab = searchParams.get("tab") || "image";
 
   const [viewMode, setViewMode] = useState<"pipeline" | "by-node">("pipeline");
@@ -198,7 +198,7 @@ export default function AssetsScreen() {
           </div>
           <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有资产需求</h3>
           <p className="text-sm text-gray-500 mb-4">节点设计完成后，这里会自动生成资产需求</p>
-          <Link href="/nodes" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+          <Link to="/nodes" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
             前往节点设计 →
           </Link>
         </div>
@@ -220,7 +220,7 @@ export default function AssetsScreen() {
           { id: "video", label: "视频", icon: Film },
           { id: "library", label: "资产库", icon: Library },
         ].map(tab => (
-          <Link key={tab.id} href={`/assets?tab=${tab.id}`}>
+          <Link key={tab.id} to="/assets">
             <motion.button whileTap={{ scale: 0.96 }}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold focus:outline-none transition-all"
               style={{
@@ -279,7 +279,7 @@ export default function AssetsScreen() {
                 按节点
               </motion.button>
             </div>
-            <Link href="/nodes">
+            <Link to="/nodes">
               <motion.button whileTap={{ scale:0.97 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
                 style={{ background:`linear-gradient(135deg,${S.primary},#A78BFA)` }}>
@@ -353,7 +353,7 @@ export default function AssetsScreen() {
                         {gameCharacters.length} 位
                       </span>
                       <div className="flex-1" />
-                      <Link href="/script">
+                      <Link to="/script">
                         <motion.button whileTap={{ scale: 0.96 }}
                           className="text-[8px] px-2 py-0.5 rounded-lg font-bold focus:outline-none"
                           style={{ background: `${S.accent}10`, color: S.accent, border: `1px solid ${S.accent}25` }}>
@@ -366,7 +366,7 @@ export default function AssetsScreen() {
                     ) : (
                       <div className="grid grid-cols-4 gap-1.5">
                         {gameCharacters.map(c => (
-                          <Link key={c.id} href="/script">
+                          <Link key={c.id} to="/script">
                             <div className="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
                               style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                               <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
@@ -400,7 +400,7 @@ export default function AssetsScreen() {
                         {gameScenes.length} 个
                       </span>
                       <div className="flex-1" />
-                      <Link href="/cinematic-editor">
+                      <Link to="/cinematic">
                         <motion.button whileTap={{ scale: 0.96 }}
                           className="text-[8px] px-2 py-0.5 rounded-lg font-bold focus:outline-none"
                           style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}25` }}>
@@ -413,7 +413,7 @@ export default function AssetsScreen() {
                     ) : (
                       <div className="grid grid-cols-4 gap-1.5">
                         {gameScenes.map(sc => (
-                          <Link key={sc.id} href="/cinematic-editor">
+                          <Link key={sc.id} to="/cinematic">
                             <div className="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
                               style={{ background: S.s2, border: `1px solid ${S.border}` }}>
                               <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
@@ -718,7 +718,7 @@ export default function AssetsScreen() {
         <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
           style={{ borderColor: S.border }}>
           <span className="text-xs text-gray-500">下一步：查看质检结果</span>
-          <Link href="/overview" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+          <Link to="/overview" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
             前往质检总览 →
           </Link>
         </div>

@@ -1,9 +1,8 @@
-"use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { GitBranch, ChevronRight, ChevronDown, X, Check, Edit2, BookOpen, Layout, Sparkles, Columns, Bold, Italic, Underline as UnderlineIcon, Highlighter, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Plus, Shield, Loader2, MessageSquare, Layers, Share2 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -1296,7 +1295,8 @@ function TiptapEditorPanel({
 }
 
 export default function ScriptScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const projectName = getCurrentProject()?.title || "当前项目";
   const narrativeTemplates = NARRATIVE_TEMPLATES.map(t =>
     t.id === 'three-act' ? { ...t, examples: `《${projectName}》当前结构接近三幕式` } : t
@@ -1528,7 +1528,7 @@ export default function ScriptScreen() {
                 </div>
                 <div className="flex gap-2">
                   {activeLayer === "interactive" && (
-                    <Link href="/nodes">
+                    <Link to="/nodes">
                       <motion.button whileTap={{ scale: 0.97 }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold focus:outline-none"
                         style={{ background: `${S.accent}12`, border: `1px solid ${S.accent}25`, color: S.accent }}>

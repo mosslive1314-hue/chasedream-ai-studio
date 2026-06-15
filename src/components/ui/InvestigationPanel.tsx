@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Fingerprint, FileText, Lightbulb, Brain, CheckCircle2, XCircle, AlertCircle, Link2, Monitor, Eye, HelpCircle, Clock, Star, ChevronDown } from "lucide-react";

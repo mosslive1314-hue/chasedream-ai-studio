@@ -1,8 +1,7 @@
-"use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 
 const S = {
   bg: "#FAFBFF",
@@ -92,7 +91,7 @@ export default function ContextualActions({ actions, position = "bottom-right" }
 
               if (action.href && !action.disabled) {
                 return (
-                  <Link key={i} href={action.href} onClick={() => setExpanded(false)}>
+                  <Link key={i} to={action.href} onClick={() => setExpanded(false)}>
                     {content}
                   </Link>
                 );

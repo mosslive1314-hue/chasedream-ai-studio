@@ -1,5 +1,4 @@
 // 左侧项目结构树
-"use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, ChevronRight, User, MapPin, Package, GitBranch } from "lucide-react";

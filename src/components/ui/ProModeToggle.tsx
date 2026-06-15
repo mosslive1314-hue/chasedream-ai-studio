@@ -1,4 +1,3 @@
-"use client";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Eye } from "lucide-react";
 import { useUIStore } from "@/store";

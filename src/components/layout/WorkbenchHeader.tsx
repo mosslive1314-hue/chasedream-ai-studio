@@ -1,7 +1,6 @@
-"use client";
 import { motion } from "framer-motion";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import {
   Plus, MessageSquare, Key,
 } from "lucide-react";
@@ -15,7 +14,8 @@ const S = {
 };
 
 export function WorkbenchHeader() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const setPanelOpen = useCanvasAgentStore(s => s.setPanelOpen);
   const panelOpen = useCanvasAgentStore(s => s.panelOpen);
   const aiModel = useSettingsStore(s => s.aiModel);
@@ -27,14 +27,14 @@ export function WorkbenchHeader() {
       style={{ background: S.card, borderColor: S.border }}>
       <nav className="flex items-center gap-0.5">
         {[
-          { label: "我的作品", href: "/my-works" },
+          { label: "我的作品", to: "/my-works" as const },
         ].map(item => (
-          <Link key={item.label} href={item.href}>
+          <Link key={item.label} to={item.to}>
             <motion.span whileTap={{ scale: 0.97 }}
               className="px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50 transition-colors"
               style={{
-                color: isActive(item.href, pathname) ? S.primary : S.text2,
-                background: isActive(item.href, pathname) ? S.primary10 : "transparent",
+                color: isActive(item.to, pathname) ? S.primary : S.text2,
+                background: isActive(item.to, pathname) ? S.primary10 : "transparent",
               }}>
               {item.label}
             </motion.span>
@@ -42,7 +42,7 @@ export function WorkbenchHeader() {
         ))}
       </nav>
 
-      <Link href="/settings">
+      <Link to="/settings">
         <motion.span whileTap={{ scale: 0.97 }}
           className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg ml-1 cursor-pointer"
           style={{
@@ -73,7 +73,7 @@ export function WorkbenchHeader() {
       </motion.button>
 
       {/* 新建项目 — 主 CTA */}
-      <Link href="/?action=new-project">
+      <Link to="/">
         <motion.button whileTap={{ scale: 0.97 }}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white focus:outline-none"
           style={{ background: S.primary }}>

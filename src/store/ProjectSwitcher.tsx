@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef } from "react";
 import { useProjectStore, getCurrentProject } from "./use-project-store";
 import { useNarrativeStore } from "./use-narrative-store";

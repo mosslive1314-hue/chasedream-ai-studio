@@ -1,4 +1,3 @@
-"use client";
 import { useMemo } from 'react';
 import { useNarrativeStore } from '@/store';
 import { calculateTensionCurve, getTensionStats } from '@/lib/tension-curve';

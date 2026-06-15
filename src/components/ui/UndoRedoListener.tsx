@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useRef } from "react";
 import { useNarrativeStore } from "@/store";
 import { useHistoryStore } from "@/store/use-history-store";

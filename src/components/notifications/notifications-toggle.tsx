@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";

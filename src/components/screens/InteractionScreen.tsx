@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,8 +9,8 @@ import {
   MessageCircle, Timer, Search, Gamepad2,
   Crosshair, MousePointer, MapPin, Repeat, CircleDot, Keyboard, Package, Pencil, Trash2,
 } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import ContextualActions from "@/components/ui/ContextualActions";
 import {
@@ -66,7 +65,8 @@ type TestFilter = "all" | "tested" | "untested";
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function InteractionScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const [activeTab, setActiveTab] = useState<ViewTab>("interactions");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>("all");
@@ -207,7 +207,7 @@ export default function InteractionScreen() {
           </div>
           <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有互动设计</h3>
           <p className="text-sm text-gray-500 mb-4">请先完成剧本编辑，再进入互动设计工作台</p>
-          <Link href="/script" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+          <Link to="/script" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
             前往剧本编辑 →
           </Link>
         </div>
@@ -441,7 +441,7 @@ export default function InteractionScreen() {
                                 {/* Navigate to node */}
                                 <div className="flex justify-end pt-1">
                                   <Link
-                                    href="/nodes"
+                                    to="/nodes"
                                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors"
                                     style={{ background: S.primary10, color: S.primary }}
                                     onMouseEnter={(e) => { e.currentTarget.style.background = S.primary; e.currentTarget.style.color = "#fff"; }}
@@ -957,7 +957,7 @@ export default function InteractionScreen() {
                             <span className="text-xs font-bold block" style={{ color: S.text }}>{ip.name}</span>
                             <span className="text-[10px]" style={{ color: S.text3 }}>{ip.nodeId}</span>
                           </div>
-                          <Link href={`/interaction`} className="text-[9px] font-bold px-2 py-1 rounded-lg" style={{ background: "rgba(220,38,38,0.10)", color: S.error }}>
+                          <Link to={`/interaction`} className="text-[9px] font-bold px-2 py-1 rounded-lg" style={{ background: "rgba(220,38,38,0.10)", color: S.error }}>
                             补充
                           </Link>
                         </li>
@@ -1970,7 +1970,7 @@ export default function InteractionScreen() {
                       <Target size={24} className="mx-auto mb-3" style={{ color: S.text3 }} />
                       <p className="text-xs font-bold" style={{ color: S.text2 }}>尚未设计结局节点</p>
                       <p className="text-[10px] mt-1" style={{ color: S.text3 }}>在节点图中添加 ending_good 或 ending_bad 类型的节点</p>
-                      <Link href="/nodes" className="inline-flex items-center gap-1 mt-3 text-[10px] px-3 py-1.5 rounded-lg font-bold text-white"
+                      <Link to="/nodes" className="inline-flex items-center gap-1 mt-3 text-[10px] px-3 py-1.5 rounded-lg font-bold text-white"
                         style={{ background: S.primary }}>
                         前往节点图 <ArrowRight size={10} />
                       </Link>
@@ -2091,7 +2091,7 @@ export default function InteractionScreen() {
       {/* Next Step Navigation */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between" style={{ borderTopColor: S.border }}>
         <span className="text-xs text-gray-500">下一步：生成节点图谱</span>
-        <Link href="/nodes" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+        <Link to="/nodes" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
           进入节点图谱 →
         </Link>
       </div>

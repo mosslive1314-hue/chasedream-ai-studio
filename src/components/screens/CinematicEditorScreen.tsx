@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,7 +12,7 @@ import {
   type TransitionType, type EmotionIntensity, type POVConfig,
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import ContextualActions from "@/components/ui/ContextualActions";
 
@@ -129,7 +128,8 @@ const CHAPTER_NODE_MAP: Record<string, string[]> = {
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function CinematicEditorScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   // ── Store selectors ──
   const cinematicDirections = useNarrativeStore(s => s.cinematicDirections);
   const storyNodes = useNarrativeStore(s => s.storyNodes);

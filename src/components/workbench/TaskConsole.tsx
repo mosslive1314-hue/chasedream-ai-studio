@@ -1,5 +1,4 @@
 // 底部 AI 任务控制台
-"use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, ChevronDown, Loader2, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";

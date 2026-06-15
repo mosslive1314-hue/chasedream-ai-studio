@@ -1,4 +1,3 @@
-"use client";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,7 +7,8 @@ import {
   Settings, Terminal,
   Pencil, Plus, Save, CheckCheck,
 } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { useNarrativeStore, getCurrentProject, useUIStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import ContextualActions from "@/components/ui/ContextualActions";
@@ -387,8 +387,9 @@ function generateAgentLogs(stepIndex: number) {
 
 // -- 主组件 --------------------------------------------------------------------
 export default function ParseScreen() {
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
   const projectName = getCurrentProject()?.title || "当前项目";
   const worldRules = useNarrativeStore(s => s.worldRules);
   const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);

@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Info } from "lucide-react";

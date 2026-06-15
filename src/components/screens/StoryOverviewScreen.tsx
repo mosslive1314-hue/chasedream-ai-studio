@@ -1,8 +1,7 @@
-"use client";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import {
   BookOpen, Scissors, GitBranch, Layers, Zap,
   Trophy, Target, Users, MapPin, Package,
@@ -56,7 +55,8 @@ function StatPill({ label, value, color }: { label: string; value: number | stri
 
 // ── Main Component ──────────────────────────────────────────────────────
 export default function StoryOverviewScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const projectName = getCurrentProject()?.title || "当前项目";
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -137,7 +137,7 @@ export default function StoryOverviewScreen() {
               style={{ background: S.primary10, color: S.primary, border: `1px solid ${S.primary20}` }}>
               <Upload size={11} /> 导入素材
             </motion.button>
-          <Link href="/parse">
+          <Link to="/parse">
             <motion.button whileTap={{ scale: 0.95 }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
               style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>

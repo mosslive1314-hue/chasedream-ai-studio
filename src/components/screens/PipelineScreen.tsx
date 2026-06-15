@@ -1,4 +1,3 @@
-"use client";
 import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -6,7 +5,7 @@ import {
   ArrowRight, AlertCircle, ExternalLink, Clock, Zap,
   Shield, Eye, ChevronLeft, Sparkles, CircleDot,
 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import {
   INDUSTRY_TEMPLATES, INDUSTRY_LABELS, PIPELINE_STAGES,
   type PipelineStage, type IndustryType,
@@ -287,7 +286,7 @@ function StageDetail({ stage }: { stage: PipelineStage }) {
             </div>
           </div>
           {stage.linkedPage && stage.status !== 'completed' && (
-            <Link href={stage.linkedPage}>
+            <Link to={stage.linkedPage}>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
@@ -299,7 +298,7 @@ function StageDetail({ stage }: { stage: PipelineStage }) {
             </Link>
           )}
           {stage.linkedPage && stage.status === 'completed' && (
-            <Link href={stage.linkedPage}>
+            <Link to={stage.linkedPage}>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
@@ -373,7 +372,7 @@ function SixStageDetail({ stages }: { stages: StageInfo[] }) {
                     </div>
                     <span className="text-[8px]" style={{ color: S.text3 }}>{stage.metrics}</span>
                   </div>
-                  <Link href={stage.link}>
+                  <Link to={stage.link}>
                     <motion.button
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
@@ -463,7 +462,7 @@ function SixStageDetail({ stages }: { stages: StageInfo[] }) {
                     {stage.blockedReason}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <Link href={stage.link}>
+                    <Link to={stage.link}>
                       <motion.span
                         whileHover={{ x: 2 }}
                         className="text-[9px] font-bold cursor-pointer flex items-center gap-0.5 focus:outline-none"
@@ -536,7 +535,7 @@ function BlockingIssuesSummary({ stages }: { stages: PipelineStage[] }) {
                     {item.stage.icon} {item.stage.name}
                   </span>
                   {item.stage.linkedPage && (
-                    <Link href={item.stage.linkedPage} className="text-[8px] flex items-center gap-0.5"
+                    <Link to={item.stage.linkedPage} className="text-[8px] flex items-center gap-0.5"
                       style={{ color: S.primary }}>
                       前往处理 <ExternalLink size={7} />
                     </Link>
@@ -847,7 +846,7 @@ export default function PipelineScreen() {
               {PIPELINE_STAGES.filter(s => s.linkedPage).map(stage => {
                 const cfg = STATUS_CFG[stage.status];
                 return (
-                  <Link key={stage.id} href={stage.linkedPage!}>
+                  <Link key={stage.id} to={stage.linkedPage!}>
                     <motion.div
                       whileHover={{ y: -1 }}
                       whileTap={{ scale: 0.97 }}

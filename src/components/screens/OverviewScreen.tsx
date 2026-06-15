@@ -1,4 +1,3 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -11,10 +10,10 @@ import {
   TrendingUp, AlertCircle, ArrowRight, Target
 } from "lucide-react";
 import { toast } from "sonner";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { INDUSTRY_LABELS, INDUSTRY_QC_RULES } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, useSettingsStore, getCurrentProject } from "@/store";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import { AIService } from "@/lib/ai";
 
@@ -300,7 +299,7 @@ function AIAssistantPanel() {
                             >
                               一键修复
                             </motion.button>
-                            <Link href={s.page}>
+                            <Link to={s.page}>
                               <motion.span
                                 whileTap={{ scale: 0.95 }}
                                 className="text-[7px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"
@@ -390,7 +389,7 @@ function AIAssistantPanel() {
                   >
                     <Target size={10} /> {aiLoading === 'check' ? '检查中...' : '检查一致性'}
                   </motion.button>
-                  <Link href={nextStep.page}>
+                  <Link to={nextStep.page}>
                     <motion.span
                       whileTap={{ scale: 0.95 }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-bold focus:outline-none"
@@ -500,7 +499,7 @@ function ProgressiveSummary({ projectName, characterCount, sceneCount, nodeCount
             ))}
           </div>
           {/* Next step */}
-          <Link href={nextHref}
+          <Link to={nextHref}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold"
             style={{ background: `${S.accent}08`, color: S.accent, border: `1px solid ${S.accent}20` }}>
             <ArrowRight size={10} /> 下一步: {nextStep}
@@ -514,7 +513,8 @@ function ProgressiveSummary({ projectName, characterCount, sceneCount, nodeCount
 
 // ── 主页面 ────────────────────────────────────────────────────────────────
 export default function OverviewScreen() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const [activeSubTab, setActiveSubTab] = useState<Record<number, number>>({ 0: 0, 1: 0 });
 
   const [activeTab, setActiveTab] = useState(0);
@@ -704,7 +704,7 @@ export default function OverviewScreen() {
           </div>
           <h3 className="text-base font-bold mb-2" style={{ color: '#1a1a2e' }}>还没有质检结果</h3>
           <p className="text-sm text-gray-500 mb-4">完成更多创作步骤后，质检结果将自动更新</p>
-          <Link href="/pipeline" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
+          <Link to="/pipeline" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: '#7C6CF5' }}>
             前往创作流程 →
           </Link>
         </div>
@@ -746,7 +746,7 @@ export default function OverviewScreen() {
             </div>
             <span className="text-[8px]" style={{ color: S.text3 }}>总完成度</span>
           </div>
-          <Link href="/simulator">
+          <Link to="/simulator">
             <motion.button whileTap={{ scale: 0.95 }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white focus:outline-none"
               style={{ background: S.primary, boxShadow: `0 2px 8px ${S.primary}30` }}>
@@ -1009,7 +1009,7 @@ export default function OverviewScreen() {
                                     <p className="text-[8px]" style={{ color: S.text3 }}>{qc.detail}</p>
                                   </div>
                                   {qc.status !== "ok" && qc.fixLink && (
-                                    <Link href={qc.fixLink} className="ml-auto shrink-0">
+                                    <Link to={qc.fixLink} className="ml-auto shrink-0">
                                       <motion.span whileTap={{ scale: 0.95 }}
                                         className="text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5"
                                         style={{ background: `${S.primary}12`, color: S.primary, border: `1px solid ${S.primary}20` }}>
@@ -1075,7 +1075,7 @@ export default function OverviewScreen() {
                             { label: "增加道德抉择分支", href: "/nodes", priority: "low", desc: "丰富叙事深度，增加玩家代入感" },
                             { label: "运行完整路径试玩", href: "/simulator", priority: "low", desc: "从玩家视角验证全部路径可达性" },
                           ].map((item, i) => (
-                            <Link key={i} href={item.href}>
+                            <Link key={i} to={item.href}>
                               <motion.div whileTap={{ scale: 0.98 }}
                                 className="flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer mt-1.5"
                                 style={{ background: S.card, border: `1px solid ${S.border}` }}>
@@ -1110,7 +1110,7 @@ export default function OverviewScreen() {
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between"
         style={{ borderTopColor: S.border }}>
         <span className="text-xs text-gray-500">质检通过？准备发布</span>
-        <Link href="/publish" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
+        <Link to="/publish" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: '#7C6CF5' }}>
           前往发布 →
         </Link>
       </div>

@@ -1,8 +1,6 @@
-"use client";
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { Link } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Scissors, FileText, GitBranch, MousePointer,
@@ -259,7 +257,7 @@ function PipelineMiniNav({
       </div>
 
       {/* Link to full pipeline */}
-      <Link href="/pipeline">
+      <Link to="/pipeline">
         <motion.div
           whileTap={{ scale: 0.97 }}
           className="flex items-center justify-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-colors mx-1"
@@ -276,7 +274,8 @@ function PipelineMiniNav({
 /* ── Mobile Bottom Nav (P10-14) ─────────────────────────────────────────── */
 
 export function BottomNav() {
-  const path = usePathname();
+  const location = useLocation();
+  const path = location.pathname;
   const industry = useUIStore((s) => s.industry);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
@@ -344,7 +343,7 @@ export function BottomNav() {
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    to={item.href}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 transition-colors"
                     style={{
                       background: active
@@ -437,7 +436,8 @@ export function BottomNav() {
 /* ── Desktop Sidebar (P10-8) ───────────────────────────────────────────── */
 
 export function SideNav() {
-  const path = usePathname();
+  const location = useLocation();
+  const path = location.pathname;
   const { sidebarCollapsed, toggleSidebar, industry } =
     useUIStore();
   const pipelineStages = useNarrativeStore(s => s.pipelineStages);
@@ -699,7 +699,7 @@ export function SideNav() {
                           return (
                             <Link
                               key={item.href}
-                              href={item.href}
+                              to={item.href}
                               title={displayLabel}
                               className="block"
                             >
@@ -843,7 +843,7 @@ export function SideNav() {
                 </motion.button>
               ))}
               {/* Settings icon (collapsed) */}
-              <Link href="/settings" title="设置">
+              <Link to="/settings" title="设置">
                 <motion.div
                   whileTap={{ scale: 0.9 }}
                   className="w-full flex items-center justify-center py-2 rounded-xl cursor-pointer transition-colors"
@@ -904,7 +904,7 @@ export function SideNav() {
             }
 
             return (
-              <Link key={item.href} href={item.href} title={displayLabel} className="block">
+              <Link key={item.href} to={item.href} title={displayLabel} className="block">
                 <motion.div
                   whileTap={{ scale: 0.97 }}
                   className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors"
@@ -938,7 +938,7 @@ export function SideNav() {
           })}
 
           {/* Settings link */}
-          <Link href="/settings" title={"设置"}>
+          <Link to="/settings" title={"设置"}>
             <motion.div
               whileTap={{ scale: 0.97 }}
               className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors"
@@ -1052,7 +1052,7 @@ function SidebarUserProfile({ open }: { open: boolean }) {
         className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer w-full transition-colors hover:bg-gray-50"
       >
         {avatarSrc ? (
-          <Image src={avatarSrc} alt={displayName ?? "avatar"} width={20} height={20}
+          <img src={avatarSrc} alt={displayName ?? "avatar"} width={20} height={20}
             className="rounded-full object-cover shrink-0" style={{ width: 20, height: 20 }} />
         ) : (
           <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"

@@ -1,5 +1,4 @@
 // WorkbenchTabs — 7个Tab的标签栏组件
-"use client";
 import { motion } from "framer-motion";
 
 export type WorkbenchTab =

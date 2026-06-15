@@ -1,6 +1,5 @@
-"use client";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
 const S = {
@@ -41,7 +40,8 @@ const ROUTE_MAP: Record<string, { group: string; groupHref: string; page: string
 };
 
 export function Breadcrumb() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const info = ROUTE_MAP[pathname];
 
   if (!info) return null;
@@ -66,7 +66,7 @@ export function Breadcrumb() {
     <div className="flex items-center gap-1 text-[10px] px-4 pt-2 select-none">
       {crumbs.map((c, i) => (
         <span key={c.href} className="flex items-center gap-1">
-          <Link href={c.href} className="hover:underline" style={{ color: S.text3 }}>
+          <Link to={c.href} className="hover:underline" style={{ color: S.text3 }}>
             {c.label}
           </Link>
           <ChevronRight size={9} style={{ color: S.text3 }} />

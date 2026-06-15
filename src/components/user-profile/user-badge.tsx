@@ -1,7 +1,5 @@
-"use client";
 
 import { useRef, useState, useEffect } from "react";
-import Image from "next/image";
 import { LogOut, UserRound, X } from "lucide-react";
 import { auth } from "@eazo/sdk";
 import { useEazo } from "@eazo/sdk/react";
@@ -122,7 +120,7 @@ function Avatar({ user, size }: { user: User; size: number }) {
       ? `https:${user.avatarUrl}`
       : user.avatarUrl;
     return (
-      <Image
+      <img
         src={avatarSrc}
         alt={user.name ?? "avatar"}
         width={size}

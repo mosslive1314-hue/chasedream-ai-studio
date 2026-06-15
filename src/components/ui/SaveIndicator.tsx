@@ -1,4 +1,3 @@
-"use client";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useUIStore } from "@/store";

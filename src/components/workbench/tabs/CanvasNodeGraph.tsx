@@ -1,5 +1,4 @@
 // Tab: 节点图 — 嵌入工作台的 DAG 画布
-"use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, ChevronDown, Sparkles } from "lucide-react";

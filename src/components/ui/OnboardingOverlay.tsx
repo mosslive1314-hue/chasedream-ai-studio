@@ -1,10 +1,9 @@
-"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUIStore } from "@/store";
 import type { IndustryType } from "@/lib/studio-data";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import {
   X,
   ArrowRight,
@@ -151,7 +150,7 @@ export function OnboardingOverlay({ onClose }: OnboardingOverlayProps) {
   const [selectedIndustry, setSelectedIndustry] = useState<IndustryType | null>(
     null,
   );
-  const router = useRouter();
+  const navigate = useNavigate();
 
   /* ── Keyboard: ESC to close, arrow keys ───────────────────────────── */
 
@@ -210,7 +209,7 @@ export function OnboardingOverlay({ onClose }: OnboardingOverlayProps) {
 
   const handleFinish = () => {
     onClose();
-    router.push("/pipeline");
+    navigate({ to: "/pipeline" });
   };
 
   /* ══════════════════════════════════════════════════════════════════════

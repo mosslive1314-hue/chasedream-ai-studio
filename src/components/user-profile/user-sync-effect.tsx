@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef } from "react";
 import { auth } from "@eazo/sdk";
 import { useEazo } from "@eazo/sdk/react";

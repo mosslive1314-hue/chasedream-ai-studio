@@ -1,5 +1,5 @@
 {
-    "framework": "nextjs",
+    "framework": null,
     "buildCommand": "bun run build",
     "headers": [
         {
@@ -10,12 +10,6 @@
                     "value": "frame-ancestors https: http:"
                 }
             ]
-        }
-    ],
-    "crons": [
-        {
-            "path": "/api/notifications/cron/daily-digest",
-            "schedule": "0 17 * * *"
         }
     ]
 }

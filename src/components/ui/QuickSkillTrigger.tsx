@@ -1,8 +1,7 @@
-"use client";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, ChevronRight, Zap, BookOpen } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import { SKILLS } from "@/lib/seed/skill-seed";
 import { useUIStore } from "@/store";
 import type { Skill } from "@/lib/types/skill";
@@ -37,7 +36,8 @@ interface QuickSkillTriggerProps {
  * 根据当前页面路由推荐相关的 AI 技能，支持一键调用
  */
 export function QuickSkillTrigger({ maxItems = 3, compact = false }: QuickSkillTriggerProps) {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const addToast = useUIStore(s => s.addToast);
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
   const [runningSkill, setRunningSkill] = useState<string | null>(null);

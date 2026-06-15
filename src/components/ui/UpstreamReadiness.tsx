@@ -1,6 +1,5 @@
-"use client";
 import { motion } from "framer-motion";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { useNarrativeStore } from "@/store";
 
 const S = {
@@ -76,7 +75,7 @@ export function UpstreamReadiness({ currentPath }: { currentPath: string }) {
       {/* Previous stage */}
       {prev && prev.linkedPage && (
         <Link
-          href={prev.linkedPage}
+          to={prev.linkedPage}
           className="flex items-center gap-1 shrink-0 hover:opacity-70 transition-opacity"
         >
           <span style={{ fontSize: 10, color: S.text3 }}>{"\u2190"}</span>
@@ -124,7 +123,7 @@ export function UpstreamReadiness({ currentPath }: { currentPath: string }) {
       {/* Next stage */}
       {next && next.linkedPage && (
         <Link
-          href={next.linkedPage}
+          to={next.linkedPage}
           className="flex items-center gap-1 shrink-0 hover:opacity-70 transition-opacity"
         >
           <span
@@ -150,7 +149,7 @@ export function UpstreamReadiness({ currentPath }: { currentPath: string }) {
             return (
               <Link
                 key={stage.id}
-                href={stage.linkedPage || "#"}
+                to={stage.linkedPage || "#"}
                 className="block"
               >
                 <motion.div
@@ -174,7 +173,7 @@ export function UpstreamReadiness({ currentPath }: { currentPath: string }) {
           return (
             <Link
               key={stage.id}
-              href={stage.linkedPage || "#"}
+              to={stage.linkedPage || "#"}
               className="block"
             >
               <div

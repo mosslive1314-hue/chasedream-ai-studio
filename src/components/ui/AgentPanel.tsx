@@ -1,8 +1,7 @@
-"use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { usePathname } from "next/navigation";
+import { useLocation } from "@tanstack/react-router";
 import {
   X, Send, AlertCircle, Loader2, CheckCircle2, XCircle,
   Sparkles, MessageSquare, ChevronRight, RotateCcw, ChevronDown,
@@ -147,7 +146,8 @@ function getQuickActions(page: string, expert?: Expert | null) {
 // ─── Main Component ─────────────────────────────────────────
 
 export function AgentPanel() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");

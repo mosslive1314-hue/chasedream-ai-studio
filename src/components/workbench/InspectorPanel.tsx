@@ -1,5 +1,4 @@
 // 右侧 Inspector + AI 节点助手面板
-"use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, Sparkles, ChevronDown, ChevronUp } from "lucide-react";

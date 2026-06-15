@@ -1,11 +1,10 @@
-"use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare, X, Send, Sparkles, Bot, User, Loader2,
   ArrowRight, Lightbulb, Zap, Target, FileText,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import { useUIStore, useNarrativeStore, getCurrentProject, useSettingsStore } from "@/store";
 import { AIService } from "@/lib/ai";
 
@@ -46,7 +45,7 @@ const SUGGESTIONS = [
 ];
 
 export default function AIChatPanel() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const aiChatOpen = useUIStore(s => s.aiChatOpen);
   const toggleAiChat = useUIStore(s => s.toggleAiChat);
   const addToast = useUIStore(s => s.addToast);
@@ -282,7 +281,7 @@ export default function AIChatPanel() {
                         {msg.actions.map((action, i) => (
                           <motion.button key={i} whileTap={{ scale: 0.95 }}
                             onClick={() => {
-                              if (action.href) { router.push(action.href); toggleAiChat(); }
+                              if (action.href) { navigate({ to: action.href }); toggleAiChat(); }
                             }}
                             className="text-[9px] px-2.5 py-1 rounded-lg font-bold focus:outline-none flex items-center gap-1"
                             style={{ background: `${S.primary}10`, color: S.primary, border: `1px solid ${S.primary}25` }}>

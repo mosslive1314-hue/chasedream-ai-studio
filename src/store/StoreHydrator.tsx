@@ -1,4 +1,3 @@
-"use client";
 import { useEffect } from "react";
 import { useExportStore } from "./use-export-store";
 import { useAnalyticsStore } from "./use-analytics-store";

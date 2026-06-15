@@ -1,11 +1,10 @@
-"use client";
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, Circle, ArrowRight,
   FileText, GitBranch, Image as ImageIcon, Film, Play, Rocket,
 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import { useNarrativeStore } from "@/store";
 
 const S = {
@@ -230,7 +229,7 @@ function CompactView({ stages, nextStep, showNextStep }: {
       <div className="flex items-center justify-between px-1 mb-1.5">
         {stages.map((stage, i) => (
           <div key={stage.id} className="flex items-center">
-            <Link href={stage.link} title={`${stage.name}: ${statusLabel(stage.status)}`}>
+            <Link to={stage.link} title={`${stage.name}: ${statusLabel(stage.status)}`}>
               <motion.div
                 whileTap={{ scale: 0.85 }}
                 className="flex items-center justify-center w-5 h-5 rounded-full focus:outline-none"
@@ -272,7 +271,7 @@ function CompactView({ stages, nextStep, showNextStep }: {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <Link href={nextStep.link}>
+            <Link to={nextStep.link}>
               <motion.div
                 whileTap={{ scale: 0.97 }}
                 className="flex items-center gap-1.5 mt-2 px-2 py-1.5 rounded-lg focus:outline-none"
@@ -345,7 +344,7 @@ function FullView({ stages, nextStep, showNextStep }: {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05, duration: 0.2 }}
             >
-              <Link href={stage.link}>
+              <Link to={stage.link}>
                 <motion.div
                   whileHover={{ x: 2 }}
                   whileTap={{ scale: 0.99 }}
@@ -429,7 +428,7 @@ function FullView({ stages, nextStep, showNextStep }: {
                 <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: S.text3 }}>
                   下一步
                 </span>
-                <Link href={nextStep.link}>
+                <Link to={nextStep.link}>
                   <motion.span
                     whileHover={{ x: 2 }}
                     className="text-[11px] font-bold cursor-pointer focus:outline-none"

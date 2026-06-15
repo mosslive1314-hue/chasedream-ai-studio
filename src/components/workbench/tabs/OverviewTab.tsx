@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -6,7 +5,7 @@ import {
   BookOpen, GitBranch, Users, MapPin, Package,
   Film, Music, Mic2, Video, Layers
 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 
 const S = {
   bg:"#FAFBFF", card:"#FFFFFF", s2:"#F4F6FC", s3:"#EDF0F8",
@@ -242,14 +241,14 @@ export default function OverviewTab() {
                 </div>
               </div>
               <div className="px-3 pb-3 flex gap-2">
-                <Link href="/nodes">
+                <Link to="/nodes">
                   <motion.button whileTap={{ scale: 0.97 }}
                     className="px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
                     style={{ background: S.primary, color: "#fff" }}>
                     进入节点图编辑
                   </motion.button>
                 </Link>
-                <Link href="/simulator">
+                <Link to="/simulator">
                   <motion.button whileTap={{ scale: 0.97 }}
                     className="px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
                     style={{ background: S.s2, border:`1px solid ${S.border}`, color: S.text2 }}>

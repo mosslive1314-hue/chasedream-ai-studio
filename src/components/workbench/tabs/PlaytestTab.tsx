@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { SkipBack, RefreshCw, ChevronRight } from "lucide-react";

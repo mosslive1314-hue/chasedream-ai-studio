@@ -1,8 +1,7 @@
-"use client";
 import { useUIStore } from '@/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
-import Link from 'next/link';
+import { Link } from '@tanstack/react-router';
 
 const ICON_MAP = {
   success: CheckCircle,
@@ -50,7 +49,7 @@ export function ToastContainer() {
                 )}
                 {toast.link && (
                   <Link
-                    href={toast.link.href}
+                    to={toast.link.href}
                     className="text-xs font-medium mt-1 inline-block hover:underline"
                     style={{ color: colors.icon }}
                     onClick={() => removeToast(toast.id)}

@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, TrendingUp, TrendingDown, Users, ChevronDown, ChevronUp, Plus } from "lucide-react";
