@@ -69,3 +69,4 @@ deliverables/
 
 # ESLint temp output
 eslint-*.txt
+.vercel
