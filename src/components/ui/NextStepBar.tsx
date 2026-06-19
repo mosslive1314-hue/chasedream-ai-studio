@@ -77,18 +77,6 @@ const NEXT_STEP_MAP: Record<string, NextStepDef> = {
   },
 };
 
-// 所有可能用到的 checkKey，保证 hook 调用顺序稳定
-const ALL_CHECK_KEYS: NextStepDef["checkKey"][] = [
-  "characters",
-  "scriptBlocks",
-  "interactionPoints",
-  "storyNodes",
-  "assetCards",
-  "cinematicDirections",
-  "pathTestResults",
-  "qualityChecks",
-];
-
 export function NextStepBar({
   currentPath,
   theme,

@@ -2,7 +2,7 @@
 
 ### 一、AI 助手（已修复）
 
-**问题根因：** `AgentPanel` 被渲染在 `EazoProvider` 内部，该第三方 Provider 在 DOM 中创建了带有层叠上下文属性的包裹层，导致 `position: fixed` 的面板被限制在该层内，无法正常弹出。
+**问题根因：** `AgentPanel` 被渲染在一个第三方 Provider 内部，该 Provider 在 DOM 中创建了带有层叠上下文属性的包裹层，导致 `position: fixed` 的面板被限制在该层内，无法正常弹出。
 
 **修复方式：**
 - 使用 `createPortal(panel, document.body)` 将面板直接渲染到 document.body，脱离所有父级层叠上下文

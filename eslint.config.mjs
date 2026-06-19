@@ -1,17 +1,33 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
 
 const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
+  ...tseslint.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "react-hooks": reactHooks,
+    },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-empty": ["warn", { allowEmptyCatch: true }],
+    },
+  },
   globalIgnores([
-    // Default ignores of eslint-config-next:
+    ".output/**",
+    ".tanstack/**",
     ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    ".workbuddy/**",
+    "node_modules/**",
+    "src/routeTree.gen.ts",
+    "*.config.ts",
+    "*.config.mjs",
+    "*.config.js",
+    "scripts/**",
   ]),
 ]);
 

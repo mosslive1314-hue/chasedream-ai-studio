@@ -2,13 +2,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageCircle,
-  ChevronRight,
   Plus,
-  Trash2,
   Edit3,
-  Check,
-  X,
-  User,
   Bot,
   ArrowRight,
 } from "lucide-react";

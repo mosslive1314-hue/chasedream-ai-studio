@@ -199,7 +199,7 @@ function StatusBadge({ status, statusLabel }: { status: AssetStatus; statusLabel
 
 // ─── UnifiedAssetCard ────────────────────────────────────────────────────────
 export default function UnifiedAssetCard({
-  id,
+  _id,
   title,
   subtitle,
   sourceNode,

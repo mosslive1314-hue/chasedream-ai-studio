@@ -35,14 +35,6 @@ const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
   { id: "stats",       label: "项目统计", icon: BarChart3 },
 ];
 
-// ── Animation variants ──────────────────────────────────────────────────
-const fadeInUp = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.35 },
-};
-const stagger = { animate: { transition: { staggerChildren: 0.08 } } };
-
 // ── Stat pill ───────────────────────────────────────────────────────────
 function StatPill({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (

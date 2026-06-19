@@ -202,7 +202,6 @@ function OnboardingWizard({ onClose }: OnboardingWizardProps) {
   const navigate = useNavigate();
   const createProject = useProjectStore((s) => s.createProject);
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject);
-  const projects = useProjectStore((s) => s.projects);
   const addToast = useUIStore((s) => s.addToast);
   const setAiModel = useSettingsStore((s) => s.setAiModel);
   const setAiFrequency = useSettingsStore((s) => s.setAiFrequency);
@@ -241,7 +240,6 @@ function OnboardingWizard({ onClose }: OnboardingWizardProps) {
   /* ── Finish handler ───────────────────────────────────────────────── */
 
   const handleFinish = () => {
-    const now = new Date().toISOString();
     const title = form.projectTitle.trim() || "未命名项目";
 
     // Create the project

@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
+  CheckCircle2, ChevronDown,
   Package, Sparkles, ArrowRight, Users, MapPin, Wrench,
-  Image, Music, Mic, Film, Edit2,
+  Image, Music, Mic, Film,
   Library, Search, FileText,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -20,15 +20,6 @@ const S = {
   text:"#1A1D2E", text2:"#4A5068", text3:"#8892B0",
   success:"#10B981", warning:"#F59E0B", error:"#EF4444",
 };
-
-// ── UI 模板类型（对应节点类型）────────────────────────────────────────────
-const UI_TEMPLATES = [
-  { type:"scene",    label:"剧情播放",  desc:"全屏视频/图+旁白+继续按钮",       color:"#7C6CF5" },
-  { type:"choice",   label:"玩家选择",  desc:"视频/图+底部2-4个选项按钮",       color:"#F59E0B" },
-  { type:"qte",      label:"QTE反应",  desc:"视频+倒计时条+快速点击区",         color:"#EF4444" },
-  { type:"condition",label:"条件判断",  desc:"无UI，后台自动算变量跳转",         color:"#8892B0" },
-  { type:"ending",   label:"结局画面",  desc:"全屏结局画面+重玩/分享按钮",       color:"#10B981" },
-];
 
 // ── 行业配置（P6-6）───────────────────────────────────────────────
 const INDUSTRY_OPTIONS: { type: IndustryType; icon: string; label: string }[] = [

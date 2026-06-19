@@ -1,7 +1,6 @@
 /**
  * Drop-in replacement for `fetch` that automatically injects auth headers.
  *
- * Replaces the old @eazo/sdk auth.getSessionHeader() approach.
  * In development, no auth header is needed (dev user is auto-authenticated).
  * In production, attach your auth token (e.g. from cookie or localStorage).
  */

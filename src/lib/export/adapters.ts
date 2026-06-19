@@ -212,8 +212,6 @@ const inkAdapter: ExportAdapter = (store, options) => {
   lines.push('');
 
   // 按节点生成 Ink 结构
-  const nodeMap = new Map(store.storyNodes.map((n: any) => [n.id, n]));
-
   for (const node of store.storyNodes) {
     if (useKnots) {
       lines.push(`=== ${node.id} ===`);
@@ -294,7 +292,7 @@ const inkAdapter: ExportAdapter = (store, options) => {
 
 // ── Ren'Py 适配器 ────────────────────────────────────────────────────────
 
-const renpyAdapter: ExportAdapter = (store, options) => {
+const renpyAdapter: ExportAdapter = (store, _options) => {
   const startTime = Date.now();
   const lines: string[] = [];
 

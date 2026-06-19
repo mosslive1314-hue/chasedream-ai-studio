@@ -7,7 +7,7 @@
  * 基于 sessionStorage 的瞬态传递 + Zustand store 写入回调
  */
 
-import type { ScriptBlock, StoryNode, AssetCard, QualityCheck } from '@/lib/studio-data';
+import type { ScriptBlock } from '@/lib/studio-data';
 
 // ── 传输类型定义 ──────────────────────────────────────────────────────────
 

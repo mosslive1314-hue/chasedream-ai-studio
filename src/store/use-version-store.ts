@@ -17,19 +17,29 @@ import type {
   SnapshotData,
   ChangeSet,
   ChangeEntry,
-  ChangeAction,
   ChangeStats,
   Branch,
   MergeResult,
   RestorePoint,
   VersionHistoryEntry,
 } from '@/lib/types/version-control';
-import {
-  MOCK_SNAPSHOTS,
-  MOCK_BRANCHES,
-  MOCK_VERSION_HISTORY,
-  MOCK_RESTORE_POINTS,
-} from '@/lib/seed/version-snapshots-seed';
+
+// ── 默认主分支（非 mock，是系统初始化必需的结构） ────────────────────────
+
+function createDefaultMainBranch(): Branch {
+  return {
+    id: 'branch-main',
+    projectId: 'default',
+    name: '主分支',
+    parentBranchId: null,
+    baseSnapshotId: null,
+    latestSnapshotId: null,
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    createdBy: '系统',
+    snapshotCount: 0,
+  };
+}
 
 // ── Store interface ───────────────────────────────────────────────────────
 
@@ -160,7 +170,8 @@ function computeDiff(fromData: SnapshotData, toData: SnapshotData): { stats: Cha
   // 变量 diff
   const fromVarIds = new Set(fromData.variables.map((v: any) => v.id));
   const toVarIds = new Set(toData.variables.map((v: any) => v.id));
-  let variablesAdded = 0, variablesModified = 0;
+  let variablesAdded = 0;
+  const variablesModified = 0;
 
   for (const id of toVarIds) {
     if (!fromVarIds.has(id)) variablesAdded++;
@@ -189,11 +200,11 @@ function computeDiff(fromData: SnapshotData, toData: SnapshotData): { stats: Cha
 export const useVersionStore = create<VersionState>()(
   persist(
     (set, get) => ({
-      // ── Initial state ──
-      snapshots: MOCK_SNAPSHOTS,
-      branches: MOCK_BRANCHES,
-      history: MOCK_VERSION_HISTORY,
-      restorePoints: MOCK_RESTORE_POINTS,
+      // ── Initial state（空数据，从零开始） ──
+      snapshots: [],
+      branches: [createDefaultMainBranch()],
+      history: [],
+      restorePoints: [],
       activeBranchId: 'branch-main',
 
       // ── 快照管理 ──
@@ -351,13 +362,41 @@ export const useVersionStore = create<VersionState>()(
         const snapshot = get().getSnapshot(snapshotId);
         if (!snapshot) return false;
 
-        // 在实际实现中，这里应该将 narrative store 的状态恢复到快照时的状态
-        // 目前作为占位，创建一个自动快照记录当前状态后再"恢复"
+        // 1. 先创建一个"恢复前自动快照"保存当前状态
         get().createSnapshot(
           `恢复前自动快照 (${new Date().toLocaleString('zh-CN')})`,
           'auto',
           `恢复到 "${snapshot.name}" 前的自动备份`
         );
+
+        // 2. 异步恢复 narrative store 数据到快照状态
+        (async () => {
+          try {
+            const { useNarrativeStore } = await import('@/store');
+            const data = snapshot.data;
+            useNarrativeStore.getState().loadProjectData({
+              storyNodes: data.storyNodes ?? [],
+              variables: data.variables ?? [],
+              characters: data.characters ?? [],
+              scenes: data.scenes ?? [],
+              chapterPlans: data.chapterPlans ?? [],
+              interactionPoints: data.interactionPoints ?? [],
+              qualityChecks: data.qualityChecks ?? [],
+            });
+          } catch (err) {
+            console.error('[VersionStore] 恢复快照失败:', err);
+          }
+        })();
+
+        // 3. 添加历史条目
+        get().addHistoryEntry({
+          snapshotId,
+          summary: `恢复到快照: ${snapshot.name}`,
+          timestamp: new Date().toISOString(),
+          author: '当前用户',
+          changeCount: 0,
+          typeLabel: '恢复',
+        });
 
         return true;
       },

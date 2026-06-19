@@ -564,7 +564,7 @@ export default function OverviewScreen() {
       { key: "prop", value: props.length, icon: Zap, color: S.warning },
       { key: "_duration", value: `${durationMin}min`, icon: Clock, color: S.text3 },
     ];
-  }, [storyNodes, nodeEdges, characters, scenes, props]);
+  }, [storyNodes, nodeEdges, characters, scenes, props, chapterPlans, currentProject]);
 
   // ── P12-#22: Dynamic NARRATIVE_SCORES from store ───────────────────────
   const narrativeScores = useMemo(() => {
@@ -616,7 +616,6 @@ export default function OverviewScreen() {
     }
 
     // 伏笔回收率 — dynamically computed from narrativeStates + consequenceChains
-    const consequenceChains = useNarrativeStore.getState().consequenceChains;
     const narrativeStates = useNarrativeStore.getState().narrativeStates;
     let foreshadowScore = 80; // fallback
     if (narrativeStates.length > 0) {

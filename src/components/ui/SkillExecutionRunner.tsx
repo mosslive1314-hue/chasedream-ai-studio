@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Play, CheckCircle2, XCircle, SkipForward, Star, Clock,
-  ChevronRight, Trophy, ArrowRight, RotateCcw, ThumbsUp,
-  ThumbsDown, Zap, BookOpen,
+  Trophy, ThumbsUp,
+  ThumbsDown, Zap,
 } from "lucide-react";
 import { useSkillStore } from "@/store";
-import type { Skill, SkillStep, SkillExecution, SkillStepResult } from "@/lib/types/skill";
+import type { Skill, SkillStep, SkillStepResult } from "@/lib/types/skill";
 
 // ─── Design Tokens ──────────────────────────────────────────
 const S = {

@@ -1,23 +1,21 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Zap, TestTube, TestTube2, Filter, ChevronDown, ChevronUp, Sliders,
+  Zap, TestTube, Filter, ChevronDown, ChevronUp, Sliders,
   AlertTriangle, CheckCircle2, ArrowRight, Target, Layers,
   BarChart3, ShieldAlert, TrendingUp, TrendingDown, Minus,
   Eye, GitBranch, FlaskConical, BookOpen, Sparkles,
-  Clock, AlertCircle, CircleCheck, CircleX, Link2,
+  Clock, AlertCircle, CircleCheck, Link2,
   MessageCircle, Timer, Search, Gamepad2,
-  Crosshair, MousePointer, MapPin, Repeat, CircleDot, Keyboard, Package, Pencil, Trash2,
+  Crosshair, MousePointer, MapPin, Repeat, CircleDot, Keyboard, Package,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import ContextualActions from "@/components/ui/ContextualActions";
 import {
-  type InteractionPoint, type InteractionOption,
+  type InteractionOption,
   type ConsequenceChain, type ConsequenceTiming,
-  type TimedDecisionConfig, type DialogueTree,
-  type QTEConfig, type HotspotConfig,
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
 import { DialogueTreeEditor } from "@/components/ui/DialogueTreeEditor";
@@ -85,11 +83,9 @@ export default function InteractionScreen() {
   const qteConfigs = useNarrativeStore(s => s.qteConfigs);
   const hotspotConfigs = useNarrativeStore(s => s.hotspotConfigs);
   const gameProps = useNarrativeStore(s => s.props);
-  const updateProp = useNarrativeStore(s => s.updateProp);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const variables = useNarrativeStore(s => s.variables);
-  const branchPaths = useNarrativeStore(s => s.branchPaths);
   const updateInteractionPoint = useNarrativeStore(s => s.updateInteractionPoint);
   const updateNode = useNarrativeStore(s => s.updateNode);
   const addEdge = useNarrativeStore(s => s.addEdge);
@@ -340,7 +336,7 @@ export default function InteractionScreen() {
                               </div>
                               {/* Row 3: narrative purpose */}
                               <p className="text-xs leading-relaxed line-clamp-1" style={{ color: S.text2 }}>{ip.narrativePurpose}</p>
-                              {/* Timed decision indicator (Detroit feature) */}
+                              {/* Timed decision indicator (高级叙事功能) */}
                               {ip.timedDecision && (
                                 <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-lg" style={{ background: "#FFF7ED", border: "1px solid #FDBA74" }}>
                                   <Clock size={12} style={{ color: "#F97316" }} />
@@ -657,7 +653,7 @@ export default function InteractionScreen() {
                         const srcY = srcYStart + srcIdx * srcYStep + 16;
                         const isHov = hoveredChainId === chain.id;
                         const tc = timingColor(chain.timing);
-                        return chain.affectedNodeIds.map((nid, ai) => {
+                        return chain.affectedNodeIds.map((nid, _ai) => {
                           const tgtIdx = targets.indexOf(nid);
                           if (tgtIdx < 0) return null;
                           const tgtY = tgtYStart + tgtIdx * tgtYStep + 12;
@@ -1518,7 +1514,6 @@ export default function InteractionScreen() {
                   );
                   const targetNode = storyNodes.find(n => n.id === edge.to);
                   // Find variables used in conditions
-                  const condVarNames = edge.condition ? Object.keys(edge.condition) : [];
                   return (
                     <div className="rounded-xl p-5 space-y-5" style={{ background: S.card, border: `1px solid ${S.border}` }}>
                       <h3 className="text-sm font-bold" style={{ color: S.text }}>分支详情编辑</h3>
@@ -2173,20 +2168,6 @@ function DetailRow({ label, value, color }: { label: string; value: string; colo
     <div className="flex items-start gap-2 text-xs">
       <span className="shrink-0 font-medium" style={{ color: color ?? S.text3, minWidth: 56 }}>{label}:</span>
       <span style={{ color: S.text2 }}>{value}</span>
-    </div>
-  );
-}
-
-function SuggestionCard({ icon, title, color, bg, border, children }: {
-  icon: React.ReactNode; title: string; color: string; bg: string; border: string; children: React.ReactNode;
-}) {
-  return (
-    <div className="p-4 rounded-xl space-y-3" style={{ background: bg, border: `1px solid ${border}` }}>
-      <div className="flex items-center gap-2">
-        <span style={{ color }}>{icon}</span>
-        <h3 className="text-xs font-bold" style={{ color }}>{title}</h3>
-      </div>
-      {children}
     </div>
   );
 }

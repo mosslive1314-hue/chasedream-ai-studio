@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
+  CheckCircle2, AlertTriangle, ChevronRight,
   ArrowRight, AlertCircle, ExternalLink, Clock, Zap,
   Shield, Eye, ChevronLeft, Sparkles, CircleDot,
 } from "lucide-react";

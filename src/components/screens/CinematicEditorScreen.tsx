@@ -2,14 +2,14 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera, Video, Mic, Music, Clock, ArrowRight, Play, Film,
-  ChevronDown, Move, Eye, Volume2, Zap, Sparkles, Star,
-  CircleDot, Scissors, Sun, Waves, Users, Crosshair,
+  ChevronDown, Move, Eye, Volume2, Zap, Star,
+  Scissors, Sun, Waves, Users, Crosshair,
   ZoomIn, ZoomOut, Aperture, BookOpen, Activity, Image, Clapperboard,
   Plus, Trash2, ChevronUp, GripVertical,
 } from "lucide-react";
 import {
   type CinematicDirection, type CameraShotType, type CameraMovement,
-  type TransitionType, type EmotionIntensity, type POVConfig,
+  type TransitionType, type EmotionIntensity,
 } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore } from "@/store";
 import { useLocation } from "@tanstack/react-router";
@@ -135,9 +135,7 @@ export default function CinematicEditorScreen() {
   const storyNodes = useNarrativeStore(s => s.storyNodes);
   const characters = useNarrativeStore(s => s.characters);
   const povConfigs = useNarrativeStore(s => s.povConfigs);
-  const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const scenes = useNarrativeStore(s => s.scenes);
-  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
   const updateCinematicDirection = useNarrativeStore(s => s.updateCinematicDirection);
   const addToast = useUIStore(s => s.addToast);
 
@@ -925,33 +923,6 @@ export default function CinematicEditorScreen() {
     </div>
   );
 }
-function SectionCard({ icon, title, color, bg, children }: {
-  icon: React.ReactNode; title: string; color: string; bg: string; children: React.ReactNode;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: S.card,
-        border: `1px solid ${S.border}`,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-      }}
-    >
-      {/* Section header */}
-      <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${S.border}`, background: bg }}>
-        <span style={{ color }}>{icon}</span>
-        <h2 className="text-sm font-bold" style={{ color: S.text }}>{title}</h2>
-        <div className="flex-1 h-px" />
-      </div>
-      <div className="p-5 space-y-4">
-        {children}
-      </div>
-    </motion.div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // Camera Section
@@ -1019,7 +990,7 @@ function CameraSection({ direction, onUpdate }: { direction: CinematicDirection;
   );
 }
 
-function CameraFrameViz({ shotType, focusTarget }: { shotType: CameraShotType; focusTarget?: string }) {
+function CameraFrameViz({ shotType, focusTarget: _focusTarget }: { shotType: CameraShotType; focusTarget?: string }) {
   // Focus point approximate position
   const focusX = shotType === "close_up" ? 120 : shotType === "medium" ? 100 : 90;
   const focusY = shotType === "close_up" ? 60 : shotType === "medium" ? 55 : 50;

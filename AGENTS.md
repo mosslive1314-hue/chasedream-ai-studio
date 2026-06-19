@@ -1,219 +1,258 @@
 # Agent Guide
 
-This repository is a Bun-first, minimal Next.js starter for building apps that run on the Eazo platform — seamlessly in a browser and inside the Eazo Mobile WebView.
+本仓库是 **逐梦 Creator Studio** —— 一个 AI 原生的互动影游开发工作台，把剧本转化为可玩的互动叙事结构。
 
-## 1. Stack
+> ⚠️ 本文件描述的是**当前真实架构**（TanStack Start）。任何与本文不符的旧描述（如 Next.js、`@eazo/sdk`、`src/app/` 路由等）均属于历史残留，应以本文件为准。
 
-- Next.js 16 with App Router
-- React 19
-- TypeScript
-- Tailwind CSS v4
-- Bun (package manager + local script runner)
-- `@eazo/sdk` — capability-first SDK: `auth`, `device`, `ai`, `storage`, `memory`, `notifications`, React integration, server-side `requireAuth` + `notifications.publish`; bundles GenAuth login + ECC/AES session decryption internally; `ai` routes through AWS Bedrock via the Eazo AI gateway; `memory` records user actions as persistent, semantically searchable memory for AI context retrieval; `notifications` opts users into per-app system push and lets the server fan out notifications to subscribers
-- shadcn/ui, lucide-react, framer-motion
-- Drizzle ORM (PostgreSQL via `drizzle-orm` + `postgres.js`)
+## 1. 技术栈
 
-## 2. Use This Template
+- **TanStack Start** + **TanStack Router**（文件式路由，`src/routes/`）
+- **React 19** + **TypeScript**
+- **Tailwind CSS v4**（`@tailwindcss/vite` 插件）
+- **Bun**（包管理器 + 脚本运行器，`packageManager: bun@1.3.9`）
+- **Zustand 5**（状态管理，14 个 persist store + `StoreHydrator` 统一 rehydrate）
+- **Drizzle ORM**（PostgreSQL，`postgres.js` 驱动）
+- **@xyflow/react**（节点画布，用于剧本图编辑）
+- **TipTap**（富文本编辑器，剧本编辑用）
+- **@modelcontextprotocol/sdk**（MCP server，暴露工具给外部 Agent）
+- **framer-motion** + **lucide-react** + **sonner**（动画 / 图标 / Toast）
+- **Nitro**（TanStack Start 的服务端引擎）
 
-1. Copy this project to start a new app.
-2. Rename the package in `package.json`.
-3. Read the following files to understand how the template implements each platform capability before writing any product code:
-   - **Auth** — `src/app/layout.tsx`, `src/lib/auth/index.ts`, `src/components/user-profile/user-badge.tsx`, `src/lib/api/request.ts`
-   - **Database** — `src/lib/db/schema/`, `src/lib/db/queries/`, `src/lib/db/client.ts`
-   - **Object Storage** — `src/app/api/todos/[id]/attachment/route.ts`
-   - **AI** — `src/app/api/todos/analyze/route.ts`, `src/components/todo-list/ai-analysis-panel.tsx`
-   - **Memory** — `src/components/todo-list/index.tsx` (fire-and-forget `memory.reportAction()` pattern after each mutation)
-   - **Notifications** — `src/components/notifications/notifications-toggle.tsx`, `src/app/api/notifications/test/route.ts`, `src/app/api/notifications/cron/daily-digest/route.ts`, `vercel.json#crons`
-4. Run `bun run cleanup:demo` before any feature development to remove all template demo artifacts.
-5. Update app metadata in `src/app/layout.tsx`.
-6. Replace the default content in `src/app/page.tsx`.
-7. Add product-specific routes, components, and data logic from there.
+> ❌ 不依赖 `@eazo/sdk`、不依赖 Next.js、不使用 `src/app/` 目录。`vite.config.ts` 配置 `tanstackStart({ srcDirectory: "src" })`，所有路由都在 `src/routes/`。
 
-## 3. Commands
+## 2. 命令
 
 ```bash
 bun install
-bun dev
-bun run lint
-bun run build
-bun start
-bun run cleanup:demo   # one-click remove demo artifacts and auto-fix stale todos exports in index files
-```
+bun dev          # 启动开发服务器（vite dev，端口 3000）
+bun run build    # 生产构建（vite build → .output/server/index.mjs）
+bun start        # 运行生产构建
+bun run lint     # eslint
 
-If you are developing `@eazo/sdk` locally, build it first and sync into `node_modules`:
-
-```bash
-(cd ../eazo-sdk/sdk && npm install && npm run build)
-bun run sdk:sync
-```
-
-### 3.1 Database (Drizzle)
-
-```bash
+# 数据库（Drizzle）
 bun run db:generate
 bun run db:migrate
 bun run db:push
 bun run db:studio
 ```
 
-## 4. Project Structure
+## 3. 项目结构
 
 ```
 src/
-  app/
-    api/
-      user/profile/route.ts   — GET: returns the authenticated user; upserts user to DB (both Web and Mobile paths)
-      todos/route.ts          — GET (list) + POST (create)
-      todos/[id]/route.ts     — GET / PATCH / DELETE
-      todos/analyze/route.ts  — POST: streams AI analysis of the user's todo list (SSE)
-      mcp/route.ts            — GET / POST / DELETE: MCP Streamable HTTP server (exposes todo CRUD as MCP tools)
-    layout.tsx                — root layout; mounts <EazoProvider> (SDK auto-renders login UI inside)
-    page.tsx                  — demo page
+  routes/                      — TanStack Router 文件式路由
+    __root.tsx                 — 根路由：按路径分流到 Studio 或 AgentFirstShell
+    studio.tsx                 — 新 Studio 入口（/studio）
+    *.tsx                      — 旧 16 个 Screen 路由（overview/script/parse/...）
   components/
+    studio/                    — 【新】AI 原生 Studio（对话+画布+上下文三区）
+      studio-layout.tsx        — 顶层布局：左对话(320px) + 中画布(flex-1) + 右上下文(280px)
+      chat-panel.tsx           — 左侧 Agent 对话区
+      canvas-area.tsx          — 中间画布区（图编辑/预览/设置等多 tab）
+      context-panel.tsx        — 右侧上下文面板
+      studio-toolbar.tsx       — 顶部工具栏（项目名编辑 + tab 切换 + 面板触发）
+      audio-panel / style-panel / export-panel / import-panel / settings-panel / version-panel
+    screens/                   — 【旧】16 个传统多页 Screen（仍由 routes/*.tsx 激活）
+    layout/
+      AgentFirstShell.tsx      — 旧 UI 外壳：挂载 StoreHydrator + ProjectSwitcher + Toaster + 命令面板等基础设施
+      ContextPanel.tsx
+    simulator/                 — 运行时预览组件（scene-renderer / ui-renderer / audio-player / save-panel / style-provider / use-runtime-engine）
+    ui/                        — 基础 UI 原语（button/card/dialog/input/...）+ 复合组件（AgentPanel/CommandPalette/SaveIndicator/...）
+    lib/
+      AuthBootstrap.tsx        — 登录引导
     user-profile/
-      user-badge.tsx          — reads user via useEazo(s => s.auth.user); Sign-in button calls auth.login()
-      user-sync-effect.tsx    — fires GET /api/user/profile after Mobile bridge login to upsert the user to DB
-    todo-list/                — Todo List demo
-      ai-analysis-panel.tsx   — streams and renders the AI analysis response
-    ui/                       — shadcn/ui primitives
+      user-sync-effect.tsx     — 登录后 upsert 用户到 DB
   lib/
-    api/
-      request.ts              — fetch wrapper; injects x-eazo-session via auth.getSessionHeader()
-      user-profile.ts         — fetchUserProfile() → GET /api/user/profile
-      todos.ts                — getTodos / createTodo / updateTodo / deleteTodo
-    auth/
-      index.ts                — re-exports requireAuth from @eazo/sdk/server
-    db/
-      schema/                 — Drizzle table definitions (todos, users)
-      queries/                — db client + CRUD helpers (todos, users)
-      migrations/             — auto-generated SQL files (commit to git)
+    ai/                        — AI 多 Agent 系统（核心）
+      agent-orchestrator.ts    — 7 Expert Agent 编排器（narrative/interaction/cinematic/art/gameplay/qa/release）
+      agent-chat-loop.ts       — Agent 对话主循环
+      agent-system-prompt.ts   — Agent 系统提示词
+      tool-registry.ts         — 工具注册表
+      tool-executor.ts         — 工具执行器
+      model-router.ts          — 模型路由（多模型选择）
+      ai-service.ts            — AI 服务调用
+      ai-image-service.ts      — 图像生成
+      ag-ui-events.ts          — AG-UI 事件流
+      pin-graph-store.ts       — Pin Graph 状态
+      pin-graph-tools.ts       — Pin Graph 工具
+    runtime/                   — 运行时引擎（scene-context / scene-objects / snapshot / executor）
+    node-system/               — 节点系统（built-in 节点 + executor + node-registry）
+    dsl/                       — 剧本 DSL（compiler / parser / tokenizer / types）
+    reactflow/                 — @xyflow/react 集成（auto-layout / node-types / edge-types / sync）
+    save/                      — 存档系统（save-manager / save-types）
+    style/                     — 样式系统（style-manager / default-styles / style-types）
+    ui-system/                 — UI 系统（ui-manager / ui-templates / ui-types）
+    resource/                  — 资源索引
+    export/                    — 导出适配器
+    db/                        — Drizzle（schema/users + queries/users + client + migrate）
+    auth/                      — 鉴权（requireAuth）
+    api/                       — 客户端 API 封装（request.ts / user-profile.ts）
+    mcp/
+      server.ts                — MCP server 入口（注册工具给外部 Agent）
+    types/                     — 全部业务类型定义（narrative/cinematic/game/expert/...）
+    seed/                      — 种子数据（project/narrative/cinematic/expert/...）
+    studio-data.ts             — Studio 数据
+    persistence.ts             — 持久化
+    consistency-engine.ts      — 一致性校验
+    cascade-validation.ts      — 级联校验
+    condition-engine.ts        — 条件引擎
+    tension-curve.ts           — 张力曲线
+    playable-graph-generator.ts — 可玩图生成
+    data-flow-bridge.ts        — 数据流桥接
+    path-test-engine.ts        — 路径测试
+  store/                       — 14 个 Zustand store
+    index.ts                   — 统一导出
+    StoreHydrator.tsx          — 统一 rehydrate（在 AgentFirstShell 和 StudioLayout 都挂载）
+    idb-storage.ts             — IndexedDB 持久化适配器
+    use-project-store.ts       — 项目（持久化 key: cd-projects）
+    use-narrative-store.ts     — 叙事节点
+    use-canvas-agent-store.ts  — 画布 Agent 状态
+    use-expert-store.ts        — 7 Expert Agent
+    use-version-store.ts       — 版本
+    use-export-store.ts        — 导出
+    use-history-store.ts       — 历史撤销
+    use-wardrobe-store.ts      — 服装
+    use-skill-store.ts         — 技能
+    use-analytics-store.ts     — 分析
+    use-settings-store.ts      — 设置
+    use-ui-store.ts            — UI 状态
+    use-project-data-cache-store.ts — 项目数据缓存
+    use-auth-store.ts          — 鉴权
+    ProjectSwitcher.tsx        — 项目切换组件
+  server/
+    functions/                 — TanStack Start server functions
+      notifications.ts
+      user.ts
   utils/
-    utils.ts                  — cn() Tailwind class helper
+    utils.ts                   — cn() Tailwind class helper
+  globals.css                  — 全局样式 + CSS 变量（--app-bg / --bg / ...）
+  router.tsx                   — 路由实例（import ./routeTree.gen）
+  start.ts                     — TanStack Start 入口
+  routeTree.gen.ts             — 自动生成的路由树（勿手改）
 ```
 
-## 5. Capabilities
+## 4. 双 UI 系统（重要）
 
-The platform exposes capabilities through `@eazo/sdk`. Most capabilities (`auth`, `device`) work the same in browsers and inside Eazo Mobile. The `ai` capability is **server-side only** — see its section for details.
-
-
-### 5.1 React Provider
-
-Mount `EazoProvider` once at the root layout. Also mount `UserSyncEffect` inside the provider — it upserts the authenticated user to the local DB after every login (Web and Mobile both converge through `GET /api/user/profile`):
-
-```tsx
-// src/app/layout.tsx
-import { EazoProvider } from "@eazo/sdk/react";
-import { Toaster } from "@/components/ui/sonner";
-import { UserSyncEffect } from "@/components/user-profile/user-sync-effect";
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>
-        <EazoProvider>
-          <UserSyncEffect />
-          {children}
-          <Toaster />
-        </EazoProvider>
-      </body>
-    </html>
-  );
-}
-```
-
-Read reactive state with `useEazo(selector)` inside components. Call singletons directly outside render:
-
-```tsx
-import { auth } from "@eazo/sdk";
-import { useEazo } from "@eazo/sdk/react";
-
-// Inside render — reactive
-const user = useEazo((s) => s.auth.user);
-
-// Outside render (event handler / effect) — direct call
-<button onClick={() => auth.login()}>Sign in</button>
-```
-
-**Rule**: inside render, read reactive state via `useEazo(selector)`. Outside render (event handlers, effects, non-React code), use `auth.xxx` / `device.xxx` directly.
-
-### 5.2 `auth`
+项目当前**两套 UI 并存**，由 `src/routes/__root.tsx` 按路径分流：
 
 ```ts
-import { auth } from "@eazo/sdk";
-
-auth.user                                    // User | null (reactive)
-auth.loading                                 // boolean
-auth.authenticated                           // boolean
-await auth.getToken()                        // string | null
-auth.onChange((user) => { /* ... */ })       // subscribe — returns unsubscribe
-
-await auth.loginWithSocial("google")
-await auth.loginWithEmailPassword(email, password)
-await auth.loginWithEmailCode(email, code)
-await auth.sendEmailCode(email)
-await auth.logout()
+// src/routes/__root.tsx
+const isStudioRoute = location.pathname.startsWith("/studio");
+{isStudioRoute ? <StudioLayout /> : <AgentFirstShell />}
 ```
 
-#### 5.2.1 Login UI
+| 系统 | 路径 | 入口 | 状态 |
+|---|---|---|---|
+| **新 Studio**（AI 原生） | `/studio` | `src/components/studio/studio-layout.tsx` | 当前重点开发方向 |
+| **旧 AgentFirstShell**（多页） | `/`、`/overview`、`/script` 等 16 个路由 | `src/components/layout/AgentFirstShell.tsx` | 保留作为工作流参考，逐步迁移到 Studio |
 
-`@eazo/sdk` owns the login experience. Web runs the SDK-bundled login UI; Eazo Mobile routes to the native host login flow. App code never builds its own login UI.
+**关键差异：**
+- `AgentFirstShell` 挂载了完整基础设施：`StoreHydrator`、`ProjectSwitcher`、`UndoRedoListener`、`CommandPalette`、`SaveIndicator`、`Toaster`、`OnboardingGate`、`AuthBootstrap`、`AgentPanel`、`ContextPanel`。
+- `StudioLayout` 目前只挂载了 `StoreHydrator`（已修复 persist rehydrate 问题），**其他基础设施尚未接入** —— 这是方向 A 要补全的缺口。
 
-Trigger login from anywhere:
+## 5. 状态管理（Zustand）
+
+### 5.1 Store 使用规范
 
 ```ts
-import { auth } from "@eazo/sdk";
+import { useNarrativeStore, useProjectStore } from "@/store";
 
-await auth.login();              // opens UI if needed, resolves with current User
-await auth.login({ timeoutMs }); // optional timeout override (default 5 min)
-auth.showLogin();                // imperative open
-auth.hideLogin();                // imperative close (rejects any pending login())
+// 组件内：响应式订阅
+const projectName = useProjectStore((s) => s.projects.find(p => p.id === s.currentProjectId)?.title);
+
+// 事件处理器/effect 内：直接调用 action
+useProjectStore.getState().updateProject(id, { title: newName });
 ```
 
-`auth.login()` is idempotent — if the user is already authenticated it resolves immediately.
+### 5.2 StoreHydrator（关键）
 
-**Gating a page behind auth — correct pattern:**
+所有 persist store 都用 `skipHydration: true` 创建，必须由 `StoreHydrator` 统一触发 rehydrate。**任何绕过 `AgentFirstShell` 的新路由（如 `/studio`）都必须自己挂载 `<StoreHydrator />`**，否则页面刷新后所有 persist 数据丢失。
 
 ```tsx
-"use client";
-import { auth } from "@eazo/sdk";
-import { useEazo } from "@eazo/sdk/react";
-import { Button } from "@/components/ui/button";
-
-export function MyFeaturePage() {
-  const user = useEazo((s) => s.auth.user);
-  const loading = useEazo((s) => s.auth.loading);
-
-  if (loading) return <div>Loading...</div>;
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-20">
-        <p className="text-muted-foreground">请先登录后继续</p>
-        <Button onClick={() => auth.login().catch(() => undefined)}>登录</Button>
-      </div>
-    );
-  }
-
-  return <MyFeatureContent user={user} />;
-}
+// studio-layout.tsx
+import { StoreHydrator } from "@/store";
+return (
+  <div>
+    <StoreHydrator />  {/* 必须挂载 */}
+    {/* ... */}
+  </div>
+);
 ```
 
-**Never do this:**
+### 5.3 持久化 key
 
-```tsx
-// ❌ Shows text but user has no way to actually log in
-if (!user) return <p>需要登录</p>;
+- 项目：`cd-projects`
+- 其他 store 见各自 `persist({ name: "cd-xxx" })` 配置
+- IndexedDB 适配器：`src/store/idb-storage.ts`
 
-// ❌ Building a custom login form from scratch
-if (!user) return <CustomLoginForm />;
+## 6. AI 多 Agent 系统
+
+`src/lib/ai/` 是核心。**7 个 Expert Agent** 通过 Handoff 协作：
+
+| Agent | 职责 |
+|---|---|
+| narrative | 剧本叙事 |
+| interaction | 互动设计 |
+| cinematic | 镜头演出 |
+| art | 美术 |
+| gameplay | 玩法 |
+| qa | 质量校验 |
+| release | 发布 |
+
+**架构：**
+- `agent-orchestrator.ts` —— 编排器，决定 Handoff
+- `agent-chat-loop.ts` —— 对话主循环
+- `tool-registry.ts` + `tool-executor.ts` —— 工具系统
+- `model-router.ts` —— 多模型路由
+- `ag-ui-events.ts` —— AG-UI 事件流（流式输出）
+
+> ⚠️ **当前缺口**：新 Studio 的 `chat-panel` 只连接了单个 Agent，7 Expert 协作系统尚未接入。这是方向 A 的重点。
+
+## 7. 运行时 & 预览
+
+- `src/lib/runtime/` —— 运行时引擎（executor / scene-context / scene-objects / snapshot）
+- `src/components/simulator/` —— 预览组件：
+  - `scene-renderer.tsx` —— 场景渲染
+  - `ui-renderer.tsx` —— UI 渲染
+  - `audio-player.tsx` —— 音频播放
+  - `save-panel.tsx` —— 存档面板
+  - `style-provider.tsx` —— 样式提供
+  - `use-runtime-engine.ts` —— 运行时引擎 hook
+
+> ⚠️ **当前缺口**：新 Studio 的 `canvas-area` 预览只用了 `scene-renderer` + `use-runtime-engine`，其他 5 个组件尚未接入。
+
+## 8. 节点系统 & 画布
+
+- `src/lib/node-system/` —— 节点定义（built-in 下 15+ 节点类型）+ executor + registry
+- `src/lib/reactflow/` —— @xyflow/react 集成（auto-layout / node-types / edge-types / sync）
+- 画布编辑器在 `src/components/studio/canvas-area.tsx`
+
+## 9. DSL 编译器
+
+`src/lib/dsl/` —— 剧本 DSL：
+- `tokenizer.ts` —— 词法分析
+- `parser.ts` —— 语法分析
+- `compiler.ts` —— 编译为可执行图
+- `types.ts` —— DSL 类型
+
+## 10. 数据库（Drizzle）
+
+```bash
+bun run db:generate   # 生成迁移
+bun run db:migrate    # 执行迁移
+bun run db:push       # 推送 schema
+bun run db:studio     # 可视化管理
 ```
 
-Low-level login primitives (`auth.loginWithSocial` / `loginWithEmailPassword` / `loginWithEmailCode`) are still exposed — use them only when you need to bypass the bundled UI.
+- Schema：`src/lib/db/schema/`（当前只有 `users`）
+- Queries：`src/lib/db/queries/`（`users.ts` 提供 `upsertUser`）
+- Client：`src/lib/db/client.ts`
+- **必须保留 `users` 表** —— 每个应用都要持久化登录用户信息。
 
-#### 5.2.2 Server-side auth guard
+## 11. 鉴权
 
 ```ts
-import { requireAuth } from "@/lib/auth"; // re-exports @eazo/sdk/server
+import { requireAuth } from "@/lib/auth";
 
 export function GET(request: NextRequest) {
   const r = requireAuth(request);
@@ -222,678 +261,94 @@ export function GET(request: NextRequest) {
 }
 ```
 
-#### 5.2.3 Login paths and user persistence
+客户端 API 调用统一走 `src/lib/api/request.ts`（自动注入 session header）。
 
-The SDK handles two login paths transparently:
+## 12. MCP Server
 
-| Path | How it works | DB upsert trigger |
+`src/lib/mcp/server.ts` —— MCP server 入口，通过 `buildMcpServer(userId)` 组装。新增工具：
+
+1. 创建 `src/lib/mcp/tools/<tool-name>.ts`，导出 `register<ToolName>(server, userId)` 函数
+2. 在 `server.ts` 的 `buildMcpServer` 中注册
+
+工具规则：
+- 始终用闭包传入的 `userId`，**绝不信任用户输入的 ID**
+- 成功返回 `{ content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }`
+- 失败返回 `{ isError: true, content: [...] }`
+
+## 13. 环境变量
+
+| 变量 | 必需 | 说明 |
 |---|---|---|
-| **Web** (browser) | User clicks Sign in → SDK shows login UI → `loginWith*` → SDK calls `GET /api/user/profile` to hydrate the user | `GET /api/user/profile` upserts on every call |
-| **Mobile** (Eazo WebView) | Bridge handshake → host injects user via `hello` message → SDK sets auth state directly | `UserSyncEffect` detects `authenticated + platform === "mobile"`, then calls `GET /api/user/profile` |
+| `DATABASE_URL` | 用 DB 时 | `postgresql://USER:PASS@HOST:PORT/DATABASE` |
+| 鉴权相关密钥 | 是 | 见 `src/lib/auth/` |
+| AI 模型密钥 | 是 | 见 `src/lib/ai/ai-service.ts` |
 
-Both paths converge at `GET /api/user/profile`, which calls `upsertUser()` in the background (non-blocking). This keeps the `users` table up to date without any extra round-trips.
+复制 `.env.example` 到 `.env` 本地配置。
 
-#### 5.2.4 Authenticated API calls (client)
+## 14. 编码规范
 
-```ts
-import { request } from "@/lib/api/request";
-const res = await request("/api/my-endpoint");  // x-eazo-session auto-injected
-```
+### 14.1 组件封装
 
-### 5.3 `device`
+- **`page.tsx` / 路由文件保持精简** —— 只导入一个顶层组件并渲染
+- **一个文件一个组件** —— 辅助组件也拆分到独立文件
+- **按功能分组** —— 相关组件放在 `src/components/<feature>/`，不要堆在扁平 `components/` 下
+- **barrel 导出** —— 每个 feature 文件夹用 `index.tsx` 重新导出顶层组件
 
-```ts
-import { device } from "@eazo/sdk";
+### 14.2 文件大小指导（替代旧的硬限制）
 
-device.platform      // 'web' | 'mobile'
-device.locale        // 'zh-CN' | ...
-```
+> ❌ **不再采用**"250 行硬限制一刀切"。该规则来自已废弃的旧模板，对当前复杂的 Studio 组件（如 `canvas-area.tsx` 692 行、`chat-panel.tsx` 485 行）会造成过度拆分。
 
-For safe-area handling, use the standard CSS — `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` and `100dvh` for full-height layouts. The Eazo Mobile WebView advertises the correct insets to the browser, so the same CSS works edge-to-edge in both contexts.
+**新原则：按"内聚边界"拆分，而非按行数拆分。**
 
-### 5.4 `ai` — Server-side AI (AWS Bedrock via bedrock-mantle)
-
-> **`ai` is strictly server-side. Never import or call it in any client component (`"use client"` files), browser code, or `src/lib/api/` helpers. All AI logic must live exclusively in `src/app/api/` route handlers.**
-
-The `ai` capability routes calls through the Eazo platform's AI gateway (AWS Bedrock). It is built on the `openai` package — all parameter and response types are identical to the OpenAI SDK.
-
-**Setup** — configure the private key once at the top of the route file:
-
-```ts
-import { ai } from "@eazo/sdk";
-
-ai.configure({ privateKey: process.env.EAZO_PRIVATE_KEY! });
-// Or omit this call if EAZO_PRIVATE_KEY is already set as an env var.
-```
-
-**Non-streaming** — returns a `ChatCompletion` object:
-
-```ts
-const result = await ai.chat({
-  model: "deepseek.v3.1",
-  messages: [{ role: "user", content: "Hello!" }],
-});
-console.log(result.choices[0].message.content);
-```
-
-**Streaming** — pass `stream: true` and iterate over `ChatCompletionChunk`s:
-
-```ts
-const stream = await ai.chat({
-  model: "deepseek.v3.1",
-  messages: [{ role: "user", content: "Tell me a story." }],
-  stream: true,
-  max_tokens: 512,
-});
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
-}
-```
-
-**Function calling** — tools are fully supported:
-
-```ts
-const result = await ai.chat({
-  model: "deepseek.v3.1",
-  messages: [{ role: "user", content: "What is the weather in Shanghai?" }],
-  tools: [{ type: "function", function: { name: "get_weather", description: "...", parameters: {} } }],
-  tool_choice: "auto",
-});
-```
-
-**Streaming SSE from a Next.js API route** — the recommended pattern for surfacing AI output to the client:
-
-```ts
-// src/app/api/my-feature/analyze/route.ts
-import { NextRequest } from "next/server";
-import { requireAuth } from "@/lib/auth";
-import { ai } from "@eazo/sdk";
-
-ai.configure({ privateKey: process.env.EAZO_PRIVATE_KEY! });
-
-export async function POST(request: NextRequest) {
-  const auth = requireAuth(request);
-  if (!auth.ok) return auth.response;
-
-  const stream = await ai.chat({
-    model: "deepseek.v3.1",
-    messages: [
-      { role: "system", content: "You are a helpful assistant." },
-      { role: "user", content: "..." },
-    ],
-    stream: true,
-  });
-
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content ?? "";
-          if (delta) controller.enqueue(encoder.encode(delta));
-        }
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(readable, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
-}
-```
-
-**Consuming a streaming response on the client** — read the `ReadableStream` body incrementally and append each chunk to state:
-
-```tsx
-"use client";
-import { auth } from "@eazo/sdk";
-
-async function runStream(signal: AbortSignal, onChunk: (delta: string) => void) {
-  const sessionHeader = await auth.getSessionHeader();
-  const res = await fetch("/api/my-feature/analyze", {
-    method: "POST",
-    headers: sessionHeader ? { "x-eazo-session": sessionHeader } : {},
-    signal,
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onChunk(decoder.decode(value, { stream: true }));
-  }
-}
-```
-
-**Important constraints:**
-
-- **`ai` is server-side only — this is a hard rule.** Never import `ai` from `@eazo/sdk` in any file that contains `"use client"`, any hook, any component, or any `src/lib/api/` helper. Doing so would expose `EAZO_PRIVATE_KEY` to the browser.
-- The correct architecture is always: **client component → `fetch` to an API route → API route calls `ai.chat()`**. The AI response is then streamed or returned back to the client over HTTP.
-- Always guard the route with `requireAuth` before invoking `ai.chat()`.
-- Use `deepseek.v3.1` as the default model unless there is a specific reason to change it. Full list of supported models:
-
-  | Model | Vision |
-  |---|---|
-  | `deepseek.v3.1` | ❌ |
-  | `deepseek.v3.2` | ❌ |
-  | `openai.gpt-oss-20b` | ❌ |
-  | `openai.gpt-oss-120b` | ❌ |
-  | `openai.gpt-oss-safeguard-20b` | ❌ |
-  | `openai.gpt-oss-safeguard-120b` | ❌ |
-  | `qwen.qwen3-32b` | ❌ |
-  | `qwen.qwen3-235b-a22b-2507` | ❌ |
-  | `qwen.qwen3-coder-30b-a3b-instruct` | ❌ |
-  | `qwen.qwen3-coder-480b-a35b-instruct` | ❌ |
-  | `qwen.qwen3-coder-next` | ❌ |
-  | `qwen.qwen3-next-80b-a3b-instruct` | ❌ |
-  | `qwen.qwen3-vl-235b-a22b-instruct` | ✅ |
-  | `mistral.ministral-3-3b-instruct` | ✅ |
-  | `mistral.ministral-3-8b-instruct` | ✅ |
-  | `mistral.ministral-3-14b-instruct` | ✅ |
-  | `mistral.magistral-small-2509` | ✅ |
-  | `mistral.mistral-large-3-675b-instruct` | ✅ |
-  | `mistral.devstral-2-123b` | ❌ |
-  | `mistral.voxtral-mini-3b-2507` | ❌ |
-  | `mistral.voxtral-small-24b-2507` | ❌ |
-  | `google.gemma-3-4b-it` | ✅ |
-  | `google.gemma-3-12b-it` | ✅ |
-  | `google.gemma-3-27b-it` | ✅ |
-  | `nvidia.nemotron-nano-9b-v2` | ❌ |
-  | `nvidia.nemotron-nano-12b-v2` | ✅ |
-  | `nvidia.nemotron-nano-3-30b` | ❌ |
-  | `nvidia.nemotron-super-3-120b` | ❌ |
-  | `minimax.minimax-m2` | ❌ |
-  | `minimax.minimax-m2.1` | ❌ |
-  | `minimax.minimax-m2.5` | ❌ |
-  | `moonshotai.kimi-k2-thinking` | ❌ |
-  | `moonshotai.kimi-k2.5` | ✅ |
-  | `zai.glm-4.6` | ❌ |
-  | `zai.glm-4.7` | ❌ |
-  | `zai.glm-4.7-flash` | ❌ |
-  | `zai.glm-5` | ❌ |
-  | `writer.palmyra-vision-7b` | ✅ |
-- Re-exporting AI types: `ChatCompletion`, `ChatCompletionChunk`, `ChatCompletionCreateParamsNonStreaming`, `ChatCompletionCreateParamsStreaming` are all available from `@eazo/sdk` — no need to install `openai` separately.
-
-Never do this:
-
-```tsx
-// ❌ src/components/my-feature/index.tsx — client component calling ai directly
-"use client";
-import { ai } from "@eazo/sdk"; // WRONG — exposes private key to the browser
-
-export function MyFeature() {
-  const handleClick = async () => {
-    const result = await ai.chat({ model: "deepseek.v3.1", messages: [...] });
-  };
-}
-```
-
-Always do this instead:
-
-```
-Client component  →  fetch("/api/my-feature/...")  →  API route handler  →  ai.chat()
-```
-
-## 6. Memory — User Memory Persistence
-
-`memory.reportAction()` writes a user action event to the Gum memory service — a persistent, semantically searchable log of what users did in your app. Gum stores events server-side and makes them available for AI context retrieval in later sessions.
-
-**Client-side only.** Call it from `"use client"` components or client-side helpers. It uses the same `appId` and session as `auth` — no extra configuration required.
-
-```ts
-import { memory } from "@eazo/sdk";
-import type { MemoryActionParams } from "@eazo/sdk";
-
-// Fire-and-forget — always catch so Gum failures never block the user
-memory.reportAction({
-  content: 'User created todo: "Buy groceries"',   // required — readable description
-  event_type: "create",                             // action category
-  page: "todo_list",                               // page identifier
-  metadata: {
-    type: "create_todo",
-    todo: { id: "123", title: "Buy groceries" },
-  },
-}).catch(() => {});
-```
-
-**Parameters:**
-
-| Field | Type | Description |
-|---|---|---|
-| `content` | `string` (required) | Readable, full-sentence description of the event. Good: `"User clicked the publish button on the editor page"`. Bad: `"click"`. |
-| `event_type` | `string` | Action category, e.g. `"create"`, `"update"`, `"delete"`, `"click"`, `"search"`. |
-| `page` | `string` | Page or screen identifier, e.g. `"todo_list"`, `"editor"`, `"settings"`. |
-| `metadata` | `Record<string, unknown>` | Structured event data. `appid` is auto-injected by the SDK. Include a `type` field matching `event_type` and the relevant business objects. |
-| `session_id` | `string` | Associate the event with a Gum session for conversational memory. |
-| `device_id` | `string` | Device identifier. |
-| `app` | `string` | App name / identifier. |
-| `platform` | `string` | `"web"`, `"ios"`, `"android"`, etc. |
-| `timestamp` | `string` | ISO 8601. Defaults to current time. |
-
-**Recommended metadata shape:**
-
-Model `metadata` after the event type so Gum can understand what happened:
-
-```ts
-// create / update / delete a record
-metadata: {
-  type: "create_todo",
-  todo: { id: 123, title: "Buy groceries", done: false },
-}
-
-// toggle / status change
-metadata: {
-  type: "complete_todo",
-  todo_id: 123,
-}
-
-// search
-metadata: {
-  type: "search_app",
-  search_query: "recipe app",
-}
-```
-
-`metadata.appid` is automatically injected by the SDK. Do not set it manually.
-
-**The fire-and-forget pattern:**
-
-Always chain `.catch(() => {})`. Gum is auxiliary — its failure must never break core user flows:
-
-```ts
-async function handleDelete(id: number) {
-  try {
-    await deleteTodo(id);                   // primary operation
-    memory.reportAction({                   // fire-and-forget
-      content: "User deleted a todo",
-      event_type: "delete",
-      page: "todo_list",
-      metadata: { type: "delete_todo", todo_id: id },
-    }).catch(() => {});
-    setTodos((prev) => prev.filter((t) => t.id !== id));
-  } catch {
-    toast.error("Failed to delete todo");
-  }
-}
-```
-
-**When to call it:**
-
-- After every meaningful mutation (create, update, delete, upload, attach)
-- After user navigation to an important screen
-- After completing a significant workflow step
-
-**When NOT to call it:**
-
-- On every keystroke or scroll event
-- For read-only operations like list fetches (low-signal noise)
-- Inside server-side route handlers (`src/app/api/`) — it is a browser-only API
-
-See `src/components/todo-list/index.tsx` for a complete example of six todo mutations each reporting to Gum.
-
-## 7. Notifications — System Push
-
-Apps can publish system push notifications to users who have subscribed inside Eazo Mobile. Two surfaces:
-
-**Client (`@eazo/sdk`)** — manage the per-(user, app) subscription bit:
-
-```ts
-import { notifications } from "@eazo/sdk";
-
-const { subscribed } = await notifications.isSubscribed();
-if (!subscribed) await notifications.subscribe();   // opt the current user in
-// later…
-await notifications.unsubscribe();
-```
-
-In a plain browser the methods resolve `{ subscribed: false }` and don't throw — apps render the right UI without special-casing. Inside Eazo Mobile the host writes the bit and the result reflects the new state.
-
-The template wires this via `src/components/notifications/notifications-toggle.tsx`, mounted on the todo list page.
-
-**Server (`@eazo/sdk/server`)** — fan out a notification to every subscriber:
-
-```ts
-import { notifications, EazoNotificationPublishError } from "@eazo/sdk/server";
-
-await notifications.publish({
-  appId: process.env.EAZO_APP_ID!,
-  title: "Daily reminder",
-  body: "Don't forget to review your tasks today.",
-  data: { source: "cron-daily-digest" },     // forwarded to the device tap handler
-  audience: "subscribers",                    // v1 only value
-});
-```
-
-The helper signs an ES256K JWT with `EAZO_PRIVATE_KEY` and POSTs to `/api/open/notifications/publish`. v1 hard-caps subscriber fan-out at 5,000 (`code: 413` if exceeded). The request is short-lived — your backend doesn't need to be long-running, just reachable when you want to publish.
-
-**Two example routes** ship with the template:
-
-- `POST /api/notifications/test` (`src/app/api/notifications/test/route.ts`) — gated by `requireAuth`. Drives the "Send test notification" button.
-- `GET /api/notifications/cron/daily-digest` (`src/app/api/notifications/cron/daily-digest/route.ts`) — Vercel Cron schedule (`vercel.json#crons`). Authenticates with `Authorization: Bearer ${CRON_SECRET}` (Vercel injects this automatically for cron-fired invocations). The default schedule is `0 17 * * *` (17:00 UTC daily) — adjust in `vercel.json`.
-
-**Tap deep-link**: when a user taps a notification published with `appId: <X>`, Eazo Mobile auto-routes to `/app/viewer?id=<X>` so they land back inside your app.
-
-## 8. MCP Server
-
-The template ships a built-in **MCP (Model Context Protocol) server** at `/api/mcp`. After running `bun run cleanup:demo`, all demo tools are removed and `src/lib/mcp/server.ts` is kept as a clean entry point ready for your own tools.
-
-### Transport
-
-Streamable HTTP (Web Standard), via `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (imported from `webStandardStreamableHttp.js`). Runs stateless — every request creates a fresh server instance, compatible with serverless deployments (Vercel, etc.).
-
-**Do NOT replace this with `StreamableHTTPServerTransport` from `streamableHttp.js`.** That is a Node.js HTTP transport: it does not accept a `NextRequest`, requires manual body parsing (`request.text()`), and does not work on Vercel. The Web Standard variant is the only correct choice for Next.js.
-
-### Authentication
-
-The MCP endpoint uses the same `requireAuth(request)` guard as every other API route. It reads the `x-eazo-session` header and scopes all tool calls to the authenticated user's data. The `userId` is passed into every tool via closure — never trust user-supplied IDs.
-
-### Connecting a Client
-
-**Cursor / Claude Desktop (`mcp.json` / `claude_desktop_config.json`)**
-
-```json
-{
-  "mcpServers": {
-    "my-app": {
-      "url": "https://your-app.vercel.app/api/mcp",
-      "headers": {
-        "x-eazo-session": "<your-eazo-session-token>"
-      }
-    }
-  }
-}
-```
-
-For local development replace the URL with `http://localhost:3000/api/mcp`.
-
-### How to Add a New Tool
-
-**Step 1 — Create `src/lib/mcp/tools/<tool-name>.ts`**
-
-Each tool lives in its own file and exports one `register*` function that receives the `McpServer` instance and the authenticated `userId`:
-
-```ts
-// src/lib/mcp/tools/get-project.ts
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { getProjectById } from "@/lib/db/queries";
-
-export function registerGetProject(server: McpServer, userId: string) {
-  server.registerTool(
-    "get_project",
-    {
-      description: "Get a project by ID.",
-      inputSchema: {
-        id: z.number().int().positive().describe("The project ID"),
-      },
-    },
-    async ({ id }) => {
-      const project = await getProjectById(id, userId);
-      if (!project) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Project ${id} not found.` }],
-        };
-      }
-      return {
-        content: [{ type: "text", text: JSON.stringify(project, null, 2) }],
-      };
-    }
-  );
-}
-```
-
-Rules for tool files:
-- File: `src/lib/mcp/tools/<kebab-case>.ts`
-- Export: one `register<ToolName>` function, nothing else
-- Always use `userId` from the function argument — never from input args
-- Return `{ isError: true, content: [...] }` for not-found / validation errors
-- Return `{ content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }` for success
-
-**Step 2 — Register it in `src/lib/mcp/server.ts`**
-
-```ts
-// src/lib/mcp/server.ts
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerGetProject } from "./tools/get-project";
-
-export function buildMcpServer(userId: string): McpServer {
-  const server = new McpServer({ name: "eazo-mcp", version: "1.0.0" });
-
-  registerGetProject(server, userId);
-  // add more tools here...
-
-  return server;
-}
-```
-
-That's all — **do not modify `src/app/api/mcp/route.ts`**. It is transport-only glue and must not be rewritten. If it ever looks wrong, restore it to exactly this:
-
-```ts
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { NextRequest } from "next/server";
-import { requireAuth } from "@/lib/auth";
-import { buildMcpServer } from "@/lib/mcp/server";
-
-async function handleMcpRequest(request: NextRequest): Promise<Response> {
-  const auth = requireAuth(request);
-  if (!auth.ok) return auth.response;
-
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  });
-
-  const server = buildMcpServer(auth.user.id);
-  await server.connect(transport);
-
-  return transport.handleRequest(request);
-}
-
-export async function GET(request: NextRequest) {
-  return handleMcpRequest(request);
-}
-
-export async function POST(request: NextRequest) {
-  return handleMcpRequest(request);
-}
-
-export async function DELETE(request: NextRequest) {
-  return handleMcpRequest(request);
-}
-```
-
-### File Layout
-
-```
-src/lib/mcp/
-  server.ts              — assembles McpServer and registers all tools
-  tools/
-    <tool-name>.ts       — one register* function per file
-src/app/api/mcp/
-  route.ts               — HTTP glue only (auth + transport + handler)
-```
-
-## 9. Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `EAZO_APP_ID` | Yes | Eazo app ID. Also passed as the `appId` arg to `notifications.publish` server-side. |
-| `EAZO_PRIVATE_KEY` | Yes | Hex-encoded 64-char private key; used by `requireAuth` to decrypt sessions and by `notifications.publish` to sign JWTs. |
-| `DATABASE_URL` | If using DB | `postgresql://USER:PASS@HOST:PORT/DATABASE` |
-| `CRON_SECRET` | If you ship the daily-digest cron | Shared secret Vercel Cron sends as `Authorization: Bearer …` when firing scheduled invocations. |
-| `EAZO_PLATFORM_API_BASE` | Optional | Override the Eazo platform base URL (defaults to `https://eazo.ai`). |
-| `NEXT_PUBLIC_GENAUTH_APP_ID` | Optional | Override GenAuth App ID default. |
-| `NEXT_PUBLIC_GENAUTH_APP_DOMAIN` | Optional | Override GenAuth tenant domain default. |
-
-Copy `.env.example` to `.env` to configure locally.
-
-## 10. UI Components
-
-shadcn/ui is initialized. Available from `@/components/ui/`:
-
-| Component | Import |
+| 信号 | 拆分动作 |
 |---|---|
-| Button | `import { Button } from "@/components/ui/button"` |
-| Card | `import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"` |
-| Dialog | `import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"` |
-| Input | `import { Input } from "@/components/ui/input"` |
-| Label | `import { Label } from "@/components/ui/label"` |
-| Select | `import { Select, SelectContent, SelectItem } from "@/components/ui/select"` |
-| Sheet | `import { Sheet, SheetContent, SheetHeader } from "@/components/ui/sheet"` |
-| Tabs | `import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"` |
-| Textarea | `import { Textarea } from "@/components/ui/textarea"` |
-| Sonner (toast) | `import { Toaster } from "@/components/ui/sonner"` |
+| 一个 section 有自己的 `useState` / `useEffect` / 数据 fetch | 抽成独立组件 |
+| 一个 section 职责可以用一句话命名 | 抽成独立组件 |
+| 同一文件出现 2 个以上不相关的 UI 块 | 按职责拆分 |
+| 文件超过 400 行且仍有增长趋势 | 评估是否可抽 hook / 子组件 |
+| 纯展示组件与有状态逻辑混在一起 | 拆分为 presentational + container |
 
-Add more: `bunx shadcn@latest add <component>`. Icons: `lucide-react`. Animation: `framer-motion`.
+**不强制拆分的情况：**
+- 单一职责的组件，即使较长（如一个复杂表单）
+- 紧密耦合的 JSX 模板，拆开反而增加跳转成本
+- 临时原型阶段，过早拆分会阻碍迭代
 
-## 11. Adding New Pages
+### 14.3 命名
 
-Each URL maps to a `page.tsx` under `src/app/`. Extract non-trivial UI into `src/components/<feature>/` and keep `page.tsx` as a thin entry point.
+- 组件文件：`kebab-case.tsx`（如 `user-profile-card.tsx`）
+- 组件导出：`PascalCase` 命名导出（如 `export function UserProfileCard`）
+- API helper：`camelCase` 函数，放在 `src/lib/api/<resource>.ts`
+- Store：`use-<name>-store.ts`，导出 `useXxxStore`
 
-1. **Route file** (`src/app/dashboard/page.tsx`):
-   ```tsx
-   import { DashboardPage } from "@/components/dashboard";
-   export default function Dashboard() {
-     return <DashboardPage />;
-   }
-   ```
-2. **Page component** (`src/components/dashboard/index.tsx`):
-   ```tsx
-   "use client";
-   import { useEazo } from "@eazo/sdk/react";
+### 14.4 状态与数据
 
-   export function DashboardPage() {
-     const user = useEazo((s) => s.auth.user);
-     // ...
-   }
-   ```
-3. **If the page needs a new API route** — add `src/app/api/<resource>/route.ts` and guard it with `requireAuth`.
+- **不要在 `page.tsx` 里直接 fetch** —— 委托给 client 组件或 `src/lib/api/`
+- **所有 API 调用逻辑放 `src/lib/api/`** —— 不要在组件里直接 `fetch`
+- 共享状态用 Zustand store，不要跨文件散布 `useState`
+- 读 auth 状态用 `useAuthStore((s) => s.user)`，不要在组件里重复 fetch profile
 
-## 12. Coding Requirements
+### 14.5 导入
 
-### 12.1 Component Encapsulation (mandatory)
+- 用 `@/` 路径别名，不要 `../../` 链
+- UI 原语从 `@/components/ui/` 导入
 
-- **Never write all code in one file.** A `page.tsx` must remain a thin entry point — it imports one top-level feature component and renders it. Business logic, UI sections, and sub-components all live in separate files.
-- **One component per file — strictly enforced.** Each file must export exactly one component. No exceptions: even small helper components must have their own file. If you find yourself writing a second component in the same file, stop and split immediately.
+## 15. 当前开发方向
 
-Bad — multiple components in one file:
+按用户指定顺序执行：
 
-```tsx
-// src/components/dashboard/index.tsx  ❌
-export function StatsCard() { ... }
-export function RecentActivity() { ... }
-export function DashboardPage() {
-  return (
-    <>
-      <StatsCard />
-      <RecentActivity />
-    </>
-  );
-}
-```
+1. **方向 C（进行中）**：清理旧代码残留 + 移除历史平台依赖
+2. **方向 A（待办）**：补全新 Studio 功能缺口
+   - 接入 7 Expert 多 Agent 协作系统
+   - 补全预览功能（audio/ui/save/style 5 个组件）
+   - 接入缺失基础设施（ProjectSwitcher / UndoRedoListener / Toaster / CommandPalette）
+   - 补全角色编辑、场景设置、镜头编辑器
+3. **方向 B（待办）**：重构为 Converge.ai 式布局
+   - 左对话区加宽（320px → 40-45%）
+   - 画布从编辑器转为预览器
+   - 属性编辑移到浮动面板
+   - 增加工作流引导
+   - **关键**：融合用户现有的互动影游专业工作流，不是简单照搬
 
-Good — each component in its own file:
+## 16. 目标
 
-```tsx
-// src/components/dashboard/stats-card.tsx  ✅
-export function StatsCard() { ... }
-
-// src/components/dashboard/recent-activity.tsx  ✅
-export function RecentActivity() { ... }
-
-// src/components/dashboard/index.tsx  ✅
-import { StatsCard } from "./stats-card";
-import { RecentActivity } from "./recent-activity";
-
-export function DashboardPage() {
-  return (
-    <>
-      <StatsCard />
-      <RecentActivity />
-    </>
-  );
-}
-```
-- **Extract every non-trivial section.** Any UI block that has its own state, its own data fetch, or spans more than ~50 lines should be its own component file.
-- **Group by feature, not by type.** Place related components together under `src/components/<feature>/`. Do not dump everything into a flat `components/` folder.
-
-Example of the correct split for a "Dashboard" feature:
-
-```
-src/components/dashboard/
-  index.tsx          — DashboardPage (top-level, imported by page.tsx)
-  dashboard-header.tsx
-  stats-grid.tsx
-  recent-activity.tsx
-  activity-item.tsx
-```
-
-### 12.2 File Size Limits
-
-| File type | Soft limit | Hard limit |
-|---|---|---|
-| Page component (`page.tsx`) | 30 lines | 50 lines |
-| Feature component | 150 lines | 250 lines |
-| Utility / helper | 80 lines | 150 lines |
-| API route handler | 60 lines | 100 lines |
-
-When a file approaches its hard limit, split it before continuing.
-
-### 12.3 Naming Conventions
-
-- Component files: `kebab-case.tsx` (e.g. `user-profile-card.tsx`)
-- Component exports: `PascalCase` named export (e.g. `export function UserProfileCard`)
-- Each feature folder exposes a barrel `index.tsx` that re-exports the top-level component.
-- API helpers: `camelCase` functions in `src/lib/api/<resource>.ts`.
-
-### 12.4 State and Data
-
-- Do not fetch data directly inside a `page.tsx`. Delegate to a client component or a server component that lives in `src/components/`.
-- Read auth state with `useAuthStore((s) => s.user)` — do not re-fetch profile inside individual components.
-- Keep Zustand stores in `src/stores/`. Do not create ad-hoc `useState` sprawl across multiple files for shared state.
-
-### 12.5 API Requests (mandatory)
-
-- **All API call logic must live in `src/lib/api/`.** Never call `fetch` or `request()` directly inside a page or component file.
-- Group by resource: `src/lib/api/todos.ts`, `src/lib/api/projects.ts`, etc. Each file exports typed async functions for that resource's CRUD operations.
-- Re-export everything through `src/lib/api/index.ts` so consumers import from one place:
-
-```ts
-// correct
-import { getTodos, createTodo } from "@/lib/api";
-
-// wrong — fetch inside a component
-const res = await request("/api/todos");
-```
-
-- API functions must be fully typed: explicit parameter types and return types (no implicit `any`).
-- Error handling belongs in the API layer, not scattered across components.
-
-### 12.6 Imports
-
-- Use `@/` path aliases everywhere — no relative `../../` chains.
-- Import UI primitives from `@/components/ui/`, not directly from shadcn source paths.
-
-## 13. Project Rules
-
-- Prefer Bun for all install and script commands.
-- Keep the template lean and framework-native.
-- Do not reach into `@eazo/sdk` internals. The public surface is `auth`, `device`, `ai`, `storage`, `memory`, `notifications`, `useEazo`, `EazoProvider`, `requireAuth`, and semantic types.
-- **`ai` must only be called inside `src/app/api/` route handlers — never in client components, hooks, or `src/lib/api/` helpers.**
-- **Call `memory.reportAction()` (fire-and-forget) after every meaningful user mutation.** Always chain `.catch(() => {})` — Gum failures must never break core user flows. Do not call it for read-only fetches or inside server-side route handlers.
-- Keep demo code out of new product code.
-- **Always maintain a local `users` table.** Every app must persist authenticated user info in its own database. The template's `users` schema and `upsertUser` query are the reference implementation — do not remove them. `GET /api/user/profile` upserts on every call (Web path); `UserSyncEffect` triggers the same upsert after a Mobile bridge login. If you add new user-facing features, join against the local `users` table rather than relying solely on the SDK session.
-- Before starting feature development, run `bun run cleanup:demo` to remove all demo/example artifacts (TodoList pages/components, demo API routes, demo DB schema/migrations) and auto-clean stale `./todos` exports in index files.
-- Before shipping, run `bun run lint` and `bun run build`.
-
-## 14. Goal
-
-Start fast, stay flexible, and only add complexity when there is a concrete product requirement.
+保持精简、框架原生，只在有具体产品需求时增加复杂度。新功能优先在 `/studio` 下实现，旧 16 个 Screen 作为工作流参考保留。

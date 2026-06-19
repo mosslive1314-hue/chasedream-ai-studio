@@ -78,6 +78,8 @@ interface CanvasAgentState {
   currentRunId: string | null;
   /** 错误信息 */
   errorMessage: string | null;
+  /** 中止控制器（用于取消正在进行的 LLM 请求） */
+  abortController: AbortController | null;
 
   // ── Actions ──
 
@@ -103,6 +105,8 @@ interface CanvasAgentState {
   setCurrentRunId: (id: string | null) => void;
   /** 设置错误信息 */
   setErrorMessage: (msg: string | null) => void;
+  /** 设置中止控制器 */
+  setAbortController: (controller: AbortController | null) => void;
   /** 清空消息 */
   clearMessages: () => void;
   /** 重置整个 Agent 状态 */
@@ -120,6 +124,7 @@ const initialState = {
   activeNodeId: null as string | null,
   currentRunId: null as string | null,
   errorMessage: null as string | null,
+  abortController: null as AbortController | null,
 };
 
 // ─── 工具函数 ────────────────────────────────────────────
@@ -133,7 +138,7 @@ function genMsgId(): string {
 
 export const useCanvasAgentStore = create<CanvasAgentState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       ...initialState,
 
       addMessage: (msg) => {
@@ -185,6 +190,7 @@ export const useCanvasAgentStore = create<CanvasAgentState>()(
       setActiveNodeId: (nodeId) => set({ activeNodeId: nodeId }),
       setCurrentRunId: (id) => set({ currentRunId: id }),
       setErrorMessage: (msg) => set({ errorMessage: msg }),
+      setAbortController: (controller) => set({ abortController: controller }),
       clearMessages: () => set({ messages: [] }),
       reset: () => set(initialState),
     }),
@@ -258,10 +264,35 @@ export function handleAGUIEvent(event: { type: string; [key: string]: unknown })
         content: `调用工具: ${event.toolName}`,
         toolCall: {
           toolName: event.toolName as string,
-          args: {},
+          args: (event.args as Record<string, unknown>) ?? {},
           status: "executing",
         },
       });
+      break;
+
+    case AGUIEventType.TOOL_CALL_ARGS:
+      // 更新最后一个工具调用消息的 args
+      {
+        const msgs = useCanvasAgentStore.getState().messages;
+        const lastToolMsg = [...msgs].reverse().find((m) => m.toolCall && m.toolCall.status === "executing");
+        if (lastToolMsg && lastToolMsg.toolCall) {
+          try {
+            const deltaArgs = JSON.parse(event.delta as string);
+            const mergedArgs = { ...lastToolMsg.toolCall.args, ...deltaArgs };
+            useCanvasAgentStore.getState().updateToolResult(lastToolMsg.id, JSON.stringify(mergedArgs), "executing");
+            // Also update the args field directly via setState
+            useCanvasAgentStore.setState((state) => ({
+              messages: state.messages.map((m) =>
+                m.id === lastToolMsg.id && m.toolCall
+                  ? { ...m, toolCall: { ...m.toolCall, args: mergedArgs } }
+                  : m
+              ),
+            }));
+          } catch {
+            // Delta is not valid JSON, ignore
+          }
+        }
+      }
       break;
 
     case AGUIEventType.TOOL_CALL_END:

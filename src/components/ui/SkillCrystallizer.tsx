@@ -3,11 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, ChevronRight, ChevronLeft, Sparkles, BookOpen,
   Layers, Tag, Trophy, Zap, CheckCircle2, X, Trash2,
-  GripVertical,
 } from "lucide-react";
 import { useSkillStore } from "@/store";
 import type {
-  Skill, SkillDomain, SkillStep, SkillSource,
+  Skill, SkillDomain, SkillStep,
   ToolPattern,
 } from "@/lib/types/skill";
 import type { ExpertQualityStandard } from "@/lib/types/expert";

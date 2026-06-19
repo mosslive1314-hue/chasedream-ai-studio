@@ -1,14 +1,10 @@
 export { ModelRouter, RouterError, createOpenAIProvider, createQwenProvider, createHunyuanProvider } from "./model-router";
 export type {
-  CapabilityComponent,
-  ComponentMetadata,
-  CostEstimate,
-  HealthStatus,
-  AITaskType,
   ChatMessage,
   ChatCompletionRequest,
   ChatCompletionResponse,
   ToolCall,
+  StreamToolCallDelta,
   ToolDefinition,
   StreamChunk,
   ModelProviderConfig,
@@ -75,3 +71,22 @@ export type {
   ImageGenConfig,
   StylePreset,
 } from "./ai-image-service";
+
+// ─── Agent System (Phase 1) ──────────────────────────────
+
+export { buildSystemPrompt } from "./agent-system-prompt";
+export type { SystemPromptContext } from "./agent-system-prompt";
+
+export { ToolRegistry, createDefaultToolRegistry } from "./tool-registry";
+export type {
+  ToolResult,
+  ToolHandler,
+  ToolCategory,
+  RegisteredTool,
+} from "./tool-registry";
+
+export { ToolExecutor } from "./tool-executor";
+export type { ExecutionResult } from "./tool-executor";
+
+export { AgentChatLoop } from "./agent-chat-loop";
+export type { ChatLoopCallbacks, AgentChatLoopOptions } from "./agent-chat-loop";

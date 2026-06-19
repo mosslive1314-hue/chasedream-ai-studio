@@ -3,9 +3,7 @@ import { useAuthStore } from "@/store/use-auth-store";
 
 /**
  * Syncs the auth user on mount.
- * In the original version this synced the user profile to a server
- * via the Eazo mobile bridge. Now it just ensures the auth store is
- * bootstrapped on mount.
+ * Ensures the auth store is bootstrapped on mount.
  */
 export function UserSyncEffect() {
   const user = useAuthStore((s) => s.user);

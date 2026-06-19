@@ -17,7 +17,7 @@ export interface StoryNode {
   y: number;
   hasError?: boolean;
   errorMsg?: string;
-  /** POV 视角角色 ID（Detroit 多主角系统） */
+  /** POV 视角角色 ID（多主角系统） */
   povCharacterId?: string;
   /** POV 叙事风格 */
   povStyle?: 'first_person' | 'third_person' | 'over_shoulder';
@@ -97,7 +97,7 @@ export interface ScriptBlock {
   options?: string[];
   color: string;
   /** 内嵌演出指令（脚本 DSL） */
-  directives?: import('./detroit-features').ScriptDirective[];
+  directives?: import('./advanced-narrative').ScriptDirective[];
 }
 
 // ── 热力图模拟数据（P2-13）─────────────────────────────────────────────
@@ -137,7 +137,7 @@ export interface ChapterPlan {
   chapterEndHook?: string;
   estimatedDuration: string;
   /** 章节变体（根据前置选择激活不同版本） */
-  variants?: import('./detroit-features').ChapterVariant[];
+  variants?: import('./advanced-narrative').ChapterVariant[];
 }
 
 // ── 世界规则数据（P3-4）─────────────────────────────────────────────
@@ -181,8 +181,8 @@ export interface InteractionPoint {
   tested: boolean;
   visibleCondition?: string;
   interactionType?: InteractionType;  // exploration | dialogue | decision | confrontation
-  /** 限时选择配置（Detroit 限时决策系统） */
-  timedDecision?: import('./detroit-features').TimedDecisionConfig;
+  /** 限时选择配置（限时决策系统） */
+  timedDecision?: import('./advanced-narrative').TimedDecisionConfig;
 }
 
 // ── 制作管线阶段数据（P3-1）─────────────────────────────────────────────
@@ -218,4 +218,17 @@ export interface PathTestResult {
   totalDuration: number;  // 秒
   testTime: string;
   passed: boolean;
+}
+
+// ── Edge ID 辅助函数 ──────────────────────────────────────────────────────────
+
+/** 生成稳定的边 ID（基于 from-to 对） */
+export function edgeId(from: string, to: string): string {
+  return `${from}-${to}`;
+}
+
+/** 从边 ID 解析出 from 和 to */
+export function parseEdgeId(id: string): { from: string; to: string } {
+  const idx = id.indexOf('-');
+  return { from: id.slice(0, idx), to: id.slice(idx + 1) };
 }

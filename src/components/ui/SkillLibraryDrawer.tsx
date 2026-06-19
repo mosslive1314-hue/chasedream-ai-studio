@@ -5,7 +5,7 @@ import { X, BookOpen } from "lucide-react";
 import { SkillLibraryPanel } from "./SkillLibraryPanel";
 import { SkillExecutionRunner } from "./SkillExecutionRunner";
 import { SkillCrystallizer } from "./SkillCrystallizer";
-import type { Skill, SkillDomain } from "@/lib/types/skill";
+import type { Skill } from "@/lib/types/skill";
 
 // ─── Design Tokens ──────────────────────────────────────────
 const S = {

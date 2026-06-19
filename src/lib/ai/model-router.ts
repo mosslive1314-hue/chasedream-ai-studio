@@ -92,9 +92,11 @@ export type AITaskType =
  */
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | null;
   name?: string;
   tool_call_id?: string;
+  /** 工具调用列表（assistant 消息中使用 tool calling 时） */
+  tool_calls?: ToolCall[];
 }
 
 export interface ChatCompletionRequest {
@@ -146,6 +148,17 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+/** 流式响应中的增量工具调用（包含 index 字段） */
+export interface StreamToolCallDelta {
+  index?: number;
+  id?: string;
+  type?: "function";
+  function?: {
+    name?: string;
+    arguments?: string;
+  };
+}
+
 // ─── 流式响应（SSE）────────────────────────────────────
 
 export interface StreamChunk {
@@ -155,7 +168,7 @@ export interface StreamChunk {
     delta: {
       role?: string;
       content?: string;
-      tool_calls?: ToolCall[];
+      tool_calls?: StreamToolCallDelta[];
     };
     finish_reason: string | null;
   }[];
@@ -428,11 +441,15 @@ export class ModelRouter {
    */
   async routeStream(
     taskType: AITaskType,
-    request: Omit<ChatCompletionRequest, "model">
+    request: Omit<ChatCompletionRequest, "model">,
+    options?: { signal?: AbortSignal }
   ): Promise<ReadableStream<StreamChunk>> {
     const decision = this.decideRouting(taskType);
     const provider = this.providers.get(decision.providerId);
     if (!provider) throw new RouterError(`提供商 "${decision.providerId}" 不存在`);
+
+    console.log(`[ModelRouter] routeStream → provider: ${provider.id}, model: ${decision.modelId}, baseUrl: ${provider.baseUrl}`);
+    console.log(`[ModelRouter] 请求: messages=${request.messages?.length}条, tools=${request.tools?.length ?? 0}个, stream=true`);
 
     const fullRequest: ChatCompletionRequest = {
       ...request,
@@ -440,7 +457,7 @@ export class ModelRouter {
       stream: true,
     };
 
-    return this.callProviderStream(provider, fullRequest);
+    return this.callProviderStream(provider, fullRequest, options?.signal);
   }
 
   // ── 内部调用 ──
@@ -473,7 +490,8 @@ export class ModelRouter {
 
   private async callProviderStream(
     provider: ModelProviderConfig,
-    request: ChatCompletionRequest
+    request: ChatCompletionRequest,
+    signal?: AbortSignal
   ): Promise<ReadableStream<StreamChunk>> {
     const url = `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`;
 
@@ -484,6 +502,7 @@ export class ModelRouter {
         Authorization: `Bearer ${provider.apiKey}`,
       },
       body: JSON.stringify(request),
+      signal,
     });
 
     if (!res.ok) {
@@ -495,31 +514,96 @@ export class ModelRouter {
       throw new RouterError("响应体为空");
     }
 
-    // 解析 SSE 流
+    const contentType = res.headers.get("content-type") || "";
+    console.log(`[ModelRouter] SSE 响应 content-type: ${contentType}, url: ${url}`);
+
+    // 如果 API 不支持流式（返回 application/json 而非 text/event-stream），
+    // 直接解析 JSON 并包装为单 chunk 流
+    if (contentType.includes("application/json")) {
+      console.warn("[ModelRouter] API 返回 JSON 而非 SSE 流，可能不支持 stream:true，降级为非流式解析");
+      const jsonBody = await res.json() as ChatCompletionResponse;
+      const chunk: StreamChunk = {
+        id: jsonBody.id,
+        choices: jsonBody.choices.map((c) => ({
+          index: c.index,
+          delta: { role: c.message.role, content: c.message.content },
+          finish_reason: c.finish_reason,
+        })),
+      };
+      return new ReadableStream<StreamChunk>({
+        start(controller) {
+          controller.enqueue(chunk);
+          controller.close();
+        },
+      });
+    }
+
+    // 解析 SSE 流 — 用缓冲区处理跨 chunk 截断
     const decoder = new TextDecoder();
     const reader = res.body.getReader();
+    let buffer = "";
+    let chunkCount = 0;
+    let firstRawChunk = "";
 
     return new ReadableStream<StreamChunk>({
       async pull(controller) {
-        const { done, value } = await reader.read();
-        if (done) {
-          controller.close();
-          return;
-        }
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split("\n").filter((l) => l.startsWith("data: "));
-        for (const line of lines) {
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            // 处理缓冲区中剩余的不完整行
+            if (buffer.trim()) {
+              const trimmed = buffer.trim();
+              if (trimmed.startsWith("data:")) {
+                const data = trimmed.slice(5).trim();
+                if (data && data !== "[DONE]") {
+                  try {
+                    const chunk = JSON.parse(data) as StreamChunk;
+                    chunkCount++;
+                    controller.enqueue(chunk);
+                  } catch {
+                    console.warn("[ModelRouter] SSE 剩余行 JSON 解析失败:", data.slice(0, 200));
+                  }
+                }
+              }
+            }
+            console.log(`[ModelRouter] SSE 流结束，共解析 ${chunkCount} 个 chunk`);
+            if (chunkCount === 0) {
+              console.error("[ModelRouter] ⚠️ SSE 流完成但未解析出任何 chunk！原始首块内容（前500字符）:", firstRawChunk.slice(0, 500));
+            }
             controller.close();
             return;
           }
-          try {
-            const chunk = JSON.parse(data) as StreamChunk;
-            controller.enqueue(chunk);
-          } catch {
-            // 跳过无法解析的行
+          const rawText = decoder.decode(value, { stream: true });
+          if (chunkCount === 0) {
+            firstRawChunk = rawText;
+            console.log("[ModelRouter] SSE 首块原始内容（前300字符）:", rawText.slice(0, 300));
           }
+          // 累积到缓冲区
+          buffer += rawText;
+          // 按换行分割，保留最后一个可能不完整的行在缓冲区
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            // 兼容 "data: {...}" 和 "data:{...}" 两种格式
+            if (!trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (data === "[DONE]") {
+              console.log(`[ModelRouter] SSE 收到 [DONE]，共解析 ${chunkCount} 个 chunk`);
+              controller.close();
+              return;
+            }
+            try {
+              const chunk = JSON.parse(data) as StreamChunk;
+              chunkCount++;
+              controller.enqueue(chunk);
+            } catch {
+              console.warn("[ModelRouter] SSE 行 JSON 解析失败，跳过:", data.slice(0, 200));
+            }
+          }
+        } catch (error) {
+          controller.error(error);
         }
       },
     });

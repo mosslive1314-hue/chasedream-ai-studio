@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Sparkles, CheckCircle2, AlertCircle, ChevronDown, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, Sparkles, CheckCircle2, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   type BridgeSource,

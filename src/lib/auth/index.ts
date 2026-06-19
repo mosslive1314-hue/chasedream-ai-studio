@@ -29,7 +29,7 @@ const DEV_USER: User = {
  * - In development: always returns the mock dev user.
  * - In production: TODO — validate session token from request headers.
  */
-export function requireAuth(request: {
+export function requireAuth(_request: {
   headers: { get(name: string): string | null };
 }): AuthResult {
   const isDev = !process.env.AUTH_SECRET;
@@ -38,8 +38,8 @@ export function requireAuth(request: {
     return { ok: true, user: DEV_USER };
   }
 
-  // TODO: Production auth — verify session token from request.headers
-  // Example: const token = request.headers.get("authorization");
+  // TODO: Production auth — verify session token from _request.headers
+  // Example: const token = _request.headers.get("authorization");
   //          const user = await verifyToken(token);
   //          if (!user) return { ok: false, response: new Response("Unauthorized", { status: 401 }) };
 

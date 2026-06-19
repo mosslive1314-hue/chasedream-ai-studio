@@ -1,13 +1,13 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  BookOpen, Filter, ChevronDown, ChevronRight, Star, Zap,
-  Play, Tag, Layers, ArrowRight, CheckCircle2, XCircle,
-  Plus, Search, X, Trophy, Clock, AlertTriangle,
+  BookOpen, Filter, ChevronDown, Star, Zap,
+  Play, Layers, ArrowRight, CheckCircle2,
+  Plus, Search, X, Trophy, AlertTriangle,
 } from "lucide-react";
 import { useSkillStore } from "@/store";
 import type {
-  Skill, SkillDomain, SkillStep, ToolPattern, SkillExecution,
+  Skill, SkillDomain, SkillStep,
 } from "@/lib/types/skill";
 
 // ─── Design Tokens ──────────────────────────────────────────

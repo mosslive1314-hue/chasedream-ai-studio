@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Shirt, Plus, Trash2, Edit3, Star, Tag, Check, X,
-  Eye, ChevronDown, ChevronRight, Sparkles, Link2,
+  Shirt, Star, Check,
+  Eye, ChevronDown, ChevronRight, Link2,
 } from "lucide-react";
 import type {
-  CharacterWardrobe, CharacterOutfit, OutfitPiece, WardrobeSlot, VisualAnchor,
+  CharacterWardrobe, CharacterOutfit,
 } from "@/lib/types/wardrobe";
 import type { GameCharacter } from "@/lib/types/game";
 import { OutfitPreviewCanvas } from "./OutfitPreviewCanvas";
@@ -45,7 +45,7 @@ type SubView = "outfits" | "preview" | "binder";
 
 // ── Component ───────────────────────────────────────────────────────────
 export function WardrobeEditor({
-  character, wardrobe, onAddOutfit, onUpdateOutfit, onRemoveOutfit,
+  character, wardrobe, _onAddOutfit, _onUpdateOutfit, _onRemoveOutfit,
   onSetDefault, onBindNodes, onUnbindNodes,
 }: WardrobeEditorProps) {
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(
@@ -54,36 +54,15 @@ export function WardrobeEditor({
   const [subView, setSubView] = useState<SubView>("outfits");
   const [showAnchors, setShowAnchors] = useState(false);
 
-  const outfits = wardrobe?.outfits ?? [];
-  const slots = wardrobe?.slots ?? [];
-  const pieces = wardrobe?.pieces ?? [];
-  const anchors = wardrobe?.visualAnchors ?? [];
+  const outfits = useMemo(() => wardrobe?.outfits ?? [], [wardrobe]);
+  const slots = useMemo(() => wardrobe?.slots ?? [], [wardrobe]);
+  const pieces = useMemo(() => wardrobe?.pieces ?? [], [wardrobe]);
+  const anchors = useMemo(() => wardrobe?.visualAnchors ?? [], [wardrobe]);
 
   const selectedOutfit = useMemo(
     () => outfits.find(o => o.id === selectedOutfitId),
     [outfits, selectedOutfitId],
   );
-
-  // Collect all pieces for selected outfit
-  const outfitPieces = useMemo(() => {
-    if (!selectedOutfit) return [];
-    return slots
-      .map(slot => {
-        const pieceId = selectedOutfit.pieces[slot.id];
-        const piece = pieces.find(p => p.id === pieceId);
-        return { slot, piece };
-      })
-      .filter((entry): entry is { slot: WardrobeSlot; piece: OutfitPiece } => !!entry.piece);
-  }, [selectedOutfit, slots, pieces]);
-
-  // Available pieces by slot (for outfit editing)
-  const piecesBySlot = useMemo(() => {
-    const map: Record<string, OutfitPiece[]> = {};
-    for (const slot of slots) {
-      map[slot.id] = pieces.filter(p => p.slotId === slot.id);
-    }
-    return map;
-  }, [slots, pieces]);
 
   if (!wardrobe) {
     return (

@@ -9,7 +9,7 @@ export * from './qte-seed';
 export * from './industry-seed';
 export * from './cinematic-seed';
 export * from './collaboration-seed';
-export * from './detroit-features-seed';
+export * from './advanced-narrative-seed';
 export * from './wardrobe-seed';
 export * from './expert-seed';
 export * from './skill-seed';

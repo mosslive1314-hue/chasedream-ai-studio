@@ -7,7 +7,6 @@ import {
   Settings, Terminal,
   Pencil, Plus, Save, CheckCheck,
 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
 import { useLocation } from "@tanstack/react-router";
 import { useNarrativeStore, getCurrentProject, useUIStore } from "@/store";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
@@ -98,7 +97,7 @@ function StepArtifact({ stepN, artifact, reviewItems, onApprove, onReject, revie
         return init;
       });
     }
-  }, [stepN, art.items.length]);
+  }, [stepN, art.items]);
 
   const getEditItem = (i: number): ArtifactItem => {
     return editingItems[i] || art.items[i];
@@ -387,12 +386,9 @@ function generateAgentLogs(stepIndex: number) {
 
 // -- 主组件 --------------------------------------------------------------------
 export default function ParseScreen() {
-  const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
   const projectName = getCurrentProject()?.title || "当前项目";
-  const worldRules = useNarrativeStore(s => s.worldRules);
-  const updateWorldRule = useNarrativeStore(s => s.updateWorldRule);
   const addToast = useUIStore(s => s.addToast);
 
   // ── Store actions for inline editing ────────────────────────────────────
@@ -764,7 +760,7 @@ export default function ParseScreen() {
                 }}
                 onReject={(key) => setReviewItems(prev => ({ ...prev, [key]: "rejected" }))}
                 reviewMode={reviewMode}
-                onEditItem={(index, field, newValue) => {
+                onEditItem={(_index, _field, _newValue) => {
                   // Edit tracking is handled internally by StepArtifact via its local state.
                   // This callback allows the parent to react to individual field changes if needed.
                 }}

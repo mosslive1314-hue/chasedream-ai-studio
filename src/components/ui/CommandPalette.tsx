@@ -47,7 +47,6 @@ export function CommandPalette() {
   const assetCards = useNarrativeStore(s => s.assetCards);
   const qualityChecks = useNarrativeStore(s => s.qualityChecks);
   const variables = useNarrativeStore(s => s.variables);
-  const selectedNodeId = useUIStore(s => s.selectedNodeId);
   const setSelectedNodeId = useUIStore(s => s.setSelectedNodeId);
 
   // Build search index

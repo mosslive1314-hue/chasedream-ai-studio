@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, LayoutGrid, MessageCircle, Shield, Clock, User, UserPlus,
-  Pencil, Upload, Rocket, Layers, Eye, CheckCircle2, ChevronDown, ChevronRight, Lock,
+  Pencil, Upload, Rocket, Layers, CheckCircle2, ChevronRight, Lock,
 } from "lucide-react";
 import { useNarrativeStore, useUIStore } from "@/store";
 

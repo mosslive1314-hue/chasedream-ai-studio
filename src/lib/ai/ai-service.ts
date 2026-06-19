@@ -5,7 +5,7 @@
  * 自动处理提示词构建、JSON 解析、错误处理和流式输出。
  */
 
-import { ModelRouter, createOpenAIProvider, createQwenProvider, createHunyuanProvider } from './model-router';
+import { ModelRouter, createOpenAIProvider } from './model-router';
 import type { ChatMessage, ChatCompletionResponse, StreamChunk } from './model-router';
 import {
   buildScriptContinuationPrompt,
@@ -73,36 +73,63 @@ export class AIService {
   }
 
   /**
+   * 获取底层 ModelRouter 实例
+   *
+   * 用于 Agent 系统直接访问路由器，支持流式调用和工具调用。
+   */
+  getRouter(): ModelRouter {
+    return this.router;
+  }
+
+  /**
    * 从设置存储创建 AIService 实例
    *
-   * 根据用户配置的 AI 模型和 API Key，自动创建并配置 ModelRouter。
+   * 根据用户配置的 AI 提供商、模型名和 API Key，自动创建并配置 ModelRouter。
+   * 支持任意 OpenAI 兼容接口（OpenAI / Qwen / Hunyuan / DeepSeek / 自定义）。
    */
   static fromSettings(settings: {
     apiKeys: Record<string, string>;
-    aiModel: string;
+    aiProvider?: string;
+    aiModelName?: string;
     apiBaseUrl?: string;
+    // 兼容旧字段
+    aiModel?: string;
   }): AIService {
     const router = new ModelRouter({ strategy: 'balanced', budgetCents: 1000 });
 
-    // 根据模型选择注册对应的提供商
-    if (settings.aiModel === 'gpt4' || settings.aiModel === 'claude') {
-      const apiKey = settings.apiKeys['openai'] || settings.apiKeys['gpt4'] || settings.apiKeys['claude'];
-      if (apiKey) {
-        const provider = createOpenAIProvider(apiKey, settings.apiBaseUrl || undefined);
-        router.addProvider(provider);
-      }
-    } else if (settings.aiModel === 'qwen') {
-      const apiKey = settings.apiKeys['qwen'];
-      if (apiKey) {
-        const provider = createQwenProvider(apiKey);
-        router.addProvider(provider);
-      }
-    }
+    const provider = settings.aiProvider ?? 'openai';
+    const modelName = settings.aiModelName ?? 'gpt-4o';
+    const apiKey = settings.apiKeys[provider] || settings.apiKeys['openai'] || settings.apiKeys['gpt4'] || settings.apiKeys['qwen'];
 
-    // 尝试添加其他提供商（如果配置了 API Key）
-    if (settings.apiKeys['hunyuan']) {
-      const provider = createHunyuanProvider(settings.apiKeys['hunyuan']);
-      router.addProvider(provider);
+    if (apiKey) {
+      // 统一用 createOpenAIProvider 构造 OpenAI 兼容提供商
+      // baseUrl 优先用用户配置，否则用预设默认
+      let baseUrl = settings.apiBaseUrl || '';
+      if (!baseUrl) {
+        if (provider === 'qwen') baseUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+        else if (provider === 'hunyuan') baseUrl = 'https://api.hunyuan.cloud.tencent.com/v1';
+        else if (provider === 'deepseek') baseUrl = 'https://api.deepseek.com/v1';
+        else baseUrl = 'https://api.openai.com/v1';
+      }
+
+      const providerConfig = createOpenAIProvider(apiKey, baseUrl);
+      // 关键修复：用用户配置的模型名替换默认模型列表
+      // 之前只改了 defaultModel，但 decideRouting 从 models 数组选模型，
+      // 导致用户配了 deepseek-chat 却仍用 gpt-4o 发请求
+      providerConfig.defaultModel = modelName;
+      providerConfig.id = provider;
+      providerConfig.name = provider;
+      providerConfig.models = [{
+        id: modelName,
+        name: modelName,
+        inputCostPer1k: 0.5,
+        outputCostPer1k: 1.5,
+        maxContextTokens: 128000,
+        strengths: ['story_generate', 'character_generate', 'branch_generate', 'continue_write', 'convert_to_script', 'general'],
+        supportsStream: true,
+        supportsTools: true,
+      }];
+      router.addProvider(providerConfig);
     }
 
     return new AIService(router);

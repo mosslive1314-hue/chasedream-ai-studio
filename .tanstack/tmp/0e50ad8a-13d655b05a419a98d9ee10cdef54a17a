@@ -14,6 +14,7 @@ import { Route as StoryOverviewRouteImport } from './routes/story-overview'
 import { Route as SimulatorRouteImport } from './routes/simulator'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScriptRouteImport } from './routes/script'
+import { Route as RfTestRouteImport } from './routes/rf-test'
 import { Route as QteEditorRouteImport } from './routes/qte-editor'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as PlaytRouteImport } from './routes/playt'
@@ -57,6 +58,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ScriptRoute = ScriptRouteImport.update({
   id: '/script',
   path: '/script',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfTestRoute = RfTestRouteImport.update({
+  id: '/rf-test',
+  path: '/rf-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QteEditorRoute = QteEditorRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/playt': typeof PlaytRoute
   '/publish': typeof PublishRoute
   '/qte-editor': typeof QteEditorRoute
+  '/rf-test': typeof RfTestRoute
   '/script': typeof ScriptRoute
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
@@ -201,6 +208,7 @@ export interface FileRoutesByTo {
   '/playt': typeof PlaytRoute
   '/publish': typeof PublishRoute
   '/qte-editor': typeof QteEditorRoute
+  '/rf-test': typeof RfTestRoute
   '/script': typeof ScriptRoute
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/playt': typeof PlaytRoute
   '/publish': typeof PublishRoute
   '/qte-editor': typeof QteEditorRoute
+  '/rf-test': typeof RfTestRoute
   '/script': typeof ScriptRoute
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/playt'
     | '/publish'
     | '/qte-editor'
+    | '/rf-test'
     | '/script'
     | '/settings'
     | '/simulator'
@@ -282,6 +292,7 @@ export interface FileRouteTypes {
     | '/playt'
     | '/publish'
     | '/qte-editor'
+    | '/rf-test'
     | '/script'
     | '/settings'
     | '/simulator'
@@ -308,6 +319,7 @@ export interface FileRouteTypes {
     | '/playt'
     | '/publish'
     | '/qte-editor'
+    | '/rf-test'
     | '/script'
     | '/settings'
     | '/simulator'
@@ -335,6 +347,7 @@ export interface RootRouteChildren {
   PlaytRoute: typeof PlaytRoute
   PublishRoute: typeof PublishRoute
   QteEditorRoute: typeof QteEditorRoute
+  RfTestRoute: typeof RfTestRoute
   ScriptRoute: typeof ScriptRoute
   SettingsRoute: typeof SettingsRoute
   SimulatorRoute: typeof SimulatorRoute
@@ -377,6 +390,13 @@ declare module '@tanstack/react-router' {
       path: '/script'
       fullPath: '/script'
       preLoaderRoute: typeof ScriptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf-test': {
+      id: '/rf-test'
+      path: '/rf-test'
+      fullPath: '/rf-test'
+      preLoaderRoute: typeof RfTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/qte-editor': {
@@ -535,6 +555,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlaytRoute: PlaytRoute,
   PublishRoute: PublishRoute,
   QteEditorRoute: QteEditorRoute,
+  RfTestRoute: RfTestRoute,
   ScriptRoute: ScriptRoute,
   SettingsRoute: SettingsRoute,
   SimulatorRoute: SimulatorRoute,

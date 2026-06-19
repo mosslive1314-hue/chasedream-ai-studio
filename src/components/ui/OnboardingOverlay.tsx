@@ -178,9 +178,6 @@ export function OnboardingOverlay({ onClose }: OnboardingOverlayProps) {
 
   /* ── Navigation helpers ───────────────────────────────────────────── */
 
-  const canGoNext =
-    (step === 0 && selectedIndustry) || (step === 1) || (step === 2) || false;
-
   const goNext = () => {
     if (step === 0 && !selectedIndustry) return;
     if (step >= 3) return;

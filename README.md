@@ -1,48 +1,94 @@
-A minimal Next.js starter for building apps inside the [Eazo](https://eazo.ai) platform. Includes a working example of the Eazo session token flow: the app requests the encrypted user token from the host via `postMessage`, sends it to a Next.js API route, decrypts it server-side with `@eazo/node-sdk`, and returns the user profile.
+# ChaseDream Creator Studio
 
-## Getting Started
+AI 驱动的互动叙事游戏创作平台 — 将剧本转化为可玩互动叙事结构。
 
-Install dependencies with Bun:
+## 技术栈
+
+- **框架**: [TanStack Start](https://tanstack.com/start) 1.168.x (Vite 8 + Nitro 3)
+- **路由**: [TanStack Router](https://tanstack.com/router) (file-based routing)
+- **状态管理**: [Zustand](https://zustand.docs.pmnd.rs/) 5 + IndexedDB persistence
+- **UI**: [TailwindCSS](https://tailwindcss.com/) 4 + [Shadcn UI](https://ui.shadcn.com/) + [Framer Motion](https://motion.dev/)
+- **节点图**: [@xyflow/react](https://reactflow.dev/) 12 + dagre auto-layout
+- **AI**: OpenAI / Qwen / 混元 多模型路由
+
+## 快速开始
+
+### 前置要求
+
+- [Bun](https://bun.sh/) >= 1.3 (推荐) 或 Node.js >= 22
+- 无需数据库（使用 IndexedDB 本地持久化）
+- 无需 API Key 即可启动（AI 功能在设置页面手动配置）
+
+### 安装与启动
 
 ```bash
+# 安装依赖
 bun install
-```
 
-If dependency installation stalls on this machine during `sharp` setup, use:
-
-```bash
-SHARP_IGNORE_GLOBAL_LIBVIPS=1 bun install
-```
-
-Then start the development server:
-
-```bash
+# 启动开发服务器
 bun dev
+
+# 打开浏览器访问 http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in your private key:
+### 构建生产版本
 
 ```bash
-cp .env.example .env
+bun run build
+bun run start
 ```
 
-| Variable | Description |
-|---|---|
-| `EAZO_PRIVATE_KEY` | Your Eazo developer private key (hex, 64 chars). Used server-side to decrypt the user session token. |
+## 项目结构
 
-You can generate a keypair in the Eazo developer settings. Never expose the private key to the browser.
+```
+src/
+├── routes/           # 页面路由 (TanStack Router file-based)
+├── components/
+│   ├── screens/      # 页面组件 (lazy-loaded)
+│   ├── layout/       # 布局组件 (AppShell, SideNav, etc.)
+│   ├── ui/           # 通用 UI 组件
+│   └── workbench/    # 工作台标签页
+├── store/            # Zustand stores (persist + IndexedDB)
+├── lib/
+│   ├── ai/           # AI Agent 系统 (tool-registry, chat-loop, model-router)
+│   ├── reactflow/    # ReactFlow 集成 (node/edge types, sync, auto-layout)
+│   ├── seed/         # Mock 数据种子
+│   └── types/        # TypeScript 类型定义
+├── server/functions/ # TanStack Start Server Functions
+├── router.tsx        # Router 配置
+└── start.ts          # TanStack Start 入口
+```
 
-## Learn More
+## 核心功能
 
-- [Eazo Documentation](https://docs.eazo.ai)
-- [Next.js Documentation](https://nextjs.org/docs)
+| 功能 | 说明 |
+|------|------|
+| AI 创作对话 | Agent 驱动的创作伙伴，支持工具调用和 HITL 确认 |
+| 节点图画布 | ReactFlow 可视化编辑故事节点和边关系 |
+| 演出预览 | 互动叙事模拟器，支持选择分支和变量追踪 |
+| 版本管理 | 快照、分支、差异对比 |
+| 剧本编辑 | TipTap 富文本编辑器 |
 
-## Deploy on Vercel
+## 环境变量
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+项目默认不需要 `.env` 文件即可运行。以下为可选配置：
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# AI API Keys (也可在设置页面 UI 中配置)
+OPENAI_API_KEY=sk-xxx
+QWEN_API_KEY=sk-xxx
+HUNYUAN_API_KEY=xxx
+
+# 数据库 (仅 server functions 使用，不影响前端页面)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/myapp
+```
+
+## 开发说明
+
+- **SSR**: 启用 SSR 用于生成 HTML shell，所有交互内容通过 ClientGuard + React.lazy 在客户端渲染
+- **数据持久化**: 所有用户数据存储在浏览器 IndexedDB 中，无需后端数据库
+- **Auth**: 开发模式自动使用 mock 用户，无需配置认证服务
+
+## License
+
+Private — All rights reserved.

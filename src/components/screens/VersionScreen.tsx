@@ -70,12 +70,22 @@ export default function VersionScreen() {
   const addToast      = useUIStore(s => s.addToast);
 
   // ── Version Store selectors ──
-  const vSnapshots    = useVersionStore(s => s.snapshots);
   const vBranches     = useVersionStore(s => s.branches);
-  const vHistory      = useVersionStore(s => s.getHistory());
+  const vHistory_raw  = useVersionStore(s => s.history);
+  const activeBranchId = useVersionStore(s => s.activeBranchId);
   const createSnapshot = useVersionStore(s => s.createSnapshot);
-  const computeChangeSet = useVersionStore(s => s.computeChangeSet);
-  const activeBranch  = useVersionStore(s => s.getActiveBranch());
+
+  // ── 派生数据（useMemo 避免无限循环）──
+  // 不能在 selector 中调用 s.getHistory() / s.getActiveBranch()，
+  // 因为它们每次返回新引用 → Zustand 认为 state 变了 → 重渲染 → 无限循环
+  const vHistory = useMemo(
+    () => [...vHistory_raw].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [vHistory_raw]
+  );
+  const activeBranch = useMemo(
+    () => vBranches.find(b => b.id === activeBranchId),
+    [vBranches, activeBranchId]
+  );
 
   const [activeTab, setActiveTab]   = useState(0);
   const [fromIdx, setFromIdx]       = useState(0);

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VersionRouteImport } from './routes/version'
+import { Route as StudioRouteImport } from './routes/studio'
 import { Route as StoryOverviewRouteImport } from './routes/story-overview'
 import { Route as SimulatorRouteImport } from './routes/simulator'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -25,7 +26,6 @@ import { Route as NodeCanvasRouteImport } from './routes/node-canvas'
 import { Route as MyWorksRouteImport } from './routes/my-works'
 import { Route as InteractionRouteImport } from './routes/interaction'
 import { Route as FactoryRouteImport } from './routes/factory'
-import { Route as DetroitRouteImport } from './routes/detroit'
 import { Route as DebuggerRouteImport } from './routes/debugger'
 import { Route as CollabRouteImport } from './routes/collab'
 import { Route as CinematicRouteImport } from './routes/cinematic'
@@ -37,6 +37,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const VersionRoute = VersionRouteImport.update({
   id: '/version',
   path: '/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudioRoute = StudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StoryOverviewRoute = StoryOverviewRouteImport.update({
@@ -114,11 +119,6 @@ const FactoryRoute = FactoryRouteImport.update({
   path: '/factory',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DetroitRoute = DetroitRouteImport.update({
-  id: '/detroit',
-  path: '/detroit',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DebuggerRoute = DebuggerRouteImport.update({
   id: '/debugger',
   path: '/debugger',
@@ -163,7 +163,6 @@ export interface FileRoutesByFullPath {
   '/cinematic': typeof CinematicRoute
   '/collab': typeof CollabRoute
   '/debugger': typeof DebuggerRoute
-  '/detroit': typeof DetroitRoute
   '/factory': typeof FactoryRoute
   '/interaction': typeof InteractionRoute
   '/my-works': typeof MyWorksRoute
@@ -179,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
   '/story-overview': typeof StoryOverviewRoute
+  '/studio': typeof StudioRoute
   '/version': typeof VersionRoute
 }
 export interface FileRoutesByTo {
@@ -189,7 +189,6 @@ export interface FileRoutesByTo {
   '/cinematic': typeof CinematicRoute
   '/collab': typeof CollabRoute
   '/debugger': typeof DebuggerRoute
-  '/detroit': typeof DetroitRoute
   '/factory': typeof FactoryRoute
   '/interaction': typeof InteractionRoute
   '/my-works': typeof MyWorksRoute
@@ -205,6 +204,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
   '/story-overview': typeof StoryOverviewRoute
+  '/studio': typeof StudioRoute
   '/version': typeof VersionRoute
 }
 export interface FileRoutesById {
@@ -216,7 +216,6 @@ export interface FileRoutesById {
   '/cinematic': typeof CinematicRoute
   '/collab': typeof CollabRoute
   '/debugger': typeof DebuggerRoute
-  '/detroit': typeof DetroitRoute
   '/factory': typeof FactoryRoute
   '/interaction': typeof InteractionRoute
   '/my-works': typeof MyWorksRoute
@@ -232,6 +231,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
   '/story-overview': typeof StoryOverviewRoute
+  '/studio': typeof StudioRoute
   '/version': typeof VersionRoute
 }
 export interface FileRouteTypes {
@@ -244,7 +244,6 @@ export interface FileRouteTypes {
     | '/cinematic'
     | '/collab'
     | '/debugger'
-    | '/detroit'
     | '/factory'
     | '/interaction'
     | '/my-works'
@@ -260,6 +259,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/simulator'
     | '/story-overview'
+    | '/studio'
     | '/version'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -270,7 +270,6 @@ export interface FileRouteTypes {
     | '/cinematic'
     | '/collab'
     | '/debugger'
-    | '/detroit'
     | '/factory'
     | '/interaction'
     | '/my-works'
@@ -286,6 +285,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/simulator'
     | '/story-overview'
+    | '/studio'
     | '/version'
   id:
     | '__root__'
@@ -296,7 +296,6 @@ export interface FileRouteTypes {
     | '/cinematic'
     | '/collab'
     | '/debugger'
-    | '/detroit'
     | '/factory'
     | '/interaction'
     | '/my-works'
@@ -312,6 +311,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/simulator'
     | '/story-overview'
+    | '/studio'
     | '/version'
   fileRoutesById: FileRoutesById
 }
@@ -323,7 +323,6 @@ export interface RootRouteChildren {
   CinematicRoute: typeof CinematicRoute
   CollabRoute: typeof CollabRoute
   DebuggerRoute: typeof DebuggerRoute
-  DetroitRoute: typeof DetroitRoute
   FactoryRoute: typeof FactoryRoute
   InteractionRoute: typeof InteractionRoute
   MyWorksRoute: typeof MyWorksRoute
@@ -339,6 +338,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SimulatorRoute: typeof SimulatorRoute
   StoryOverviewRoute: typeof StoryOverviewRoute
+  StudioRoute: typeof StudioRoute
   VersionRoute: typeof VersionRoute
 }
 
@@ -349,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/version'
       fullPath: '/version'
       preLoaderRoute: typeof VersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/story-overview': {
@@ -456,13 +463,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FactoryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/detroit': {
-      id: '/detroit'
-      path: '/detroit'
-      fullPath: '/detroit'
-      preLoaderRoute: typeof DetroitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/debugger': {
       id: '/debugger'
       path: '/debugger'
@@ -523,7 +523,6 @@ const rootRouteChildren: RootRouteChildren = {
   CinematicRoute: CinematicRoute,
   CollabRoute: CollabRoute,
   DebuggerRoute: DebuggerRoute,
-  DetroitRoute: DetroitRoute,
   FactoryRoute: FactoryRoute,
   InteractionRoute: InteractionRoute,
   MyWorksRoute: MyWorksRoute,
@@ -539,6 +538,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SimulatorRoute: SimulatorRoute,
   StoryOverviewRoute: StoryOverviewRoute,
+  StudioRoute: StudioRoute,
   VersionRoute: VersionRoute,
 }
 export const routeTree = rootRouteImport
@@ -546,10 +546,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

@@ -4,18 +4,19 @@ import {
   Database, Search, Image, Video, Music, Monitor, FileText,
   Upload, Grid, List, ChevronLeft, ChevronRight,
   Filter, Download, Trash2, Eye, MoreHorizontal,
-  ArrowUpDown, CheckSquare, XSquare, Share2, Layers, Check, X,
+  ArrowUpDown, CheckSquare, Share2, Layers, Check, X,
 } from "lucide-react";
 import { useNarrativeStore } from "@/store";
+import type { AssetCard } from "@/lib/types";
 
 const S = {
-  bg: "#F5F6FA", card: "#FFFFFF", s2: "#F4F6FC",
-  border: "#E8EAF2", primary: "#7C6CF5", accent: "#00A99D",
-  text: "#1A1D2E", text2: "#4A5068", text3: "#8892B0",
+  bg: "#09090B", card: "#18181B", s2: "#27272A",
+  border: "#3F3F46", primary: "#7C6CF5", accent: "#00A99D",
+  text: "#FAFAFA", text2: "#A1A1AA", text3: "#71717A",
   success: "#10B981", warning: "#F59E0B", error: "#EF4444",
 };
 
-// ── Mock asset data ────────────────────────────────────────────────────────
+// ── Asset display types ─────────────────────────────────────────────────────
 type AssetType = "image" | "video" | "audio" | "ui" | "text";
 type AssetStatus = "approved" | "pending" | "archived";
 
@@ -29,22 +30,23 @@ interface Asset {
   thumb?: string;
 }
 
-const SEED_ASSETS: Asset[] = [
-  { id: "a01", name: "赛博朋克街道_背景.png",     type: "image", size: "2.4 MB",  date: "2025-05-28", status: "approved"  },
-  { id: "a02", name: "主角_艾拉_立绘_默认.png",   type: "image", size: "1.8 MB",  date: "2025-05-27", status: "approved"  },
-  { id: "a03", name: "序章_开场动画.mp4",          type: "video", size: "24.6 MB", date: "2025-05-26", status: "pending"   },
-  { id: "a04", name: "BGM_霓虹夜幕_主题曲.mp3",   type: "audio", size: "4.2 MB",  date: "2025-05-25", status: "approved"  },
-  { id: "a05", name: "UI_对话框_赛博风格.png",     type: "ui",    size: "0.6 MB",  date: "2025-05-24", status: "approved"  },
-  { id: "a06", name: "地下酒吧_氛围音效.wav",      type: "audio", size: "8.1 MB",  date: "2025-05-23", status: "pending"   },
-  { id: "a07", name: "追逐场景_视频片段.mp4",      type: "video", size: "31.2 MB", date: "2025-05-22", status: "archived"  },
-  { id: "a08", name: "反派主管_立绘_愤怒.png",     type: "image", size: "1.9 MB",  date: "2025-05-21", status: "approved"  },
-  { id: "a09", name: "UI_QTE界面_倒计时.png",      type: "ui",    size: "0.8 MB",  date: "2025-05-20", status: "pending"   },
-  { id: "a10", name: "旁白_序章_女声.mp3",         type: "audio", size: "3.5 MB",  date: "2025-05-19", status: "approved"  },
-  { id: "a11", name: "天台_月光_背景.png",         type: "image", size: "3.1 MB",  date: "2025-05-18", status: "archived"  },
-  { id: "a12", name: "结局A_过场动画.mp4",         type: "video", size: "18.4 MB", date: "2025-05-17", status: "pending"   },
-  { id: "seed-text-1", name: "主线剧本·第一章",       type: "text",  size: "2.4KB",   date: "2025-01-15", status: "approved"  },
-  { id: "seed-text-2", name: "艾拉·对话台词集",       type: "text",  size: "1.8KB",   date: "2025-01-16", status: "approved"  },
-];
+// Map store AssetCard → display Asset
+function toDisplayAsset(ac: AssetCard): Asset {
+  const type: AssetType = ac.hasImage ? "image"
+    : ac.hasVideo ? "video"
+    : (ac.hasBgm || ac.hasVoice) ? "audio"
+    : ac.hasScript ? "text"
+    : "ui";
+  const hasMedia = ac.hasImage || ac.hasBgm || ac.hasVoice || ac.hasVideo || !!ac.hasScript;
+  return {
+    id: ac.nodeId,
+    name: ac.nodeLabel || ac.nodeId,
+    type,
+    size: ac.imageUrl ? "已生成" : "—",
+    date: "—",
+    status: hasMedia ? "approved" : "pending",
+  };
+}
 
 // ── Type / status config ───────────────────────────────────────────────────
 const TYPE_CONFIG: Record<AssetType, { label: string; icon: typeof Image; color: string }> = {
@@ -103,79 +105,23 @@ export default function AssetLibraryScreen() {
   const [previewId, setPreviewId] = useState<string | null>(null);
 
   // ── New: toast notification ──
-  const [toast, setToast] = useState<string | null>(null);
+  const [, setToast] = useState<string | null>(null);
 
   // ── New: delete confirmation ──
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // ── Cross-filter state ──
-  const [filterByCharacter, setFilterByCharacter] = useState<string>("all");
-  const [filterByScene, setFilterByScene] = useState<string>("all");
   const [filterByNode, setFilterByNode] = useState<string>("all");
 
   // ── Store selectors ──
-  const gameCharacters = useNarrativeStore(s => s.characters);
-  const gameScenes = useNarrativeStore(s => s.scenes);
-  const gameProps = useNarrativeStore(s => s.props);
   const assetCards = useNarrativeStore(s => s.assetCards);
-  const scriptBlocks = useNarrativeStore(s => s.scriptBlocks);
   const storyNodes = useNarrativeStore(s => s.storyNodes);
 
-  // ── Derive unified asset list from store (seed fallback) ──
-  const allAssets = useMemo<Asset[]>(() => {
-    const storeAssets: Asset[] = [];
-    // Characters → image assets
-    gameCharacters.forEach(c => {
-      storeAssets.push({
-        id: `char-${c.id}`, name: `${c.name}_立绘.png`, type: "image",
-        size: "—", date: "—", status: c.visualPrompt ? "approved" : "pending",
-      });
-    });
-    // Scenes → image assets
-    gameScenes.forEach(s => {
-      storeAssets.push({
-        id: `scene-${s.id}`, name: `${s.name}_背景.png`, type: "image",
-        size: "—", date: "—", status: s.hasImage ? "approved" : "pending",
-      });
-    });
-    // Props → image assets
-    gameProps.forEach(p => {
-      storeAssets.push({
-        id: `prop-${p.id}`, name: `${p.name}_道具图.png`, type: "image",
-        size: "—", date: "—", status: p.hasImage ? "approved" : "pending",
-      });
-    });
-    // Asset cards → typed requirements
-    assetCards.forEach(ac => {
-      storeAssets.push({
-        id: `req-${ac.nodeId}`, name: ac.nodeLabel || ac.nodeId, type: "image",
-        size: "—", date: "—", status: ac.hasImage ? "approved" : "pending",
-      });
-    });
-    // Script blocks → text assets
-    scriptBlocks.forEach(sb => {
-      storeAssets.push({
-        id: `script-${sb.id}`,
-        name: `剧本·${sb.label || sb.id}`,
-        type: "text" as const,
-        size: `${(sb.content?.length || 0)}字`,
-        date: "—",
-        status: "approved" as const,
-      });
-    });
-    // Story nodes → text assets (dialogue-bearing nodes)
-    storyNodes.forEach(node => {
-      storeAssets.push({
-        id: `node-${node.id}`,
-        name: `台词·${node.label}`,
-        type: "text" as const,
-        size: "—",
-        date: "—",
-        status: "approved" as const,
-      });
-    });
-    return storeAssets.length > 0 ? storeAssets : SEED_ASSETS;
-  }, [gameCharacters, gameScenes, gameProps, assetCards, scriptBlocks, storyNodes]);
+  // ── Derive display assets from store assetCards ──
+  const allAssets = useMemo<Asset[]>(
+    () => assetCards.map(toDisplayAsset),
+    [assetCards]
+  );
 
   // ── Dynamic statistics ──
   const stats = useMemo(() => {
@@ -199,11 +145,8 @@ export default function AssetLibraryScreen() {
     const filtered = allAssets.filter(a => {
       const matchesFilter = activeFilter === "all" || a.type === activeFilter;
       const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase());
-      // Cross-filters by character/scene/node
-      const matchesChar = filterByCharacter === "all" || a.id.startsWith(`char-${filterByCharacter}`);
-      const matchesScene = filterByScene === "all" || a.id.startsWith(`scene-${filterByScene}`);
-      const matchesNode = filterByNode === "all" || a.id.startsWith(`node-${filterByNode}`) || a.id.includes(filterByNode);
-      return matchesFilter && matchesSearch && matchesChar && matchesScene && matchesNode;
+      const matchesNode = filterByNode === "all" || a.id === filterByNode;
+      return matchesFilter && matchesSearch && matchesNode;
     });
     return filtered.sort((a, b) => {
       let cmp = 0;
@@ -215,23 +158,15 @@ export default function AssetLibraryScreen() {
       }
       return sortAsc ? cmp : -cmp;
     });
-  }, [allAssets, activeFilter, searchQuery, sortBy, sortAsc]);
+  }, [allAssets, activeFilter, searchQuery, sortBy, sortAsc, filterByNode]);
 
-  // ── Dependency grouping (group assets by source node prefix) ──
+  // ── Dependency grouping (group assets by type) ──
   const dependencyGroups = useMemo(() => {
     const groups: Record<string, { label: string; assets: Asset[] }> = {};
     filteredAssets.forEach(asset => {
-      let groupKey = "other";
-      let groupLabel = "其他资产";
-      if (asset.id.startsWith("char-"))   { groupKey = "characters"; groupLabel = "角色 (Characters)"; }
-      else if (asset.id.startsWith("scene-"))  { groupKey = "scenes";     groupLabel = "场景 (Scenes)"; }
-      else if (asset.id.startsWith("prop-"))   { groupKey = "props";      groupLabel = "道具 (Props)"; }
-      else if (asset.id.startsWith("req-"))    { groupKey = "requirements"; groupLabel = "需求节点 (Requirements)"; }
-      else if (asset.id.startsWith("script-")) { groupKey = "scripts";    groupLabel = "剧本 (Scripts)"; }
-      else if (asset.id.startsWith("node-"))   { groupKey = "storyNodes"; groupLabel = "故事节点 (Story Nodes)"; }
-      else if (asset.id.startsWith("a"))       { groupKey = "seed";       groupLabel = "种子资产 (Seed)"; }
-      if (!groups[groupKey]) groups[groupKey] = { label: groupLabel, assets: [] };
-      groups[groupKey].assets.push(asset);
+      const conf = TYPE_CONFIG[asset.type];
+      if (!groups[asset.type]) groups[asset.type] = { label: conf.label, assets: [] };
+      groups[asset.type].assets.push(asset);
     });
     return groups;
   }, [filteredAssets]);
@@ -269,20 +204,46 @@ export default function AssetLibraryScreen() {
     setTimeout(() => setToast(null), 2500);
   }, []);
 
-  // ── Delete handler ──
+  // ── Delete handler → store ──
   const handleDelete = useCallback((id: string) => {
+    useNarrativeStore.getState().removeAssetCard(id);
     setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     setDeleteConfirmId(null);
     showToast("资产已删除");
   }, [showToast]);
 
-  // ── Bulk delete handler ──
+  // ── Bulk delete handler → store ──
   const handleBulkDelete = useCallback(() => {
     const count = selectedIds.size;
+    selectedIds.forEach(id => useNarrativeStore.getState().removeAssetCard(id));
     setSelectedIds(new Set());
     setSelectionMode(false);
     showToast(`已删除 ${count} 个资产`);
   }, [selectedIds, showToast]);
+
+  // ── Add asset handler → store ──
+  const handleAddAsset = useCallback(() => {
+    const newCard: AssetCard = {
+      nodeId: `asset-${Date.now()}`,
+      nodeLabel: `新资产 ${new Date().toLocaleDateString("zh-CN")}`,
+      hasImage: false,
+      hasBgm: false,
+      hasVoice: false,
+      hasVideo: false,
+      hasScript: false,
+    };
+    useNarrativeStore.getState().addAssetCard(newCard);
+    showToast("已添加新资产");
+  }, [showToast]);
+
+  // ── Bulk approve handler → store ──
+  const handleBulkApprove = useCallback(() => {
+    selectedIds.forEach(id => {
+      useNarrativeStore.getState().updateAssetCard(id, { hasImage: true });
+    });
+    showToast(`已批量审核 ${selectedIds.size} 个资产`);
+    exitSelectionMode();
+  }, [selectedIds, showToast, exitSelectionMode]);
 
   return (
     <div className="h-svh flex flex-col" style={{ background: S.bg }}>
@@ -427,10 +388,10 @@ export default function AssetLibraryScreen() {
 
           {/* Import button */}
           <motion.button whileTap={{ scale: 0.97 }}
-            onClick={() => showToast("导入功能即将上线")}
+            onClick={() => handleAddAsset()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shrink-0 focus:outline-none"
             style={{ background: `linear-gradient(135deg, ${S.primary}, #A78BFA)` }}>
-            <Upload size={12} /> 导入资产
+            <Upload size={12} /> 添加资产
           </motion.button>
         </div>
 
@@ -450,27 +411,15 @@ export default function AssetLibraryScreen() {
 
           {/* Cross-filter dropdowns */}
           <div className="flex items-center gap-1.5">
-            <select value={filterByCharacter} onChange={e => setFilterByCharacter(e.target.value)}
-              className="text-[9px] px-2 py-1 rounded-lg font-bold focus:outline-none cursor-pointer"
-              style={{ background: filterByCharacter !== "all" ? `${S.accent}12` : S.s2, color: filterByCharacter !== "all" ? S.accent : S.text3, border: `1px solid ${filterByCharacter !== "all" ? `${S.accent}30` : S.border}` }}>
-              <option value="all">全部角色</option>
-              {gameCharacters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <select value={filterByScene} onChange={e => setFilterByScene(e.target.value)}
-              className="text-[9px] px-2 py-1 rounded-lg font-bold focus:outline-none cursor-pointer"
-              style={{ background: filterByScene !== "all" ? `${S.primary}12` : S.s2, color: filterByScene !== "all" ? S.primary : S.text3, border: `1px solid ${filterByScene !== "all" ? `${S.primary}30` : S.border}` }}>
-              <option value="all">全部场景</option>
-              {gameScenes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
             <select value={filterByNode} onChange={e => setFilterByNode(e.target.value)}
               className="text-[9px] px-2 py-1 rounded-lg font-bold focus:outline-none cursor-pointer"
               style={{ background: filterByNode !== "all" ? `${S.warning}12` : S.s2, color: filterByNode !== "all" ? S.warning : S.text3, border: `1px solid ${filterByNode !== "all" ? `${S.warning}30` : S.border}` }}>
               <option value="all">全部节点</option>
               {storyNodes.slice(0, 20).map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
             </select>
-            {(filterByCharacter !== "all" || filterByScene !== "all" || filterByNode !== "all") && (
+            {filterByNode !== "all" && (
               <motion.button whileTap={{ scale: 0.95 }}
-                onClick={() => { setFilterByCharacter("all"); setFilterByScene("all"); setFilterByNode("all"); }}
+                onClick={() => { setFilterByNode("all"); }}
                 className="text-[8px] px-1.5 py-0.5 rounded font-bold focus:outline-none"
                 style={{ color: S.error, background: `${S.error}10` }}>
                 清除筛选
@@ -536,6 +485,26 @@ export default function AssetLibraryScreen() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── Empty state ── */}
+        {allAssets.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 px-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: `${S.primary}14` }}>
+              <Database size={24} style={{ color: S.primary }} />
+            </div>
+            <p className="text-sm font-bold mb-1.5" style={{ color: S.text }}>暂无资产</p>
+            <p className="text-xs text-center" style={{ color: S.text3 }}>
+              通过对话让 AI 生成或点击添加
+            </p>
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={() => handleAddAsset()}
+              className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white focus:outline-none"
+              style={{ background: `linear-gradient(135deg, ${S.primary}, #A78BFA)` }}>
+              <Upload size={12} /> 添加资产
+            </motion.button>
+          </div>
+        )}
 
         {/* ── Grid view ── */}
         {viewMode === "grid" && (
@@ -960,7 +929,7 @@ export default function AssetLibraryScreen() {
             <span className="text-xs font-bold text-white">已选 {selectedIds.size} 项</span>
             <div className="flex items-center gap-2">
               <motion.button whileTap={{ scale: 0.96 }}
-                onClick={() => { showToast(`已批量审核 ${selectedIds.size} 个资产`); exitSelectionMode(); }}
+                onClick={() => { handleBulkApprove(); }}
                 className="px-3 py-1.5 rounded-lg text-[10px] font-bold focus:outline-none"
                 style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
                 <Check size={10} className="inline mr-1" /> 批量审核

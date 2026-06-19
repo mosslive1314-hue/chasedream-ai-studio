@@ -26,6 +26,7 @@ const PAGE_STAGE_MAP: Record<string, number> = {
   "/simulator": 9,
   "/overview": 10,
   "/publish": 11,
+  "/studio": 2,  // Studio 是统一工作台，默认映射到剧本总览阶段（可被 Expert 选择器覆盖）
 };
 
 // ── Expert 路由 ──────────────────────────────────────────────────────────
@@ -193,7 +194,7 @@ function evaluateCondition(condition: string, context: Record<string, unknown>):
   try {
     const keys = Object.keys(context);
     const values = Object.values(context);
-    // eslint-disable-next-line no-new-func
+     
     const fn = new Function(...keys, `return (${condition});`);
     return fn(...values);
   } catch {

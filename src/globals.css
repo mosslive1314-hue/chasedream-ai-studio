@@ -6,6 +6,7 @@
 
 /* ── 逐梦 Creator Studio 浅色极简主题 ── */
 :root {
+  --app-bg:      #FAFBFF;
   --bg:          #FAFBFF;
   --surface:     #FFFFFF;
   --surface-2:   #F4F6FC;
@@ -116,6 +117,61 @@
   background-size: 24px 24px;
 }
 
+/* ── 管理模态/嵌入旧 Screen 的暗色主题覆盖 ──
+   旧 Screen 组件用 inline style 设置白色背景（#FAFBFF/#F5F6FA），
+   Tailwind 类无法覆盖 inline style，需用 !important 强制暗色化。
+   仅作用于 .studio-dark-embed 作用域内，不影响旧 Screen 独立使用。 */
+.studio-dark-embed [style*="background"] {
+  background-color: #09090b !important;
+}
+.studio-dark-embed [style*="#FAFBFF"],
+.studio-dark-embed [style*="#F5F6FA"],
+.studio-dark-embed [style*="#FFFFFF"],
+.studio-dark-embed [style*="#ffffff"] {
+  background-color: #09090b !important;
+  color: #e4e4e7 !important;
+}
+/* 旧 Screen 内常见的浅色 Tailwind 类也强制暗色化 */
+.studio-dark-embed .bg-white { background-color: #18181b !important; }
+.studio-dark-embed .bg-gray-50 { background-color: #18181b !important; }
+.studio-dark-embed .bg-gray-100 { background-color: #1f1f23 !important; }
+.studio-dark-embed .bg-gray-200 { background-color: #27272a !important; }
+.studio-dark-embed .text-gray-900 { color: #f4f4f5 !important; }
+.studio-dark-embed .text-gray-800 { color: #e4e4e7 !important; }
+.studio-dark-embed .text-gray-700 { color: #d4d4d8 !important; }
+.studio-dark-embed .text-gray-600 { color: #a1a1aa !important; }
+.studio-dark-embed .text-gray-500 { color: #71717a !important; }
+.studio-dark-embed .text-gray-400 { color: #52525b !important; }
+.studio-dark-embed .border-gray-200 { border-color: #3f3f46 !important; }
+.studio-dark-embed .border-gray-300 { border-color: #52525b !important; }
+.studio-dark-embed .border { border-color: #3f3f46 !important; }
+
+/* ScriptScreen 内联颜色值覆盖（暗色背景下提升对比度） */
+.studio-dark-embed [style*="#1A1D2E"] { color: #f4f4f5 !important; }      /* S.text 主文字 */
+.studio-dark-embed [style*="#4A5068"] { color: #d4d4d8 !important; }      /* S.text2 次要文字 */
+.studio-dark-embed [style*="#8892B0"] { color: #a1a1aa !important; }      /* S.text3 说明文字 */
+.studio-dark-embed [style*="#E8EAF2"] { border-color: #3f3f46 !important; } /* S.border */
+.studio-dark-embed [style*="#F4F6FC"] { background-color: #18181b !important; } /* S.s2 次级背景 */
+
+/* Studio 表单输入基类：用于场景/镜头编辑等表单 */
+.input {
+  width: 100%;
+  border-radius: 0.25rem;
+  background-color: #09090b;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: #e4e4e7;
+  outline: none;
+  box-shadow: inset 0 0 0 1px #27272a;
+}
+.input:focus {
+  box-shadow: inset 0 0 0 1px #4f46e5;
+}
+.input:disabled {
+  opacity: 0.6;
+}
+
 .grad-text {
   background: linear-gradient(135deg, var(--primary), var(--accent));
   -webkit-background-clip: text;
@@ -138,8 +194,6 @@
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
-
-/* ── Eazo banner hiding is handled at runtime by EazoBannerHider component ── */
 
 /* ── Sidebar dynamic offset ── */
 .sidebar-main-offset {

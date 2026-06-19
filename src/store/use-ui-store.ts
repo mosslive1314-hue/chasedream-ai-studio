@@ -11,14 +11,25 @@ export interface Toast {
   duration?: number;
 }
 
+/** Workbench tab type for Agent-First layout */
+export type WorkbenchTab = 'canvas' | 'simulator' | 'assets' | 'settings';
+
 interface UIState {
   // Industry
   industry: IndustryType;
   setIndustry: (industry: IndustryType) => void;
 
-  // Sidebar
+  // Sidebar (legacy — kept for backward compat, no longer primary navigation)
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+
+  // ── Agent-First Layout ──
+  activeTab: WorkbenchTab;
+  setActiveTab: (tab: WorkbenchTab) => void;
+  agentPanelCollapsed: boolean;
+  toggleAgentPanel: () => void;
+  contextPanelCollapsed: boolean;
+  toggleContextPanel: () => void;
 
   // Selected items
   selectedNodeId: string | null;
@@ -50,6 +61,9 @@ export const useUIStore = create<UIState>()(
       // --- Initial state ---
       industry: 'game' as IndustryType,
       sidebarCollapsed: false,
+      activeTab: 'canvas' as WorkbenchTab,
+      agentPanelCollapsed: false,
+      contextPanelCollapsed: false,
       selectedNodeId: null,
       toasts: [],
       saveStatus: 'saved' as const,
@@ -65,6 +79,17 @@ export const useUIStore = create<UIState>()(
       // --- Sidebar ---
       toggleSidebar: () => {
         set(state => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+      },
+
+      // --- Agent-First Layout ---
+      setActiveTab: (tab) => {
+        set({ activeTab: tab });
+      },
+      toggleAgentPanel: () => {
+        set(state => ({ agentPanelCollapsed: !state.agentPanelCollapsed }));
+      },
+      toggleContextPanel: () => {
+        set(state => ({ contextPanelCollapsed: !state.contextPanelCollapsed }));
       },
 
       // --- Selected items ---

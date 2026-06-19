@@ -48,7 +48,6 @@ export default function AIChatPanel() {
   const navigate = useNavigate();
   const aiChatOpen = useUIStore(s => s.aiChatOpen);
   const toggleAiChat = useUIStore(s => s.toggleAiChat);
-  const addToast = useUIStore(s => s.addToast);
   const projectName = getCurrentProject()?.title ?? "当前项目";
   const characters = useNarrativeStore(s => s.characters);
   const storyNodes = useNarrativeStore(s => s.storyNodes);

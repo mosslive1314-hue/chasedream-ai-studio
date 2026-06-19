@@ -34,10 +34,6 @@ import type {
   CollabComment,
   ReviewItem,
   VersionDiff,
-  IndustryQCRule,
-  IndustryAssetType,
-  IndustryTemplate,
-  ProjectSpecTemplate,
   FactoryTask,
   PathTestResult,
   PipelineStage,
@@ -56,6 +52,7 @@ import type {
   MoralAxis,
   PathTimeEstimate,
 } from '@/lib/studio-data';
+import { buildPlayableGraph } from '@/lib/playable-graph-generator';
 
 // Import seed data - these will be created as part of the studio-data split
 import {
@@ -85,10 +82,6 @@ import {
   PATH_TEST_RESULTS as SEED_PATH_TEST_RESULTS,
   QTE_CONFIGS as SEED_QTE_CONFIGS,
   HOTSPOT_CONFIGS as SEED_HOTSPOT_CONFIGS,
-  PROJECT_SPEC_TEMPLATES as SEED_PROJECT_SPEC_TEMPLATES,
-  INDUSTRY_QC_RULES as SEED_INDUSTRY_QC_RULES,
-  INDUSTRY_ASSET_TYPES as SEED_INDUSTRY_ASSET_TYPES,
-  INDUSTRY_TEMPLATES as SEED_INDUSTRY_TEMPLATES,
   FACTORY_TASKS as SEED_FACTORY_TASKS,
   CHARACTER_TIMELINES as SEED_CHARACTER_TIMELINES,
   CROSS_CHARACTER_EFFECTS as SEED_CROSS_CHARACTER_EFFECTS,
@@ -185,6 +178,7 @@ interface NarrativeStoreState {
   versionDiffs: VersionDiff[];
 
   // --- Pipeline ---
+  /** @deprecated 管线状态已迁移到 usePipelineStore（cd-pipeline），此字段保留向后兼容但不应读写 */
   pipelineStages: PipelineStage[];
 
   // --- QTE ---
@@ -198,7 +192,7 @@ interface NarrativeStoreState {
   entityRelations: EntityRelation[];
   characterSceneAppearances: CharacterSceneAppearance[];
 
-  // --- Detroit: Become Human Features ---
+  // --- 高级叙事扩展功能 ---
   povConfigs: POVConfig[];
   timedDecisions: TimedDecisionConfig[];
   subgraphLocks: SubgraphLock[];
@@ -208,6 +202,7 @@ interface NarrativeStoreState {
   evidence: Evidence[];
   clues: Clue[];
   deductions: Deduction[];
+  /** @deprecated 道德系统已迁移到 useMoralStore（cd-moral），此字段保留向后兼容但不应读写 */
   moralAxes: MoralAxis[];
   pathTimeEstimates: PathTimeEstimate[];
 
@@ -219,6 +214,7 @@ interface NarrativeStoreState {
   // --- Edge Actions ---
   addEdge: (edge: NodeEdge) => void;
   removeEdge: (from: string, to: string) => void;
+  updateEdge: (from: string, to: string, updates: Partial<NodeEdge>) => void;
 
   // --- Variable Actions ---
   updateVariable: (id: string, updates: Partial<GameVariable>) => void;
@@ -253,15 +249,25 @@ interface NarrativeStoreState {
 
   // --- Scene/Prop/Character Add Actions ---
   addScene: (scene: GameScene) => void;
+  removeScene: (id: string) => void;
   addProp: (prop: GameProp) => void;
+  removeProp: (id: string) => void;
   addCharacter: (character: GameCharacter) => void;
+  removeCharacter: (id: string) => void;
 
   // --- Scene/Prop Update Actions ---
   updateScene: (id: string, updates: Partial<GameScene>) => void;
   updateProp: (id: string, updates: Partial<GameProp>) => void;
 
   // --- Cinematic Direction Actions ---
+  addCinematicDirection: (cd: CinematicDirection) => void;
   updateCinematicDirection: (id: string, updates: Partial<CinematicDirection>) => void;
+  removeCinematicDirection: (id: string) => void;
+
+  // --- Asset Card Actions ---
+  addAssetCard: (card: AssetCard) => void;
+  updateAssetCard: (id: string, updates: Partial<AssetCard>) => void;
+  removeAssetCard: (id: string) => void;
 
   // --- Collaboration Actions ---
   updateCollabTask: (id: string, updates: Partial<CollabTask>) => void;
@@ -307,6 +313,9 @@ interface NarrativeStoreState {
 
   // --- Path Time Estimate Actions ---
   updatePathTimeEstimate: (pathId: string, estimate: PathTimeEstimate) => void;
+
+  // --- Playable Graph Actions ---
+  rebuildPlayableGraph: () => string[];
 
   // --- Bulk Load ---
   loadProjectData: (data: Partial<NarrativeStoreState>) => void;
@@ -391,7 +400,7 @@ const seedState = {
   entityRelations: SEED_ENTITY_RELATIONS,
   characterSceneAppearances: SEED_CHARACTER_SCENE_APPEARANCES,
 
-  // --- Detroit: Become Human Features ---
+  // --- 高级叙事扩展功能 ---
   povConfigs: SEED_POV_CONFIGS,
   timedDecisions: SEED_TIMED_DECISIONS,
   subgraphLocks: SEED_SUBGRAPH_LOCKS,
@@ -407,7 +416,7 @@ const seedState = {
 
 export const useNarrativeStore = create<NarrativeStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // --- Initialize from seed ---
       ...seedState,
 
@@ -444,6 +453,14 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
         set(state => ({
           nodeEdges: state.nodeEdges.filter(
             edge => !(edge.from === from && edge.to === to)
+          ),
+        }));
+      },
+
+      updateEdge: (from, to, updates) => {
+        set(state => ({
+          nodeEdges: state.nodeEdges.map(edge =>
+            (edge.from === from && edge.to === to) ? { ...edge, ...updates } : edge
           ),
         }));
       },
@@ -558,15 +575,33 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
         }));
       },
 
+      removeScene: (id) => {
+        set(state => ({
+          scenes: state.scenes.filter(sc => sc.id !== id),
+        }));
+      },
+
       addProp: (prop) => {
         set(state => ({
           props: [...state.props, prop],
         }));
       },
 
+      removeProp: (id) => {
+        set(state => ({
+          props: state.props.filter(p => p.id !== id),
+        }));
+      },
+
       addCharacter: (character) => {
         set(state => ({
           characters: [...state.characters, character],
+        }));
+      },
+
+      removeCharacter: (id) => {
+        set(state => ({
+          characters: state.characters.filter(c => c.id !== id),
         }));
       },
 
@@ -588,11 +623,44 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
       },
 
       // --- Cinematic Direction Actions ---
+      addCinematicDirection: (cd) => {
+        set(state => ({
+          cinematicDirections: [...state.cinematicDirections, cd],
+        }));
+      },
+
       updateCinematicDirection: (id, updates) => {
         set(state => ({
           cinematicDirections: state.cinematicDirections.map(cd =>
             cd.nodeId === id ? { ...cd, ...updates } : cd
           ),
+        }));
+      },
+
+      removeCinematicDirection: (id) => {
+        set(state => ({
+          cinematicDirections: state.cinematicDirections.filter(cd => cd.nodeId !== id),
+        }));
+      },
+
+      // --- Asset Card Actions ---
+      addAssetCard: (card) => {
+        set(state => ({
+          assetCards: [...state.assetCards, card],
+        }));
+      },
+
+      updateAssetCard: (id, updates) => {
+        set(state => ({
+          assetCards: state.assetCards.map(c =>
+            c.id === id ? { ...c, ...updates } : c
+          ),
+        }));
+      },
+
+      removeAssetCard: (id) => {
+        set(state => ({
+          assetCards: state.assetCards.filter(c => c.id !== id),
         }));
       },
 
@@ -793,6 +861,25 @@ export const useNarrativeStore = create<NarrativeStoreState>()(
 
       resetToDefaults: () => {
         set(seedState);
+      },
+
+      rebuildPlayableGraph: () => {
+        const s = get();
+        const { graph, warnings } = buildPlayableGraph({
+          storyNodes: s.storyNodes,
+          nodeEdges: s.nodeEdges,
+          characters: s.characters,
+          scenes: s.scenes,
+          narrativeIntents: s.narrativeIntents,
+          interactionPoints: s.interactionPoints,
+          variables: s.variables,
+        });
+        // Only set if the graph actually changed to prevent infinite loops
+        // (e.g. useEffect listening to storyNodes → rebuild → set → new refs → loop)
+        if (JSON.stringify(graph) !== JSON.stringify(s.playableGraph)) {
+          set({ playableGraph: graph });
+        }
+        return warnings;
       },
     }),
     {

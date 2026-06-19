@@ -336,7 +336,6 @@ function FullView({ stages, nextStep, showNextStep }: {
       {/* Stage list */}
       <div className="space-y-1">
         {stages.map((stage, i) => {
-          const Icon = stage.icon;
           return (
             <motion.div
               key={stage.id}

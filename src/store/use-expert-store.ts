@@ -20,7 +20,6 @@ import {
   matchExpertByKeywords,
   loadSkillsForContext,
   evaluateProactiveRules,
-  type ProactiveEvaluation,
   type RoutingStrategy,
 } from "@/lib/ai/agent-orchestrator";
 

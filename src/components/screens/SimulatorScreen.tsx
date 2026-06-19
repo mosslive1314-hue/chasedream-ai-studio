@@ -1,21 +1,29 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useLocation } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
+import { SceneRenderer } from "@/components/simulator/scene-renderer";
+import { AudioPlayer } from "@/components/simulator/audio-player";
+import { UIRenderer } from "@/components/simulator/ui-renderer";
+import { SavePanel } from "@/components/simulator/save-panel";
+import { StyleProvider } from "@/components/simulator/style-provider";
+import { getSaveManager, type SaveSlotData } from "@/lib/save";
 import {
   ChevronRight, SkipBack, RefreshCw, Trophy, Play,
   FlaskConical, Gamepad2, AlertTriangle, Clock, RotateCw,
   Map, Star, GitBranch, Eye, ArrowRight,
   Target, Users, Package, GitMerge, Ruler, Zap, Lock,
+  Volume2, Rewind, Save, FolderOpen,
 } from "lucide-react";
 import {
-  type PlayableNode, type PathTestResult, type PlayerExplorationMap,
-  type SubgraphLock, type GameVariable, type NarrativeState,
+  type PathTestResult, type PlayerExplorationMap,
 } from "@/lib/studio-data";
 import { evaluateCondition } from "@/lib/condition-engine";
 import { useNarrativeStore, getCurrentProject } from "@/store";
+import { Route as SimulatorRoute } from "@/routes/simulator";
+import { SceneContext, NodeExecutor } from "@/lib/runtime";
 
 const S = {
   primary: "#6355D8",
@@ -31,40 +39,87 @@ const S = {
 // ── P7-11: Exploration map layout ────────────────────────────────────────────
 const SESSION_COLORS = ["#5E50E8", "#D97706", "#00A99D"];
 
-const EXPLORE_EDGES: { from: string; to: string }[] = [
-  { from: "N01", to: "N02" },
-  { from: "N02", to: "N03" },
-  { from: "N03", to: "N04" },
-  { from: "N03", to: "N05" },
-  { from: "N04", to: "N06" },
-  { from: "N05", to: "N06" },
-  { from: "N06", to: "N07S" },
-  { from: "N06", to: "N07F" },
-  { from: "N07S", to: "N08" },
-  { from: "N07F", to: "N09" },
-  { from: "N08", to: "N10" },
-  { from: "N09", to: "N11" },
-];
+// ── Auto-layout: compute node positions from story graph ──────────────────────
+function computeExploreLayout(nodes: { id: string; type: string; label: string }[], edges: { from: string; to: string }[]) {
+  const nodePos: Record<string, { x: number; y: number }> = {};
+  const nodeLabel: Record<string, string> = {};
+  const outEdges: { from: string; to: string }[] = [];
 
-const NODE_POS: Record<string, { x: number; y: number }> = {
-  N01:  { x: 140, y: 32 },
-  N02:  { x: 140, y: 88 },
-  N03:  { x: 140, y: 144 },
-  N04:  { x: 58,  y: 200 },
-  N05:  { x: 222, y: 200 },
-  N06:  { x: 140, y: 256 },
-  N07S: { x: 58,  y: 312 },
-  N07F: { x: 222, y: 312 },
-  N08:  { x: 58,  y: 368 },
-  N09:  { x: 222, y: 368 },
-  N10:  { x: 58,  y: 428 },
-  N11:  { x: 222, y: 428 },
-};
+  // Map node labels
+  for (const n of nodes) {
+    nodeLabel[n.id] = n.label;
+  }
 
-const NODE_LABEL: Record<string, string> = {
-  N01: "N01", N02: "N02", N03: "N03", N04: "N04", N05: "N05", N06: "N06",
-  N07S: "07S", N07F: "07F", N08: "N08", N09: "N09", N10: "N10", N11: "N11",
-};
+  // BFS layer assignment for vertical layout
+  const startNodes = nodes.filter(n => n.type === 'start');
+  if (startNodes.length === 0 && nodes.length > 0) {
+    startNodes.push(nodes[0]);
+  }
+
+  // Build adjacency using Record
+  const adj: Record<string, string[]> = {};
+  for (const n of nodes) adj[n.id] = [];
+  for (const e of edges) {
+    if (adj[e.from]) adj[e.from].push(e.to);
+    outEdges.push({ from: e.from, to: e.to });
+  }
+
+  // BFS to determine layers (depth from start)
+  const visitedSet: Set<string> = new Set<string>();
+  const layerMap: Record<string, number> = {};
+  const queue: { id: string; depth: number }[] = startNodes.map(n => ({ id: n.id, depth: 0 }));
+
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+    if (visitedSet.has(item.id)) continue;
+    visitedSet.add(item.id);
+    layerMap[item.id] = item.depth;
+
+    const neighbors = adj[item.id] ?? [];
+    for (const next of neighbors) {
+      if (!visitedSet.has(next)) {
+        queue.push({ id: next, depth: item.depth + 1 });
+      }
+    }
+  }
+
+  // Handle unreachable nodes
+  let maxDepth = 0;
+  for (const id of Object.keys(layerMap)) maxDepth = Math.max(maxDepth, layerMap[id]);
+  for (const n of nodes) {
+    if (!visitedSet.has(n.id)) {
+      maxDepth++;
+      layerMap[n.id] = maxDepth;
+    }
+  }
+
+  // Group nodes by layer using Record
+  const layerGroups: Record<number, string[]> = {};
+  for (const id of Object.keys(layerMap)) {
+    const depth = layerMap[id];
+    if (!layerGroups[depth]) layerGroups[depth] = [];
+    layerGroups[depth].push(id);
+  }
+
+  // Compute x,y positions
+  const ySpacing = 56;
+  const xSpacing = 80;
+  const centerX = 140;
+
+  for (const depthStr of Object.keys(layerGroups)) {
+    const depth = Number(depthStr);
+    const nodeIds = layerGroups[depth];
+    const y = 32 + depth * ySpacing;
+    const totalWidth = (nodeIds.length - 1) * xSpacing;
+    const startX = centerX - totalWidth / 2;
+
+    for (let i = 0; i < nodeIds.length; i++) {
+      nodePos[nodeIds[i]] = { x: startX + i * xSpacing, y };
+    }
+  }
+
+  return { nodePos, nodeLabel, edges: outEdges };
+}
 
 // ── P7-11: Circular progress component ───────────────────────────────────────
 function CircularProgress({ value, label, color, size = 52 }: {
@@ -125,11 +180,65 @@ export default function SimulatorScreen() {
   const narrativeVariables = useNarrativeStore(s => s.variables);
   const narrativeStates = useNarrativeStore(s => s.narrativeStates);
   const characters = useNarrativeStore(s => s.characters);
+  const storyNodes = useNarrativeStore(s => s.storyNodes);
+  const nodeEdges = useNarrativeStore(s => s.nodeEdges);
+  const rebuildPlayableGraph = useNarrativeStore(s => s.rebuildPlayableGraph);
 
-  const [nodeId, setNodeId] = useState("N01");
+  // ── Route search params (e.g. /simulator?node=N03) ──
+  const search = useSearch({ from: SimulatorRoute.id });
+  const initialNodeId = search.node ?? null;
+
+  // ── 监听 storyNodes 和 nodeEdges 变化，自动重建 playableGraph ──
+  // Use ref for rebuildPlayableGraph to avoid it as a dependency (its reference
+  // changes on every Zustand set(), which would cause an infinite loop).
+  // Also use a serialized ref for storyNodes/nodeEdges to detect *content*
+  // changes only — Zustand persist rehydration creates new object references
+  // even when the data is identical, which would otherwise re-trigger this
+  // effect and potentially cause an infinite update loop.
+  const rebuildRef = useRef(rebuildPlayableGraph);
+  rebuildRef.current = rebuildPlayableGraph;
+  const prevGraphInputRef = useRef<string>('');
+  useEffect(() => {
+    const key = JSON.stringify(storyNodes) + JSON.stringify(nodeEdges);
+    if (key === prevGraphInputRef.current) return;
+    prevGraphInputRef.current = key;
+    rebuildRef.current();
+  }, [storyNodes, nodeEdges]);
+
+  // ── Dynamic explore layout from store ──
+  const exploreLayout = useMemo(
+    () => computeExploreLayout(storyNodes, nodeEdges),
+    [storyNodes, nodeEdges],
+  );
+
+  // ── Discover start node from store ──
+  const startNodeId = useMemo(() => {
+    // 1. If route has ?node=, use it
+    if (initialNodeId && playableGraph[initialNodeId]) return initialNodeId;
+    // 2. Find the start-type node
+    const startNode = storyNodes.find(n => n.type === 'start');
+    if (startNode) return startNode.id;
+    // 3. First node in playableGraph
+    const keys = Object.keys(playableGraph);
+    if (keys.length > 0) return keys[0];
+    // 4. Fallback
+    return "N01";
+  }, [initialNodeId, playableGraph, storyNodes]);
+
+  const [nodeId, setNodeId] = useState(() => startNodeId);
   const [vars, setVars] = useState<Record<string, number>>({ ...initVariables });
-  const [path, setPath] = useState<string[]>(["N01"]);
+  const [path, setPath] = useState<string[]>(() => [startNodeId]);
   const [history, setHistory] = useState<{ nodeId: string; vars: Record<string, number>; path: string[] }[]>([]);
+
+  // ── Sync startNodeId if it changes (e.g. playableGraph rebuilt) ──
+  useEffect(() => {
+    if (!playableGraph[nodeId] && playableGraph[startNodeId] && nodeId !== startNodeId) {
+      setNodeId(startNodeId);
+      setPath([startNodeId]);
+      setVars({ ...initVariables });
+      setHistory([]);
+    }
+  }, [startNodeId, playableGraph, nodeId, initVariables]);
 
   // ── Subgraph lock evaluation ─────────────────────────────────────────────
   const lockedNodeIds = useMemo(() => {
@@ -153,7 +262,7 @@ export default function SimulatorScreen() {
   }, [subgraphLocks, narrativeVariables, narrativeStates, vars]);
 
   // P4-9: Test mode state
-  const [testMode, setTestMode] = useState(false);
+  const [, setTestMode] = useState(false);
   const [testRunning, setTestRunning] = useState(false);
   const [testResults, setTestResults] = useState<PathTestResult[]>([]);
   const [testProgress, setTestProgress] = useState(0);
@@ -165,6 +274,53 @@ export default function SimulatorScreen() {
   const [exploreSession, setExploreSession] = useState(0);
 
   const node = playableGraph[nodeId];
+
+  // ── 运行时引擎：场景对象管理 + 快照回退 ──────────────────────────────────
+  const runtimeCtxRef = useRef<SceneContext>(new SceneContext());
+  const executorRef = useRef<NodeExecutor>(new NodeExecutor(playableGraph, runtimeCtxRef.current));
+  executorRef.current = new NodeExecutor(playableGraph, runtimeCtxRef.current);
+  const [sceneObjectsVersion, setSceneObjectsVersion] = useState(0);
+  const [audioState, setAudioState] = useState<{ bgm?: string; sfx?: string }>({});
+  const [savePanelMode, setSavePanelMode] = useState<'save' | 'load' | null>(null);
+
+  // 执行节点时同步到运行时引擎
+  const syncToRuntime = useCallback((id: string) => {
+    const ctx = runtimeCtxRef.current;
+    const executor = new NodeExecutor(playableGraph, ctx);
+    executor.execute(id);
+    // 同步音频状态
+    const audioObjs = ctx.getObjectsByType('audio');
+    const bgm = audioObjs.find(a => a.audioKind === 'bgm');
+    const sfx = audioObjs.find(a => a.audioKind === 'sfx');
+    setAudioState({ bgm: bgm?.audioUrl, sfx: sfx?.audioUrl });
+    setSceneObjectsVersion(v => v + 1);
+  }, [playableGraph]);
+
+  // 节点变化时同步
+  useEffect(() => {
+    syncToRuntime(nodeId);
+  }, [nodeId, syncToRuntime]);
+
+  // 运行时回退（使用快照系统）
+  const runtimeRollback = useCallback(() => {
+    const ctx = runtimeCtxRef.current;
+    if (ctx.canRollback()) {
+      ctx.popSnapshot();
+      const restoredId = ctx.getCurrentNodeId();
+      if (restoredId && playableGraph[restoredId]) {
+        setNodeId(restoredId);
+        setVars(ctx.getAllVariables() as Record<string, number>);
+        setPath(ctx.getHistory());
+        setSceneObjectsVersion(v => v + 1);
+      }
+    }
+  }, [playableGraph]);
+
+  // 当前场景对象
+  const currentSceneObjects = useMemo(() => {
+    return runtimeCtxRef.current.getAllObjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneObjectsVersion]);
 
   // ── Sync tab → testMode ───────────────────────────────────────────────────
   const switchTab = (t: "play" | "test" | "explore") => {
@@ -189,9 +345,9 @@ export default function SimulatorScreen() {
   };
 
   const reset = () => {
-    setNodeId("N01");
+    setNodeId(startNodeId);
     setVars({ ...initVariables });
-    setPath(["N01"]);
+    setPath([startNodeId]);
     setHistory([]);
   };
 
@@ -232,7 +388,6 @@ export default function SimulatorScreen() {
   const advDiagnostics: AdvDiag[] = useMemo(() => {
     if (testResults.length === 0) return [];
     const graphKeys = Object.keys(playableGraph);
-    const allPassed = testResults.every(r => r.passed);
 
     // 条件可满足性
     const conditionSatisfiable = testResults.every(r => r.reachable);
@@ -374,18 +529,45 @@ export default function SimulatorScreen() {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════════
   return (
+    <StyleProvider>
     <div className="h-svh flex flex-col overflow-hidden" style={{ background: "#000" }}>
       <UpstreamReadiness currentPath={pathname} />
 
       {/* ── 左侧：沉浸式游戏区 / 测试面板 / 探索图 ── */}
       <div className="flex-1 flex flex-col relative">
 
-        {/* 沉浸式背景 */}
-        <div className="absolute inset-0 z-0">
-          <img alt="Scene" className="w-full h-full object-cover brightness-50"
-            src={node.backgroundImage || "https://images.unsplash.com/photo-1515621061946-eff1c2a352bd?auto=format&fit=crop&w=800&q=80"} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/70 opacity-90" />
-        </div>
+        {/* 沉浸式背景 — 由运行时引擎 SceneRenderer 驱动 */}
+        <SceneRenderer
+          objects={currentSceneObjects}
+          fallbackBg={node.backgroundImage || "https://images.unsplash.com/photo-1515621061946-eff1c2a352bd?auto=format&fit=crop&w=800&q=80"}
+        />
+
+        {/* 音频播放器（不可见，由场景对象驱动） */}
+        <AudioPlayer audioObjects={currentSceneObjects.filter(o => o.type === 'audio') as any} />
+
+        {/* 运行时 UI 渲染器（对话框/选项/菜单等） */}
+        <UIRenderer />
+
+        {/* 存档/读档面板 */}
+        <AnimatePresence>
+          {savePanelMode && (
+            <SavePanel
+              mode={savePanelMode}
+              context={runtimeCtxRef.current}
+              onClose={() => setSavePanelMode(null)}
+              onLoad={async (data: SaveSlotData) => {
+                const ctx = runtimeCtxRef.current;
+                const sm = getSaveManager();
+                await sm.applySaveData(data, ctx);
+                setNodeId(data.runtime.currentNodeId);
+                setVars(data.runtime.variables as Record<string, number>);
+                setPath(data.runtime.history);
+                setSceneObjectsVersion(v => v + 1);
+                setSavePanelMode(null);
+              }}
+            />
+          )}
+        </AnimatePresence>
 
         {/* ── 顶部栏 (含 Tab 切换器) ── */}
         <div className="relative z-10 pt-4 px-4 pb-2">
@@ -574,6 +756,18 @@ export default function SimulatorScreen() {
                       }}>
                       <SkipBack size={10} /> 撤销
                     </motion.button>
+                    {/* 运行时快照回退（64层） */}
+                    <motion.button whileTap={{ scale: 0.92 }} onClick={runtimeRollback}
+                      disabled={!runtimeCtxRef.current.canRollback()}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] focus:outline-none"
+                      style={{
+                        background: "rgba(99,85,216,0.15)",
+                        border: "1px solid rgba(99,85,216,0.3)",
+                        color: runtimeCtxRef.current.canRollback() ? "#a78bfa" : "rgba(255,255,255,0.2)"
+                      }}
+                      title={`快照回退 (${runtimeCtxRef.current.getSnapshotCount()} 层可用)`}>
+                      <Rewind size={10} /> 快照回退
+                    </motion.button>
                     <motion.button whileTap={{ scale: 0.92 }} onClick={reset}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] focus:outline-none"
                       style={{ background: "rgba(255,255,255,0.08)",
@@ -581,10 +775,29 @@ export default function SimulatorScreen() {
                         color: "rgba(255,255,255,0.6)" }}>
                       <RefreshCw size={10} /> 重新开始
                     </motion.button>
+                    {/* 存档 */}
+                    <motion.button whileTap={{ scale: 0.92 }} onClick={() => setSavePanelMode('save')}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] focus:outline-none"
+                      style={{ background: "rgba(0,169,157,0.15)", border: "1px solid rgba(0,169,157,0.3)", color: "#5eead4" }}>
+                      <Save size={10} /> 存档
+                    </motion.button>
+                    {/* 读档 */}
+                    <motion.button whileTap={{ scale: 0.92 }} onClick={() => setSavePanelMode('load')}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] focus:outline-none"
+                      style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fcd34d" }}>
+                      <FolderOpen size={10} /> 读档
+                    </motion.button>
                   </div>
-                  <span className="text-[8px] font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
-                    第 {path.length} 步
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {audioState.bgm && (
+                      <span className="flex items-center gap-1 text-[8px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        <Volume2 size={9} /> BGM
+                      </span>
+                    )}
+                    <span className="text-[8px] font-mono" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      第 {path.length} 步
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1159,7 +1372,7 @@ export default function SimulatorScreen() {
                 <span className="text-[10px] font-bold" style={{ color: "#fff" }}>探索路径图</span>
               </div>
 
-              <svg viewBox="0 0 280 465" className="w-full" style={{ maxHeight: 340 }}>
+              <svg viewBox={`0 0 280 ${Math.max(465, 32 + Object.keys(exploreLayout.nodePos).length * 20 + 60)}`} className="w-full" style={{ maxHeight: 340 }}>
                 <defs>
                   <marker id="arr-taken" viewBox="0 0 10 8" refX="9" refY="4"
                     markerWidth="7" markerHeight="6" orient="auto">
@@ -1178,9 +1391,9 @@ export default function SimulatorScreen() {
                 </defs>
 
                 {/* Edges */}
-                {EXPLORE_EDGES.map(({ from, to }, ei) => {
-                  const a = NODE_POS[from];
-                  const b = NODE_POS[to];
+                {exploreLayout.edges.map(({ from, to }, ei) => {
+                  const a = exploreLayout.nodePos[from];
+                  const b = exploreLayout.nodePos[to];
                   if (!a || !b) return null;
                   const taken = isEdgeTaken(from, to);
 
@@ -1218,13 +1431,14 @@ export default function SimulatorScreen() {
                 })}
 
                 {/* Nodes */}
-                {exploration.allNodeIds.map(nid => {
-                  const pos = NODE_POS[nid];
+                {storyNodes.map(sn => {
+                  const nid = sn.id;
+                  const pos = exploreLayout.nodePos[nid];
                   if (!pos) return null;
                   const isVisited = visitedSet.has(nid);
-                  const isEnd = exploration.allEndingIds.includes(nid);
+                  const isEnd = sn.type.startsWith('ending');
                   const isReached = isEnd && reachedEndSet.has(nid);
-                  const isChoiceNode = ["N03", "N06"].includes(nid);
+                  const isChoiceNode = sn.type === 'choice';
 
                   // Determine fill / stroke
                   let fill = "rgba(255,255,255,0.04)";
@@ -1294,7 +1508,7 @@ export default function SimulatorScreen() {
                       {/* Node label */}
                       <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="middle"
                         fill={textColor} fontSize={9} fontFamily="monospace" fontWeight="bold">
-                        {NODE_LABEL[nid] ?? nid}
+                        {exploreLayout.nodeLabel[nid] ?? nid}
                       </text>
                     </g>
                   );
@@ -1338,9 +1552,9 @@ export default function SimulatorScreen() {
                         {Math.floor(s.duration / 60)}:{String(s.duration % 60).padStart(2, "0")}
                       </span>
                       <span className="text-[8px] ml-auto font-bold" style={{
-                        color: s.reachedEndingIds[0] === "N10" ? "#4ade80" : "#f87171"
+                        color: (playableGraph[s.reachedEndingIds[0]]?.endingType === 'good') ? "#4ade80" : "#f87171"
                       }}>
-                        {s.reachedEndingIds[0] === "N10" ? "好结局" : "坏结局"}
+                        {(playableGraph[s.reachedEndingIds[0]]?.endingType === 'good') ? "好结局" : "坏结局"}
                       </span>
                     </div>
                   );
@@ -1561,5 +1775,6 @@ export default function SimulatorScreen() {
         </div>
       </div>
     </div>
+    </StyleProvider>
   );
 }

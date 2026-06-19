@@ -1,5 +1,5 @@
 /**
- * Local authentication store — replaces @eazo/sdk auth.
+ * Local authentication store.
  *
  * In development, provides a mock authenticated user.
  * In production, this store should be connected to your
@@ -77,6 +77,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         authenticated: state.authenticated,
       }),
+      skipHydration: true,
     },
   ),
 );

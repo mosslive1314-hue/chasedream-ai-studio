@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  BookOpen, ChevronDown, ChevronUp, Zap, Star, Play,
-  CheckCircle2, Clock, X,
+  BookOpen, ChevronDown, ChevronUp, Zap,
+  Clock, X,
 } from "lucide-react";
 import { useSkillStore } from "@/store";
 import { getPageStage } from "@/lib/ai/agent-orchestrator";

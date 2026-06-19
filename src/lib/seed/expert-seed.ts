@@ -73,7 +73,7 @@ export const EXPERTS: Expert[] = [
     name: 'Interaction Designer',
     role: '互动设计师',
     avatar: '🎮',
-    description: '专精互动叙事设计，熟悉 Detroit 式叙事机制（定时决策、道德轴、关系计量、子图锁定）。能设计引人入胜的互动体验和后果链。',
+    description: '专精互动叙事设计，熟悉高级互动叙事机制（定时决策、道德轴、关系计量、子图锁定）。能设计引人入胜的互动体验和后果链。',
     domainSkills: ['skill-timed-decision', 'skill-consequence-chain', 'skill-variable-design'],
     pipelineStages: [5, 6], // 互动叙事设计、变量与交互机制
     activationTriggers: ['互动', '选择', '变量', '后果', '分支', '定时', '道德'],

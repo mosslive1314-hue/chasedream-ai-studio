@@ -8,12 +8,13 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
-import { type ScriptBlock, type ChapterPlan } from "@/lib/studio-data";
-import { useNarrativeStore, getCurrentProject, useCanvasAgentStore, useSettingsStore, useUIStore } from "@/store";
+import { type ScriptBlock } from "@/lib/studio-data";
+import { useNarrativeStore, getCurrentProject, useSettingsStore, useUIStore } from "@/store";
 import { AIService } from "@/lib/ai";
 import type { ConsistencyIssue, DialogueOption } from "@/lib/ai";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
 import ContextualActions from "@/components/ui/ContextualActions";
+import { DslCompilerPanel } from "@/components/script/dsl-compiler-panel";
 
 const S = {
   bg:"#F5F6FA", card:"#FFFFFF", s2:"#F4F6FC",
@@ -1297,43 +1298,14 @@ function TiptapEditorPanel({
 export default function ScriptScreen() {
   const location = useLocation();
   const pathname = location.pathname;
-  const projectName = getCurrentProject()?.title || "当前项目";
-  const narrativeTemplates = NARRATIVE_TEMPLATES.map(t =>
-    t.id === 'three-act' ? { ...t, examples: `《${projectName}》当前结构接近三幕式` } : t
-  );
   const scriptBlocks = useNarrativeStore(state => state.scriptBlocks);
-  const aiSuggestions = useNarrativeStore(state => state.aiSuggestions);
   const updateScriptBlock = useNarrativeStore(state => state.updateScriptBlock);
   const addScriptBlock = useNarrativeStore(state => state.addScriptBlock);
   const [blocks, setBlocks] = useState<ScriptBlock[]>(scriptBlocks);
-  const [editId, setEditId] = useState<string|null>(null);
-  const [editVal, setEditVal] = useState("");
   const [activeLayer, setActiveLayer] = useState<LayerId>("linear");
-  const dialogueTrees = useNarrativeStore(s => s.dialogueTrees);
   const chapterPlans = useNarrativeStore(s => s.chapterPlans);
   const [splitPreview, setSplitPreview] = useState(false);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
-  const currentChapter = chapterPlans[0] ?? null;
-
-  // AI 润色：打开全局 Agent 面板并发送消息
-  const sendAi = (msg: string) => {
-    const { setPanelOpen, addMessage } = useCanvasAgentStore.getState();
-    setPanelOpen(true);
-    addMessage({ role: "user", content: msg });
-  };
-
-  // 开始内联编辑
-  const startEdit = (block: ScriptBlock) => {
-    setEditId(block.id);
-    setEditVal(block.content);
-  };
-
-  // 保存内联编辑 — 同时写入 store
-  const saveEdit = (id: string) => {
-    setBlocks(bs => bs.map(b => b.id === id ? { ...b, content: editVal } : b));
-    updateScriptBlock(id, { content: editVal });
-    setEditId(null);
-  };
 
   // ── PlayablePreview (P0-2) ──
   const PlayablePreview = () => {
@@ -1626,7 +1598,12 @@ export default function ScriptScreen() {
           </div>
         )}
 
-        {activeLayer === "playable" && <PlayablePreview />}
+        {activeLayer === "playable" && (
+          <>
+            <DslCompilerPanel />
+            <PlayablePreview />
+          </>
+        )}
 
         {activeLayer === "chapter" && <ChapterPlanContent />}
       </div>

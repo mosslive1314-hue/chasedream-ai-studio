@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   CheckCircle2, AlertTriangle, Copy, ExternalLink,
@@ -8,7 +8,7 @@ import {
 import { useNarrativeStore, useUIStore, getCurrentProject, useExportStore } from "@/store";
 import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
-import { EXPORT_CATEGORY_LABELS, getFormatsByIndustry } from "@/lib/seed/export-formats-seed";
+import { getFormatsByIndustry } from "@/lib/seed/export-formats-seed";
 
 // ── 设计系统 ──────────────────────────────────────────────────────────────
 const S = {
@@ -51,11 +51,6 @@ export default function PublishScreen() {
 
   // ── Export Store selectors (safe: data only, no functions in state) ──
   const exportFormats = useExportStore(s => s.formats);
-  const exportJobs = useExportStore(s => s.jobs);
-  const recentJobs = useMemo(
-    () => [...exportJobs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10),
-    [exportJobs],
-  );
   const runExport = useCallback(
     (formatId: string, options?: Record<string, string | boolean | number>) =>
       useExportStore.getState().runExport(formatId as any, options),

@@ -44,7 +44,7 @@ export function OutfitPreviewCanvas({ outfit, slots, pieces, anchors }: OutfitPr
         const piece = pieces.find(p => p.id === pieceId);
         return { slot, piece };
       })
-      .filter((entry): entry is { slot: WardrobeSlot; piece: OutfitPiece | undefined } => true)
+      .filter((_entry): _entry is { slot: WardrobeSlot; piece: OutfitPiece | undefined } => true)
       .sort((a, b) => a.slot.zOrder - b.slot.zOrder);
   }, [outfit, slots, pieces]);
 
@@ -115,7 +115,6 @@ export function OutfitPreviewCanvas({ outfit, slots, pieces, anchors }: OutfitPr
                         </p>
                         {piece.imageUrl && (
                           <div className="mt-2 w-16 h-16 rounded-lg mx-auto overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={piece.imageUrl} alt={piece.name} className="w-full h-full object-cover" />
                           </div>
                         )}

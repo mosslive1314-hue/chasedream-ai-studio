@@ -64,7 +64,7 @@ export function Breadcrumb() {
 
   return (
     <div className="flex items-center gap-1 text-[10px] px-4 pt-2 select-none">
-      {crumbs.map((c, i) => (
+      {crumbs.map((c) => (
         <span key={c.href} className="flex items-center gap-1">
           <Link to={c.href} className="hover:underline" style={{ color: S.text3 }}>
             {c.label}

@@ -1,19 +1,41 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Eye, Sparkles, Rocket, AlertTriangle,
-  CheckCircle2, ChevronDown, ChevronUp, Plus,
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  type Node as RFnode,
+  type Edge as RFedge,
+  type NodeProps,
+  type Connection,
+  Handle,
+  Position,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import {
+  storyEdgeTypes,
+  createOnNodesChange,
+  createOnEdgesChange,
+  syncStoreToRF,
+  computeAutoLayout,
+  X_OFFSET,
+} from "@/lib/reactflow";
+import { edgeId } from "@/lib/types/narrative";
+import {
+  Eye, Sparkles, AlertTriangle,
+  CheckCircle2, ChevronDown, Plus,
   AlignLeft,
-  ExternalLink, Play, FileText, Flame, Edit2,
-  User, Package, Music, GitBranch, X, Loader2,
+  ExternalLink, Flame, Edit2,
+  User, Package, GitBranch, X, Loader2,
   Monitor, Star, Download, Wand2, Image as ImageIcon,
   Layout, Eye as EyeIcon, Search,
   Check, Trash2, Copy, RotateCcw, Settings, Link2, MapPin, MessageSquare,
-  Shield, Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
+  Layers, Film, HelpCircle, Zap, Target, Trophy, BarChart3,
   Users, Clock, Lock, Palette, Route, ChevronRight, MousePointer2
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { type UITemplate, type UITemplateCategory, type UIComponentDef, type NarrativeIntent, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type NarrativeState, type StateCategory } from "@/lib/studio-data";
+import { type UITemplate, type UITemplateCategory, type UIComponentDef, type CharacterTimeline, type CharacterStatus, type CrossCharacterEffect, type StateCategory } from "@/lib/studio-data";
 import { useNarrativeStore, useUIStore, getCurrentProject } from "@/store";
 import { useLocation } from "@tanstack/react-router";
 import { UpstreamReadiness } from "@/components/ui/UpstreamReadiness";
@@ -59,6 +81,71 @@ const NODE_TYPE: Record<string, { label:string; color:string; bg:string; border:
   ending_bad:  { label:"结局", color:"#EF4444", bg:"rgba(239,68,68,0.08)",   border:"rgba(239,68,68,0.4)"   },
 };
 
+// ── ReactFlow 自定义节点数据类型 ───────────────────────────────────────────────
+type StoryNodeRFData = {
+  label: string;
+  nodeType: string;
+  hasError: boolean;
+  errorMsg?: string;
+  isLocked: boolean;
+  nodeOpacity: number;
+  isSelected: boolean;
+  isMultiSelected: boolean;
+  variantCount: number;
+  onNodeClick: (id: string, shiftKey: boolean) => void;
+};
+
+// ── ReactFlow 自定义节点组件 ────────────────────────────────────────────────
+function StoryNodeRF({ id, data }: NodeProps) {
+  const d = data as StoryNodeRFData;
+  const cfg = NODE_TYPE[d.nodeType] ?? NODE_TYPE.scene;
+  return (
+    <>
+      <Handle type="target" position={Position.Top} className="!w-1 !h-1 !bg-gray-400" />
+      <div
+        onClick={(e) => { e.stopPropagation(); d.onNodeClick(id, e.shiftKey); }}
+        className="rounded-xl text-left cursor-grab active:cursor-grabbing"
+        style={{
+          width: 140,
+          padding: "8px 10px",
+          background: "#FFFFFF",
+          border: `1px solid ${d.isMultiSelected ? "#00A99D" : d.isSelected ? "#7C6CF5" : d.hasError ? "#EF4444" : cfg.border}`,
+          boxShadow: d.isMultiSelected
+            ? `0 0 0 2px rgba(0,169,157,0.19), 0 2px 8px rgba(0,169,157,0.12)`
+            : d.isSelected
+            ? `0 0 0 2px rgba(124,108,245,0.19), 0 2px 12px rgba(124,108,245,0.15)`
+            : "0 1px 4px rgba(0,0,0,0.06)",
+          opacity: d.nodeOpacity,
+        }}
+      >
+        <div className="flex items-center gap-1 mb-1">
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: cfg.bg, color: cfg.color }}>
+            目 {cfg.label}
+          </span>
+          {d.hasError && <AlertTriangle size={9} style={{ color: "#EF4444" }} />}
+        </div>
+        <p className="text-[11px] font-bold truncate" style={{ color: "#1A1D2E" }}>{d.label}</p>
+        {d.errorMsg && <p className="text-[9px] mt-0.5 truncate" style={{ color: "#EF4444" }}>{d.errorMsg}</p>}
+        {d.isLocked && (
+          <div className="flex items-center gap-0.5 mt-1">
+            <Lock size={8} style={{ color: "#F59E0B" }} />
+            <span className="text-[8px]" style={{ color: "#D97706" }}>已锁定</span>
+          </div>
+        )}
+        {d.variantCount > 0 && (
+          <div className="flex items-center gap-0.5 mt-1">
+            <GitBranch size={8} style={{ color: "#8B5CF6" }} />
+            <span className="text-[8px]" style={{ color: "#7C3AED" }}>{d.variantCount} 变体</span>
+          </div>
+        )}
+      </div>
+      <Handle type="source" position={Position.Bottom} className="!w-1 !h-1 !bg-gray-400" />
+    </>
+  );
+}
+
+const storyNodeTypesLocal = { storyNode: StoryNodeRF };
+
 
 // ── 热力图 Tab ────────────────────────────────────────────────────────────
 function HeatmapContent() {
@@ -83,9 +170,6 @@ function HeatmapContent() {
   const hotNodes = heatmapData.filter(h => h.heatLevel === 'hot');
   const coldNodes = heatmapData.filter(h => h.heatLevel === 'cold' || h.heatLevel === 'cool');
   const highestDrop = [...heatmapData].sort((a,b) => b.dropOffRate - a.dropOffRate)[0];
-
-  const choiceNode = storyNodes.find(n => n.type === 'choice');
-  const choiceHm = choiceNode ? hmMap[choiceNode.id] : null;
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: S.bg }}>
@@ -258,8 +342,8 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
     return node.type === nodeFilter;
   });
 
-  // 诊断视图高亮节点计算
-  const highlightedNodeIds = ((): Set<string> => {
+  // 诊断视图高亮节点计算 — useMemo 避免每次渲染创建新 Set 导致无限循环
+  const highlightedNodeIds = useMemo((): Set<string> => {
     if (diagView === 'all') return new Set(storyNodes.map(n => n.id));
     switch (diagView) {
       case 'mainline':
@@ -310,45 +394,26 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
       default:
         return new Set(storyNodes.map(n => n.id));
     }
-  })();
+  }, [diagView, storyNodes, nodeEdges, variables, characters, narrativeStates]);
 
   const getNodeLabel = (id: string) => storyNodes.find(n => n.id === id)?.label || id;
 
   // ── Local canvas editing state ──
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [dragState, setDragState] = useState<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
-  const [connectFrom, setConnectFrom] = useState<string | null>(null);
-  const [connectMouse, setConnectMouse] = useState<{ x: number; y: number } | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const dragMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
-  const dragEndRef = useRef<((e: MouseEvent) => void) | null>(null);
-  const connectMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
-  const connectEndRef = useRef<((e: MouseEvent) => void) | null>(null);
 
   // ── Path Tester (路径测试器) ──
   const [pathTesterOpen, setPathTesterOpen] = useState(false);
-  const [pathStartNode, setPathStartNode] = useState<string | null>(null);
-  const [simulatedPath, setSimulatedPath] = useState<string[]>([]);
+  const [pathTestResult, setPathTestResult] = useState<import('@/lib/path-test-engine').PathTestOutput | null>(null);
 
-  const handleSimulatePath = () => {
-    if (!pathStartNode) return;
-    const path: string[] = [pathStartNode];
-    const visited = new Set<string>([pathStartNode]);
-    let current = pathStartNode;
-    for (let i = 0; i < 20; i++) {
-      const outgoing = nodeEdges.filter(e => e.from === current);
-      if (outgoing.length === 0) break;
-      const next = outgoing[0].to;
-      if (visited.has(next)) break;
-      path.push(next);
-      visited.add(next);
-      current = next;
-      const node = storyNodes.find(n => n.id === next);
-      if (node && node.type.startsWith('ending')) break;
-    }
-    setSimulatedPath(path);
-  };
+  const handleRunPathTest = useCallback(() => {
+    // Dynamic import to avoid SSR issues
+    import('@/lib/path-test-engine').then(({ runPathTest }) => {
+      const result = runPathTest(storyNodes, nodeEdges);
+      setPathTestResult(result);
+      setPathTesterOpen(true);
+    });
+  }, [storyNodes, nodeEdges]);
 
   // ── Multi-select (多选) ──
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
@@ -366,28 +431,14 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
     qte: "新QTE", ending_good: "新好结局", ending_bad: "新坏结局",
   };
 
-  const getCanvasPos = (clientX: number, clientY: number) => {
-    const inner = canvasRef.current?.querySelector("[data-canvas-inner]") as HTMLElement | null;
-    if (!inner) return { x: 0, y: 0 };
-    const rect = inner.getBoundingClientRect();
-    return { x: clientX - rect.left, y: clientY - rect.top };
-  };
-
   const handleCreateNode = (type: string) => {
-    const containerEl = canvasRef.current;
-    const centerX = containerEl ? containerEl.scrollLeft + containerEl.clientWidth / 2 : 450;
-    const centerY = containerEl ? containerEl.scrollTop + containerEl.clientHeight / 2 : 350;
-    const inner = containerEl?.querySelector("[data-canvas-inner]") as HTMLElement | null;
-    const rect = inner?.getBoundingClientRect();
-    const containerRect = containerEl?.getBoundingClientRect();
-    const offsetX = rect && containerRect ? rect.left - containerRect.left : 0;
-    const offsetY = rect && containerRect ? rect.top - containerRect.top : 0;
+    // ReactFlow viewport center — simplified positioning
     const newNode = {
       id: `N${String(Date.now()).slice(-4)}`,
       label: NODE_TYPE_LABELS[type] || "新节点",
       type: type as any,
-      x: centerX - offsetX,
-      y: centerY - offsetY,
+      x: 300 + Math.random() * 200,
+      y: 200 + Math.random() * 200,
     };
     addNode(newNode);
     setSel(newNode.id);
@@ -399,65 +450,101 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
     if (sel === id) { setSel(null); setDetailPanelOpen(false); }
   };
 
-  const handleStartDrag = (e: React.MouseEvent, nodeId: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const pos = getCanvasPos(e.clientX, e.clientY);
-    const node = storyNodes.find(n => n.id === nodeId);
-    if (!node) return;
-    setDragState({ nodeId, offsetX: pos.x - node.x, offsetY: pos.y - node.y });
-  };
+  // ── ReactFlow handlers ──
+  const handleNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, node: RFnode) => {
+    updateNode(node.id, { x: node.position.x + X_OFFSET, y: node.position.y });
+  }, [updateNode]);
 
-  const handleStartConnect = (e: React.MouseEvent, nodeId: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setConnectFrom(nodeId);
-    const pos = getCanvasPos(e.clientX, e.clientY);
-    setConnectMouse(pos);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (dragState && dragMoveRef.current) dragMoveRef.current(e);
-      if (connectFrom && connectMoveRef.current) connectMoveRef.current(e);
-    };
-    const handleMouseUp = (e: MouseEvent) => {
-      if (dragState && dragEndRef.current) dragEndRef.current(e);
-      if (connectFrom && connectEndRef.current) connectEndRef.current(e);
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [dragState, connectFrom]);
-
-  dragMoveRef.current = (e: MouseEvent) => {
-    if (!dragState) return;
-    const pos = getCanvasPos(e.clientX, e.clientY);
-    updateNode(dragState.nodeId, { x: pos.x - dragState.offsetX, y: pos.y - dragState.offsetY });
-  };
-  dragEndRef.current = () => { setDragState(null); };
-  connectMoveRef.current = (e: MouseEvent) => {
-    const pos = getCanvasPos(e.clientX, e.clientY);
-    setConnectMouse(pos);
-  };
-  connectEndRef.current = (e: MouseEvent) => {
-    const pos = getCanvasPos(e.clientX, e.clientY);
-    const target = storyNodes.find(n => {
-      if (n.id === connectFrom) return false;
-      return Math.abs(n.x - pos.x) < 70 && Math.abs(n.y - pos.y) < 30;
-    });
-    if (target) {
-      addEdge({ from: connectFrom!, to: target.id, edgeType: "causal" });
+  const handleConnect = useCallback((connection: Connection) => {
+    if (connection.source && connection.target) {
+      addEdge({ from: connection.source, to: connection.target, edgeType: "causal" });
     }
-    setConnectFrom(null);
-    setConnectMouse(null);
-  };
+  }, [addEdge]);
+
+  // ── ReactFlow data conversion (store → RF) ──
+  const rfNodesFromStore = useMemo(() => filteredNodes.map(node => {
+    const isSelected = sel === node.id;
+    const isHighlighted = highlightedNodeIds.has(node.id);
+    const isLocked = subgraphLocks.some(lock => lock.lockedNodeIds.includes(node.id));
+    const nodeOpacity = isLocked ? 0.35 : (diagView !== 'all' && !isHighlighted) ? 0.3 : 1;
+    return {
+      id: node.id,
+      type: "storyNode" as const,
+      position: { x: node.x - X_OFFSET, y: node.y },
+      data: {
+        label: node.label,
+        nodeType: node.type,
+        hasError: (node as any).hasError ?? false,
+        errorMsg: (node as any).errorMsg as string | undefined,
+        isLocked,
+        nodeOpacity,
+        isSelected,
+        isMultiSelected: multiSelected.has(node.id),
+        variantCount: chapterVariants.length,
+        onNodeClick: (id: string, shiftKey: boolean) => {
+          if (shiftKey) {
+            setMultiSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+          } else {
+            setMultiSelected(new Set());
+            setBatchTypeOpen(false);
+            if (id === sel) { setSel(null); setDetailPanelOpen(false); }
+            else { setSel(id); setDetailPanelOpen(true); }
+          }
+        },
+      },
+      draggable: true,
+    };
+  }), [filteredNodes, sel, diagView, highlightedNodeIds, subgraphLocks, chapterVariants, multiSelected, setSel]);
+
+  const rfEdgesFromStore = useMemo(() => nodeEdges.map(edge => {
+    const isHighlighted = highlightedNodeIds.has(edge.from) && highlightedNodeIds.has(edge.to);
+    const edgeOpacity = diagView !== 'all' && !isHighlighted ? 0.08 : 0.35;
+    return {
+      id: edgeId(edge.from, edge.to),
+      source: edge.from,
+      target: edge.to,
+      label: edge.label,
+      type: edge.edgeType ?? 'smoothstep',
+      style: {
+        stroke: "#7C6CF5",
+        strokeWidth: 1.5,
+        opacity: edgeOpacity,
+      },
+      animated: false,
+    };
+  }), [nodeEdges, diagView, highlightedNodeIds]);
+
+  // ── ReactFlow internal state (controlled mode) ──
+  const [internalNodes, setInternalNodes] = useState<RFnode[]>([]);
+  const [internalEdges, setInternalEdges] = useState<RFedge[]>([]);
+
+  // Sync store → ReactFlow internal state
+  useEffect(() => {
+    syncStoreToRF(rfNodesFromStore, rfEdgesFromStore, setInternalNodes, setInternalEdges);
+  }, [rfNodesFromStore, rfEdgesFromStore]);
+
+  const onNodesChange = useCallback(
+    (changes: Parameters<ReturnType<typeof createOnNodesChange>>[0]) => {
+      createOnNodesChange(removeNode, setInternalNodes)(changes);
+    },
+    [removeNode]
+  );
+  const onEdgesChange = useCallback(
+    (changes: Parameters<ReturnType<typeof createOnEdgesChange>>[0]) => {
+      createOnEdgesChange(removeEdge, setInternalEdges)(changes);
+    },
+    [removeEdge]
+  );
+
+  // ── Auto layout handler ──
+  const handleAutoLayout = useCallback(() => {
+    const positions = computeAutoLayout(storyNodes, nodeEdges);
+    for (const [id, pos] of positions) {
+      updateNode(id, pos);
+    }
+  }, [storyNodes, nodeEdges, updateNode]);
 
   const selectedNode = storyNodes.find(n => n.id === sel);
-  const selectedEdges = sel ? nodeEdges.filter(e => e.from === sel || e.to === sel) : [];
 
   // Derive ending nodes and their paths dynamically from the story graph
   const endingPaths = useMemo(() => {
@@ -477,16 +564,12 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
   }, [storyNodes, nodeEdges]);
 
   return (
-    <div ref={canvasRef} className="relative w-full h-full overflow-auto"
-      onClick={() => { setSel(null); setDetailPanelOpen(false); setMultiSelected(new Set()); setBatchTypeOpen(false); }}
-      style={{
-        backgroundColor: S.canvas,
-        backgroundImage: `linear-gradient(${S.cGrid} 1px,transparent 1px),linear-gradient(90deg,${S.cGrid} 1px,transparent 1px)`,
-        backgroundSize: "24px 24px",
-      }}>
+    <div className="relative w-full h-full overflow-hidden"
+      style={{ backgroundColor: S.canvas }}>
       {/* 整理布局按钮（右上角，与原站一致）*/}
       <div className="absolute top-3 right-3 z-20">
         <motion.button whileTap={{ scale:0.97 }}
+          onClick={handleAutoLayout}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium focus:outline-none"
           style={{ background:S.card, border:`1px solid ${S.border}`, color:S.text2,
             boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -779,161 +862,44 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
 
 
 
-      {/* 节点画布（SVG连线 + 节点卡片，布局与原站截图一致）*/}
-      <div data-canvas-inner style={{ width:900, height:700, position:"relative", margin:"32px auto" }}>
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex:0 }}>
-          <defs>
-            <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L6,3 Z" fill={S.primary} opacity="0.5" />
-            </marker>
-          </defs>
-          {nodeEdges.map((edge,i) => {
-            const fn = storyNodes.find(n=>n.id===edge.from);
-            const tn = storyNodes.find(n=>n.id===edge.to);
-            if (!fn||!tn) return null;
-            const x1=fn.x, y1=fn.y+42, x2=tn.x, y2=tn.y;
-            const cy = (y1+y2)/2;
-            return (
-              <path key={i}
-                d={`M ${x1},${y1} C ${x1},${cy} ${x2},${cy} ${x2},${y2}`}
-                fill="none" stroke={S.primary} strokeWidth={1.5}
-                opacity={diagView !== 'all' && (!highlightedNodeIds.has(edge.from) || !highlightedNodeIds.has(edge.to)) ? 0.08 : 0.35}
-                markerEnd="url(#arr)"
-              />
-            );
-          })}
-          {/* Temporary connection line while dragging */}
-          {connectFrom && connectMouse && (() => {
-            const fromNode = storyNodes.find(n => n.id === connectFrom);
-            if (!fromNode) return null;
-            return (
-              <line x1={fromNode.x} y1={fromNode.y + 42} x2={connectMouse.x} y2={connectMouse.y}
-                stroke={S.primary} strokeWidth={2} strokeDasharray="6 3" opacity={0.6} />
-            );
-          })()}
-        </svg>
-
-        {/* ── 选中节点操作栏 ── */}
-        <AnimatePresence>
-          {sel && selectedNode && (() => {
-            return (
-              <motion.div
-                key="node-action-bar"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.12 }}
-                className="absolute z-30 flex items-center gap-1 px-1.5 py-1 rounded-lg"
-                style={{
-                  left: selectedNode.x - 20,
-                  top: selectedNode.y - 32,
-                  background: S.card,
-                  border: `1px solid ${S.border}`,
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
-                }}>
-                <motion.button whileTap={{ scale: 0.9 }}
-                  onClick={() => setDetailPanelOpen(true)}
-                  className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
-                  style={{ background: S.s2, color: S.text3 }}
-                  title="编辑节点">
-                  <Edit2 size={9} />
-                </motion.button>
-              </motion.div>
-            );
-          })()}
-        </AnimatePresence>
-
-        {filteredNodes.map(node => {
-          const cfg = NODE_TYPE[node.type] ?? NODE_TYPE.scene;
-          const isSelected = sel===node.id;
-          const isHighlighted = highlightedNodeIds.has(node.id);
-          const isLocked = subgraphLocks.some(lock => lock.lockedNodeIds.includes(node.id));
-          const nodeOpacity = isLocked ? 0.35 : (diagView !== 'all' && !isHighlighted) ? 0.3 : 1;
-          const isDragging = dragState?.nodeId === node.id;
-          return (
-            <motion.div key={node.id}
-              className="absolute"
-              animate={isDragging ? { scale: 1.04 } : { scale: 1 }}
-              transition={{ duration: 0.1 }}
-              style={{
-                left: node.x-70, top: node.y,
-                width: 140, zIndex: isSelected || isDragging ? 20 : 10,
-                opacity: nodeOpacity,
-                cursor: isDragging ? "grabbing" : "grab",
-              }}>
-              <motion.button
-                onMouseDown={(e) => handleStartDrag(e, node.id)}
-                onClick={(e) => { e.stopPropagation(); if (e.shiftKey) { setMultiSelected(prev => { const next = new Set(prev); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next; }); } else { setMultiSelected(new Set()); setBatchTypeOpen(false); if (node.id === sel) { setSel(null); setDetailPanelOpen(false); } else { setSel(node.id); setDetailPanelOpen(true); } } }}
-                className="w-full rounded-xl text-left focus:outline-none"
-                style={{
-                  padding:"8px 10px",
-                  background: S.card,
-                  border: `1px solid ${multiSelected.has(node.id) ? S.accent : isSelected ? S.primary : (node as any).hasError ? S.error : cfg.border}`,
-                  boxShadow: multiSelected.has(node.id)
-                    ? `0 0 0 2px ${S.accent}30, 0 2px 8px ${S.accent}20`
-                    : isSelected
-                    ? `0 0 0 2px ${S.primary}30, 0 2px 12px rgba(124,108,245,0.15)`
-                    : isDragging
-                    ? `0 4px 20px rgba(124,108,245,0.25)`
-                    : "0 1px 4px rgba(0,0,0,0.06)",
-                }}>
-                <div className="flex items-center gap-1 mb-1">
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                    style={{ background:cfg.bg, color:cfg.color }}>
-                    目 {cfg.label}
-                  </span>
-                  {(node as any).hasError && <AlertTriangle size={9} style={{ color:S.error }} />}
-                  {(node as any).povCharacterId && (() => {
-                    const povChar = characters.find(c => c.id === (node as any).povCharacterId);
-                    return povChar ? (
-                      <span
-                        className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium"
-                        style={{ background: `${povChar.color}20`, color: povChar.color }}
-                        title={`POV: ${povChar.name}`}
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: povChar.color }} />
-                        {povChar.name}
-                      </span>
-                    ) : null;
-                  })()}
-                </div>
-                <p className="text-[11px] font-bold truncate" style={{ color:S.text }}>{node.label}</p>
-                {(node as any).errorMsg && (
-                  <p className="text-[9px] mt-0.5 truncate" style={{ color:S.error }}>{(node as any).errorMsg}</p>
-                )}
-                {/* Subgraph lock indicator */}
-                {isLocked && (
-                  <div className="flex items-center gap-0.5 mt-1">
-                    <Lock size={8} style={{ color: "#F59E0B" }} />
-                    <span className="text-[8px]" style={{ color: "#D97706" }}>已锁定</span>
-                  </div>
-                )}
-                {/* Chapter variant indicator */}
-                {chapterVariants.length > 0 && (() => {
-                  return (
-                    <div className="flex items-center gap-0.5 mt-1" title={`${chapterVariants.length} 个章节变体已配置`}>
-                      <GitBranch size={8} style={{ color: "#8B5CF6" }} />
-                      <span className="text-[8px]" style={{ color: "#7C3AED" }}>{chapterVariants.length} 变体</span>
-                    </div>
-                  );
-                })()}
-              </motion.button>
-              {/* Connection point at bottom */}
-              <motion.div
-                onMouseDown={(e) => handleStartConnect(e, node.id)}
-                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full cursor-crosshair focus:outline-none"
-                whileHover={{ scale: 1.5 }}
-                style={{
-                  background: connectFrom === node.id ? S.primary : S.card,
-                  border: `2px solid ${connectFrom === node.id ? S.primary : cfg.color}`,
-                  zIndex: 25,
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-                }}
-                title="拖拽到另一个节点以创建连线"
-              />
-            </motion.div>
-          );
-        })}
+      {/* ReactFlow Canvas — replaces custom SVG + absolute positioned nodes */}
+      <div className="w-full h-full">
+        <ReactFlow
+          nodes={internalNodes}
+          edges={internalEdges}
+          nodeTypes={storyNodeTypesLocal}
+          edgeTypes={storyEdgeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
+          onConnect={handleConnect}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          proOptions={{ hideAttribution: true }}
+          nodesDraggable
+          nodesConnectable
+          elementsSelectable
+          panOnDrag
+          zoomOnScroll
+          minZoom={0.2}
+          maxZoom={2}
+          defaultEdgeOptions={{
+            type: "causal",
+            style: { strokeWidth: 1.5, stroke: "#7B5CF0" },
+          }}
+          onPaneClick={() => { setSel(null); setDetailPanelOpen(false); setMultiSelected(new Set()); setBatchTypeOpen(false); }}
+        >
+          <Background gap={24} size={1} color="#E2E4EF" />
+          <Controls showInteractive={false} className="!bg-white !border-[#E8EAF2] !rounded-lg !shadow-sm" />
+          <MiniMap
+            nodeColor={(n) => {
+              const data = n.data as StoryNodeRFData | undefined;
+              return data?.nodeType ? (NODE_TYPE[data.nodeType]?.color ?? "#7C6CF5") : "#7C6CF5";
+            }}
+            maskColor="rgba(240,241,248,0.8)"
+            className="!bg-white !border-[#E8EAF2] !rounded-lg"
+          />
+        </ReactFlow>
       </div>
 
       {/* ── 节点属性侧面板（右侧滑入，320px）── */}
@@ -1083,7 +1049,7 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
                         </label>
                         <select
                           value={nodeScene?.id ?? ""}
-                          onChange={(e) => {
+                          onChange={(_e) => {
                             /* Scene linking is display-only for now */
                           }}
                           className="w-full px-2.5 py-1.5 rounded-lg text-[10px] font-medium focus:outline-none appearance-none"
@@ -1477,111 +1443,140 @@ function CanvasContent({ sel, setSel, nodeFilter, diagView }: { sel:string|null;
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-[500px] rounded-xl overflow-hidden"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-[560px] max-h-[70vh] rounded-xl overflow-hidden"
             style={{ background: S.card, border: `1px solid ${S.primary}30`, boxShadow: `0 8px 32px ${S.primary}15` }}>
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: `${S.primary}06`, borderBottom: `1px solid ${S.border}` }}>
               <Route size={13} style={{ color: S.primary }} />
-              <span className="text-[10px] font-bold" style={{ color: S.text }}>路径测试器</span>
+              <span className="text-[10px] font-bold" style={{ color: S.text }}>路径自动测试</span>
               <div className="flex-1" />
               <motion.button whileTap={{ scale: 0.9 }}
-                onClick={() => { setPathTesterOpen(false); setSimulatedPath([]); }}
+                onClick={() => { setPathTesterOpen(false); }}
                 className="w-5 h-5 rounded flex items-center justify-center focus:outline-none"
                 style={{ background: S.s2, color: S.text3 }}>
                 <X size={9} />
               </motion.button>
             </div>
             {/* Body */}
-            <div className="p-4 space-y-3">
-              {/* Start node selector */}
+            <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(70vh-44px)]">
+              {/* Run test button */}
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold shrink-0" style={{ color: S.text2 }}>起始节点</span>
-                <select value={pathStartNode || ""} onChange={e => setPathStartNode(e.target.value || null)}
-                  className="flex-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium focus:outline-none appearance-none"
-                  style={{ background: S.s2, border: `1px solid ${S.border}`, color: S.text }}>
-                  <option value="">选择起始节点...</option>
-                  {storyNodes.filter(n => !n.type.startsWith("ending")).map(n => (
-                    <option key={n.id} value={n.id}>{n.id} - {n.label}</option>
-                  ))}
-                </select>
+                <span className="text-[9px] font-bold shrink-0" style={{ color: S.text2 }}>BFS 全路径扫描</span>
+                <div className="flex-1" />
                 <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={handleSimulatePath}
-                  disabled={!pathStartNode}
+                  onClick={handleRunPathTest}
                   className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white focus:outline-none shrink-0"
-                  style={{ background: pathStartNode ? S.primary : S.text3 }}>
-                  开始模拟
+                  style={{ background: S.primary }}>
+                  开始测试
                 </motion.button>
               </div>
 
-              {/* Simulated path display */}
-              {simulatedPath.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1 mb-2">
-                    <span className="text-[9px] font-bold" style={{ color: S.success }}>模拟路径</span>
-                    <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.success}12`, color: S.success }}>
-                      {simulatedPath.length} 步
-                    </span>
-                    {storyNodes.find(n => n.id === simulatedPath[simulatedPath.length - 1])?.type.startsWith("ending") && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.accent}12`, color: S.accent }}>
-                        到达结局
-                      </span>
-                    )}
-                  </div>
-                  {/* Path visualization */}
-                  <div className="flex items-center gap-0.5 overflow-x-auto pb-2">
-                    {simulatedPath.map((nodeId, i) => {
-                      const node = storyNodes.find(n => n.id === nodeId);
-                      const nodeType = node ? NODE_TYPE[node.type] : null;
-                      const isEnd = i === simulatedPath.length - 1;
-                      return (
-                        <div key={nodeId} className="flex items-center shrink-0">
-                          <div className="px-2 py-1 rounded-lg text-center"
-                            style={{
-                              background: `${nodeType?.color || S.primary}12`,
-                              border: `1px solid ${nodeType?.color || S.primary}30`,
-                              minWidth: 60,
-                            }}>
-                            <span className="text-[7px] font-mono block" style={{ color: S.text3 }}>{nodeId}</span>
-                            <span className="text-[8px] font-bold block truncate max-w-[70px]" style={{ color: S.text }}>
-                              {node?.label || nodeId}
-                            </span>
-                          </div>
-                          {!isEnd && (
-                            <ChevronRight size={10} className="mx-0.5 shrink-0" style={{ color: S.text3 }} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* Variable state along path */}
-                  {variables.length > 0 && (
-                    <div className="mt-2 p-2 rounded-lg" style={{ background: S.s2 }}>
-                      <span className="text-[8px] font-bold block mb-1" style={{ color: S.text3 }}>路径涉及变量</span>
-                      <div className="flex flex-wrap gap-1">
-                        {variables.filter(v =>
-                          v.modifiedBy.some(id => simulatedPath.includes(id)) ||
-                          v.readBy.some(id => simulatedPath.includes(id))
-                        ).map(v => (
-                          <span key={v.id} className="text-[8px] font-mono px-1.5 py-0.5 rounded"
-                            style={{ background: `${S.accent}12`, color: S.accent, border: `1px solid ${S.accent}20` }}>
-                            {v.label}
-                          </span>
-                        ))}
-                        {variables.filter(v =>
-                          v.modifiedBy.some(id => simulatedPath.includes(id)) ||
-                          v.readBy.some(id => simulatedPath.includes(id))
-                        ).length === 0 && (
-                          <span className="text-[8px]" style={{ color: S.text3 }}>此路径不涉及变量变化</span>
-                        )}
+              {/* Test results */}
+              {pathTestResult && (
+                <>
+                  {/* Stats summary */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: "总路径", value: pathTestResult.stats.totalPaths, color: S.primary },
+                      { label: "好结局", value: pathTestResult.stats.goodEndings, color: S.success },
+                      { label: "坏结局", value: pathTestResult.stats.badEndings, color: S.error },
+                      { label: "死胡同", value: pathTestResult.stats.deadEnds, color: S.warning },
+                    ].map(s => (
+                      <div key={s.label} className="text-center p-2 rounded-lg" style={{ background: `${s.color}08`, border: `1px solid ${s.color}20` }}>
+                        <span className="text-[16px] font-bold block" style={{ color: s.color }}>{s.value}</span>
+                        <span className="text-[8px]" style={{ color: S.text3 }}>{s.label}</span>
                       </div>
+                    ))}
+                  </div>
+
+                  {/* Warnings */}
+                  {(pathTestResult.deadEnds.length > 0 || pathTestResult.unreachableNodes.length > 0 || pathTestResult.cycleNodes.length > 0) && (
+                    <div className="p-2 rounded-lg space-y-1" style={{ background: `${S.warning}08`, border: `1px solid ${S.warning}20` }}>
+                      <span className="text-[9px] font-bold block" style={{ color: S.warning }}>⚠ 检测到问题</span>
+                      {pathTestResult.deadEnds.length > 0 && (
+                        <p className="text-[8px]" style={{ color: S.text3 }}>
+                          死胡同节点: {pathTestResult.deadEnds.map(id => {
+                            const n = storyNodes.find(n => n.id === id);
+                            return `${id}(${n?.label ?? '?'})`;
+                          }).join(', ')}
+                        </p>
+                      )}
+                      {pathTestResult.unreachableNodes.length > 0 && (
+                        <p className="text-[8px]" style={{ color: S.text3 }}>
+                          不可达节点: {pathTestResult.unreachableNodes.map(id => {
+                            const n = storyNodes.find(n => n.id === id);
+                            return `${id}(${n?.label ?? '?'})`;
+                          }).join(', ')}
+                        </p>
+                      )}
+                      {pathTestResult.cycleNodes.length > 0 && (
+                        <p className="text-[8px]" style={{ color: S.text3 }}>
+                          环路节点: {pathTestResult.cycleNodes.join(', ')}
+                        </p>
+                      )}
                     </div>
                   )}
-                </div>
+
+                  {/* All paths */}
+                  <div>
+                    <div className="flex items-center gap-1 mb-2">
+                      <span className="text-[9px] font-bold" style={{ color: S.text }}>所有路径</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ background: `${S.primary}10`, color: S.primary }}>
+                        最长 {pathTestResult.stats.maxPathLength} 步 · 平均 {pathTestResult.stats.avgPathLength} 步
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                      {pathTestResult.paths.map((path, i) => (
+                        <div key={i} className="p-2 rounded-lg" style={{
+                          background: path.endingType === 'good' ? `${S.success}06` : path.endingType === 'bad' ? `${S.error}06` : S.s2,
+                          border: `1px solid ${path.endingType === 'good' ? `${S.success}20` : path.endingType === 'bad' ? `${S.error}20` : S.border}`,
+                        }}>
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className="text-[8px] font-bold" style={{
+                              color: path.endingType === 'good' ? S.success : path.endingType === 'bad' ? S.error : S.text3
+                            }}>
+                              路径 {i + 1}
+                            </span>
+                            <span className="text-[7px] px-1 py-0.5 rounded" style={{
+                              background: path.endingType === 'good' ? `${S.success}12` : `${S.error}12`,
+                              color: path.endingType === 'good' ? S.success : S.error,
+                            }}>
+                              {path.endingType === 'good' ? '好结局' : path.endingType === 'bad' ? '坏结局' : '终点'}
+                            </span>
+                            <span className="text-[7px]" style={{ color: S.text3 }}>{path.nodeIds.length} 步</span>
+                          </div>
+                          <div className="flex items-center gap-0.5 overflow-x-auto">
+                            {path.nodeIds.map((nodeId, j) => {
+                              const node = storyNodes.find(n => n.id === nodeId);
+                              const nodeType = node ? NODE_TYPE[node.type] : null;
+                              const isLast = j === path.nodeIds.length - 1;
+                              return (
+                                <div key={nodeId} className="flex items-center shrink-0">
+                                  <div className="px-1.5 py-0.5 rounded text-center" style={{
+                                    background: `${nodeType?.color || S.primary}10`,
+                                    border: `1px solid ${nodeType?.color || S.primary}25`,
+                                  }}>
+                                    <span className="text-[7px] font-mono block" style={{ color: S.text3 }}>{nodeId}</span>
+                                    <span className="text-[7px] font-bold block max-w-[50px] truncate" style={{ color: S.text }}>{node?.label ?? nodeId}</span>
+                                  </div>
+                                  {!isLast && <ChevronRight size={8} className="mx-0.5 shrink-0" style={{ color: S.text3 }} />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                      {pathTestResult.paths.length === 0 && (
+                        <p className="text-[9px] text-center py-2" style={{ color: S.text3 }}>未找到从起始节点到结局的路径</p>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
-              {simulatedPath.length === 0 && pathStartNode && (
+              {!pathTestResult && (
                 <p className="text-[9px] text-center py-2" style={{ color: S.text3 }}>
-                  点击「开始模拟」以追踪从该节点出发的路径
+                  点击「开始测试」以 BFS 扫描所有可达路径
                 </p>
               )}
             </div>
@@ -1603,14 +1598,6 @@ const UI_CATEGORIES: { id: UITemplateCategory | "all"; label: string }[] = [
   { id: "system",    label: "系统面板" },
 ];
 
-const UI_COVERAGE = [
-  { nodeType: "场景节点 (scene)", needed: ["dialog_box"], has: true, icon: "📖" },
-  { nodeType: "选择节点 (choice)", needed: ["choice_button"], has: true, icon: "🔀" },
-  { nodeType: "QTE 节点 (qte)", needed: ["qte_prompt"], has: false, icon: "⚡" },
-  { nodeType: "结局节点 (ending)", needed: ["menu_panel"], has: false, icon: "🏆" },
-  { nodeType: "系统 UI", needed: ["menu_panel", "save_slot", "settings_panel"], has: false, icon: "⚙️" },
-];
-
 // ── UI 资产清单（P4-10 主流程化）─────────────────────────────────────────────
 function buildUIAssetChecklist(genrePrefix: string) {
   return [
@@ -1629,8 +1616,6 @@ function UIContent() {
   const uiTemplates = useNarrativeStore(state => state.uiTemplates);
   const gameUISettings = useNarrativeStore(state => state.gameUISettings);
   const updateGameUISettings = useNarrativeStore(state => state.updateGameUISettings);
-  const updateUITemplate = useNarrativeStore(state => state.updateUITemplate);
-  const addUITemplate = useNarrativeStore(state => state.addUITemplate);
   const projectName = getCurrentProject()?.title || "当前项目";
   const projectGenre = getCurrentProject()?.genre || "互动叙事";
   const characters = useNarrativeStore(state => state.characters);
@@ -1653,7 +1638,6 @@ function UIContent() {
   );
   const [editingComponent, setEditingComponent] = useState<UIComponentDef | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [coverageOpen, setCoverageOpen] = useState(false);
   const [globalTextSpeed, setGlobalTextSpeed] = useState(gameUISettings.globalTextSpeed);
   const [showSkip, setShowSkip] = useState(gameUISettings.showSkipButton);
   const [showAuto, setShowAuto] = useState(gameUISettings.showAutoPlay);
@@ -1756,7 +1740,7 @@ function UIContent() {
   }
 
   // ── 实时预览：QTE ──
-  function QtePreview({ tpl }: { tpl: UITemplate }) {
+  function QtePreview({ tpl: _tpl }: { tpl: UITemplate }) {
     return (
       <div className="rounded-xl p-4 text-center" style={{ background: "rgba(0,0,0,0.75)", border: `2px solid ${S.error}` }}>
         <div className="text-lg font-black mb-1" style={{ color: S.error }}>!!</div>
@@ -3263,17 +3247,8 @@ export default function NodesScreen() {
   const pathname = location.pathname;
   const storyNodes = useNarrativeStore(state => state.storyNodes);
   const narrativeIntents = useNarrativeStore(state => state.narrativeIntents);
-  const crossCharacterEffects = useNarrativeStore(state => state.crossCharacterEffects);
-  const narrativeStates = useNarrativeStore(state => state.narrativeStates);
   const variables = useNarrativeStore(state => state.variables);
-  const characters = useNarrativeStore(state => state.characters);
   const consequenceChains = useNarrativeStore(state => state.consequenceChains);
-  const addNode = useNarrativeStore(state => state.addNode);
-  const removeNode = useNarrativeStore(state => state.removeNode);
-  const updateNode = useNarrativeStore(state => state.updateNode);
-  const addEdge = useNarrativeStore(state => state.addEdge);
-  const removeEdge = useNarrativeStore(state => state.removeEdge);
-  const projectName = getCurrentProject()?.title || "当前项目";
   const [activeTab, setActiveTab] = useState<TabId>("canvas");
   const [sel, setSel] = useState<string|null>(null);
   const [aiModal, setAiModal] = useState<"write"|"node"|"bgm"|"portrait"|null>(null);
@@ -3281,7 +3256,6 @@ export default function NodesScreen() {
   const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [diagView, setDiagView] = useState<DiagView>('all');
   const addToast = useUIStore(s => s.addToast);
-  const proMode = useUIStore(s => s.proMode);
   const selectedNode = sel ? storyNodes.find(n => n.id === sel) ?? null : null;
 
   // ── Tension curve for emotion rhythm bar ──
@@ -3299,13 +3273,6 @@ export default function NodesScreen() {
     { id: "ending", label: "结局", icon: Trophy },
     { id: "error", label: "有问题", icon: AlertTriangle },
   ];
-
-  const filteredSidebarNodes = storyNodes.filter(node => {
-    if (nodeFilter === "all") return true;
-    if (nodeFilter === "error") return (node as any).hasError;
-    if (nodeFilter === "ending") return node.type === "ending_good" || node.type === "ending_bad";
-    return node.type === nodeFilter;
-  });
 
   // ── Empty state check ─────────────────────────────────────────────────────
   if (storyNodes.length === 0) {
@@ -3619,7 +3586,7 @@ export default function NodesScreen() {
           actions={[
             { icon: Edit2, label: "编辑对白", href: "/interaction" },
             { icon: ImageIcon, label: "生成背景图", onClick: () => addToast({ type: "info", title: "即将上线", message: "AI 生图功能即将上线" }) },
-            { icon: Eye, label: "预览此节点", href: "/simulator" },
+            { icon: Eye, label: "预览此节点", href: `/simulator?node=${sel}` },
             { icon: MapPin, label: "查看路径" },
           ]}
         />

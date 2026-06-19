@@ -1,6 +1,5 @@
 /**
  * AuthBootstrap — initializes the local auth store on mount.
- * Replaces the old EazoProvider bootstrap logic.
  */
 
 import { useEffect } from "react";

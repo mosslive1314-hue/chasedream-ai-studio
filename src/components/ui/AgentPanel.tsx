@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "@tanstack/react-router";
 import {
   X, Send, AlertCircle, Loader2, CheckCircle2, XCircle,
   Sparkles, MessageSquare, ChevronRight, RotateCcw, ChevronDown,
   Lightbulb, Users, BookOpen,
 } from "lucide-react";
-import { useCanvasAgentStore, useExpertStore, useSkillStore } from "@/store";
+import { useCanvasAgentStore, useExpertStore, useSkillStore, useSettingsStore, useNarrativeStore } from "@/store";
 import type { AgentMessage, AgentRunStatus } from "@/store";
 import { ALL_EXPERTS, getPageStage } from "@/lib/ai/agent-orchestrator";
 import type { Expert } from "@/lib/types/expert";
+import { AIService } from "@/lib/ai/ai-service";
+import { createDefaultToolRegistry } from "@/lib/ai/tool-registry";
+import { AgentChatLoop, type ChatLoopCallbacks } from "@/lib/ai/agent-chat-loop";
+import type { ChatMessage } from "@/lib/ai/model-router";
 
 // ─── Design Tokens ──────────────────────────────────────────
 const S = {
@@ -145,7 +149,7 @@ function getQuickActions(page: string, expert?: Expert | null) {
 
 // ─── Main Component ─────────────────────────────────────────
 
-export function AgentPanel() {
+export function AgentPanel({ embedded = false }: { embedded?: boolean }) {
   const location = useLocation();
   const pathname = location.pathname;
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -171,6 +175,7 @@ export function AgentPanel() {
   const appendToLast      = useCanvasAgentStore(s => s.appendToLastMessage);
   const clearMessages     = useCanvasAgentStore(s => s.clearMessages);
   const errorMessage      = useCanvasAgentStore(s => s.errorMessage);
+  const setAbortController = useCanvasAgentStore(s => s.setAbortController);
 
   // Store selectors — Expert
   const activeExpertId    = useExpertStore(s => s.activeExpertId);
@@ -228,7 +233,111 @@ export function AgentPanel() {
     if (panelOpen) setTimeout(() => inputRef.current?.focus(), 200);
   }, [panelOpen]);
 
-  // ─── Simulate Agent Response (demo mode) ──────────────────
+  // ─── Real Agent Chat Loop ─────────────────────────────────
+  const chatLoopRef = useRef<AgentChatLoop | null>(null);
+
+  /** Resolve HITL confirmation via existing pending confirmation UI */
+  const resolveConfirmationRef = useRef<((approved: boolean) => void) | null>(null);
+
+  const agentSendMessage = useCallback(async (userText: string) => {
+    // Get settings and create AI service
+    const settings = useSettingsStore.getState();
+    const aiService = AIService.fromSettings({
+      apiKeys: settings.apiKeys,
+      aiModel: settings.aiModel,
+      apiBaseUrl: settings.apiBaseUrl,
+    });
+    const router = aiService.getRouter();
+
+    // Create tool registry with narrative store access
+    // 使用实时 getter，确保每次 tool handler 执行时获取最新 store 状态
+    const registry = createDefaultToolRegistry(() => useNarrativeStore.getState() as unknown as Record<string, unknown>);
+
+    // Create chat loop
+    const chatLoop = new AgentChatLoop(router, registry);
+    chatLoopRef.current = chatLoop;
+
+    // Build callbacks
+    const callbacks: ChatLoopCallbacks = {
+      onStatusChange: (status) => setRunStatus(status),
+      onStepChange: (step) => setCurrentStep(step),
+      onTextDelta: (delta) => {
+        appendToLast(delta);
+      },
+      onToolCallStart: (toolName, args) => {
+        addMessage({
+          role: "tool",
+          content: `调用工具: ${toolName}`,
+          toolCall: {
+            toolName,
+            args,
+            status: "executing",
+          },
+        });
+      },
+      onToolCallEnd: (toolName, result) => {
+        // Find the last tool message and update it
+        const msgs = useCanvasAgentStore.getState().messages;
+        const lastToolMsg = [...msgs].reverse().find((m) => m.toolCall && m.toolCall.status === "executing");
+        if (lastToolMsg) {
+          useCanvasAgentStore.getState().updateToolResult(
+            lastToolMsg.id,
+            JSON.stringify(result),
+            result.success ? "done" : "rejected"
+          );
+        }
+      },
+      onRequestConfirmation: (description) => {
+        return new Promise<boolean>((resolve) => {
+          resolveConfirmationRef.current = resolve;
+          useCanvasAgentStore.getState().setPendingConfirmation({
+            id: `hitl_${Date.now()}`,
+            description,
+            timestamp: new Date().toISOString(),
+          });
+          setRunStatus("waiting");
+        });
+      },
+      onError: (error) => {
+        useCanvasAgentStore.getState().setErrorMessage(error);
+      },
+      onComplete: () => {
+        chatLoopRef.current = null;
+        setAbortController(null);
+      },
+    };
+
+    // Add assistant message placeholder for streaming
+    const expert = getActiveExpert();
+    addMessage({
+      role: "assistant",
+      content: "",
+      decisionStep: "generate",
+      expertId: expert?.id,
+      expertRole: expert?.role,
+      expertAvatar: expert?.avatar,
+    });
+
+    // Build history from existing messages (convert AgentMessage → ChatMessage)
+    const currentMessages = useCanvasAgentStore.getState().messages;
+    const history: ChatMessage[] = currentMessages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .slice(0, -1) // exclude the placeholder we just added
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content || "",
+      }));
+
+    // Send message
+    await chatLoop.sendMessage(
+      userText,
+      history,
+      callbacks,
+      { currentPage: pathname, activeNodeId: useCanvasAgentStore.getState().activeNodeId ?? undefined }
+    );
+  }, [pathname, setRunStatus, setCurrentStep, addMessage, appendToLast, setAbortController, getActiveExpert]);
+
+  // ─── Fallback: Simulate Agent Response (demo mode) ────────
   const simulateAgentResponse = useCallback(async (userText: string) => {
     // Step 1: Understand
     setRunStatus("thinking");
@@ -280,15 +389,36 @@ export function AgentPanel() {
     // Potentially switch Expert based on keywords
     routeByKeywords(text);
     setInput("");
-    simulateAgentResponse(text);
-  }, [input, runStatus, addMessage, simulateAgentResponse, routeByKeywords]);
+
+    // Try real AI first; if no API key configured, fall back to demo
+    const settings = useSettingsStore.getState();
+    const hasApiKey = Object.keys(settings.apiKeys).length > 0 && Object.values(settings.apiKeys).some((k) => k && k.trim() !== "");
+    if (hasApiKey) {
+      agentSendMessage(text).catch((err) => {
+        console.warn("[AgentPanel] AI call failed, falling back to demo:", err);
+        simulateAgentResponse(text);
+      });
+    } else {
+      simulateAgentResponse(text);
+    }
+  }, [input, runStatus, addMessage, simulateAgentResponse, agentSendMessage, routeByKeywords]);
 
   // ─── Quick Action Handler ─────────────────────────────────
   const handleQuickAction = useCallback((prompt: string) => {
     if (runStatus !== "idle") return;
     addMessage({ role: "user", content: prompt });
-    simulateAgentResponse(prompt);
-  }, [runStatus, addMessage, simulateAgentResponse]);
+
+    const settings = useSettingsStore.getState();
+    const hasApiKey = Object.keys(settings.apiKeys).length > 0 && Object.values(settings.apiKeys).some((k) => k && k.trim() !== "");
+    if (hasApiKey) {
+      agentSendMessage(prompt).catch((err) => {
+        console.warn("[AgentPanel] AI call failed, falling back to demo:", err);
+        simulateAgentResponse(prompt);
+      });
+    } else {
+      simulateAgentResponse(prompt);
+    }
+  }, [runStatus, addMessage, simulateAgentResponse, agentSendMessage]);
 
   // ─── HITL Confirm/Reject ──────────────────────────────────
   const handleConfirm = useCallback((approved: boolean) => {
@@ -307,37 +437,38 @@ export function AgentPanel() {
     }
     setPendingConf(null);
     setRunStatus("idle");
+
+    // Resolve the HITL promise for AgentChatLoop
+    if (resolveConfirmationRef.current) {
+      resolveConfirmationRef.current(approved);
+      resolveConfirmationRef.current = null;
+    }
   }, [pendingConfirm, addMessage, setPendingConf, setRunStatus]);
 
   const quickActions = getQuickActions(pathname, activeExpert);
   const statusCfg = STATUS_CONFIG[runStatus];
 
-  // ─── Render (createPortal for overlay) ──────────────
+  // ─── Render ──────────────────────────────────────────────
   if (!mounted) return null;
-  return createPortal(
-    <>
-      {panelOpen && (
-        <>
-          {/* 半透明遮罩 — 纯视觉蒙版，不拦截任何点击事件 */}
-          <div
-            className="fixed inset-0"
-            style={{
-              zIndex: 9998,
-              background: "rgba(0,0,0,0.08)",
-              pointerEvents: "none",
-            }}
-          />
-          {/* Panel — 纯 CSS 定位，不依赖 framer-motion 动画 */}
-          <aside
-            className="fixed right-0 top-0 bottom-0 flex flex-col shadow-2xl"
-            style={{
-              zIndex: 10000,
-              width: 360,
-              background: S.card,
-              borderLeft: `1px solid ${S.border}`,
-              pointerEvents: "auto",
-            }}
-          >
+
+  // Panel content shared between embedded and portal modes
+  const panelContent = (
+    <aside
+      className={embedded
+        ? "flex flex-col h-full w-full"
+        : "fixed right-0 top-0 bottom-0 flex flex-col shadow-2xl"
+      }
+      style={{
+        ...(embedded ? {} : {
+          zIndex: 10000,
+          width: 360,
+          background: S.card,
+          borderLeft: `1px solid ${S.border}`,
+          pointerEvents: "auto",
+        }),
+        background: S.card,
+      }}
+    >
             {/* ── Header ─────────────────────────────────────── */}
             <div
               className="flex items-center justify-between px-4 h-11 shrink-0 border-b"
@@ -376,13 +507,15 @@ export function AgentPanel() {
                     <RotateCcw size={13} style={{ color: S.text3 }} />
                   </motion.button>
                 )}
-                <motion.button
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setPanelOpen(false)}
-                  className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  <X size={14} style={{ color: S.text3 }} />
-                </motion.button>
+                {!embedded && (
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => setPanelOpen(false)}
+                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                  >
+                    <X size={14} style={{ color: S.text3 }} />
+                  </motion.button>
+                )}
               </div>
             </div>
 
@@ -782,14 +915,36 @@ export function AgentPanel() {
                   Cmd+J 切换 · Esc 关闭
                 </span>
                 <span className="text-xs" style={{ color: S.text3, fontSize: 10 }}>
-                  Demo 模式 — 待接入 AI
+                  {Object.keys(useSettingsStore.getState().apiKeys).some(k => useSettingsStore.getState().apiKeys[k]) ? "AI 模式" : "Demo 模式 — 待配置 API Key"}
                 </span>
               </div>
             </div>
           </aside>
+  );
+
+  // ── Embedded mode: always visible, no portal/overlay ──
+  if (embedded) {
+    return panelContent;
+  }
+
+  // ── Legacy overlay mode: portal with backdrop ──
+  return createPortal(
+    <AnimatePresence>
+      {panelOpen && (
+        <>
+          {/* 半透明遮罩 — 纯视觉蒙版，不拦截任何点击事件 */}
+          <div
+            className="fixed inset-0"
+            style={{
+              zIndex: 9998,
+              background: "rgba(0,0,0,0.08)",
+              pointerEvents: "none",
+            }}
+          />
+          {panelContent}
         </>
       )}
-    </>,
+    </AnimatePresence>,
     document.body
   );
 }
